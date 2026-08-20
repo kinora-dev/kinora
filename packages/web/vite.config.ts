@@ -16,7 +16,8 @@ export default defineConfig({
     ValidateEnv({
       validator: 'standard',
       schema: {
-        VITE_KINORA_SERVER_URL: z.url(),
+        // Empty or unset = same origin, which is how the self-host image runs (nginx proxies the API).
+        VITE_KINORA_SERVER_URL: z.union([z.url(), z.literal('')]).optional(),
         VITE_KINORA_VIEWER_URL: z.string().optional(),
         VITE_KINORA_CLOUD: z.string().optional(),
         VITE_KINORA_SENTRY_DSN: z.string().optional(),

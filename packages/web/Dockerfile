@@ -2,11 +2,13 @@
 # Build from the REPO ROOT (pnpm workspace):
 #   docker build -f packages/web/Dockerfile \
 #     --build-arg VITE_KINORA_SERVER_URL=https://api.kinora.dev -t kinora-web .
+# Omit that arg when the API answers on the dashboard's own origin (the self-host image, which
+# also bakes the proxying nginx.conf below); the dashboard then falls back to window.location.origin.
 FROM node:26-alpine AS build
 RUN npm i -g corepack@latest && corepack enable
 WORKDIR /repo
 
-# Baked at build time (Vite). VITE_KINORA_VIEWER_URL defaults to /trace/ (same origin).
+# Baked at build time (Vite). Unset = same origin. VITE_KINORA_VIEWER_URL defaults to /trace/.
 ARG VITE_KINORA_SERVER_URL
 ENV VITE_KINORA_SERVER_URL=$VITE_KINORA_SERVER_URL
 
@@ -35,8 +37,8 @@ RUN --mount=type=secret,id=sentry_auth_token \
 RUN pnpm --filter @kinora/trace-viewer build
 
 FROM nginx:1.27-alpine AS runtime
-# Default = cloud (static-only, API is a separate origin). Single-origin demo/self-host passes
-# NGINX_CONF=selfhost/nginx.conf to bake the reverse-proxy config instead.
+# Default = cloud (static-only, API is a separate origin). The published self-host image and the
+# demo pass NGINX_CONF=selfhost/nginx.conf to bake the reverse-proxy config instead.
 ARG NGINX_CONF=packages/web/nginx.conf
 COPY ${NGINX_CONF} /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/packages/web/dist /usr/share/nginx/html

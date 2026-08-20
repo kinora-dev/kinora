@@ -1,0 +1,20 @@
+# Build the images from a repo checkout instead of pulling them from GHCR:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# Build context is the repo root (the images need the pnpm workspace), so this file only works
+# inside a clone, not next to a downloaded docker-compose.yml.
+services:
+  migrate:
+    build: &server-build
+      context: ..
+      dockerfile: packages/server/Dockerfile
+
+  server:
+    build: *server-build
+
+  web:
+    build:
+      context: ..
+      dockerfile: packages/web/Dockerfile
+      args:
+        # Same as the published image: bake the single-origin reverse-proxy config.
+        NGINX_CONF: selfhost/nginx.conf

@@ -130,10 +130,10 @@ Binary artifacts (trace.zip) go through the `Storage` interface in `src/lib/stor
 
 Two per-package Dockerfiles, both built from the **repo root** (workspace context):
 
-- `packages/web/Dockerfile`: builds `web` + `trace-viewer` static output, serves both from nginx (dashboard SPA at `/`, viewer at `/trace`). `VITE_KINORA_SERVER_URL` is baked at build time via `--build-arg`; `VITE_KINORA_VIEWER_URL` defaults to `/trace/` (same origin).
+- `packages/web/Dockerfile`: builds `web` + `trace-viewer` static output, serves both from nginx (dashboard SPA at `/`, viewer at `/trace`). `VITE_KINORA_SERVER_URL` is baked at build time via `--build-arg`, and is **optional**: unset means same origin (`web/src/lib/env.ts` falls back to `window.location.origin`), which is what self-host runs. `VITE_KINORA_VIEWER_URL` defaults to `/trace/` (same origin). `NGINX_CONF` picks the config baked in (cloud static-only by default, `selfhost/nginx.conf` for the single-origin image).
 - `packages/server/Dockerfile`: the Node/`tsx` server image. Its `migrate.mjs` is also the entrypoint for the one-shot migration step.
 
-`selfhost/` is the shipped single-origin self-host bundle: `docker-compose.yml` (Postgres + one-shot `migrate` + server + web) and `nginx.conf` (the web container reverse-proxies `/api`, `/trpc`, `/artifacts` to the server, so there's no CORS and the cookie stays host-only). Configured by `selfhost/.env`; runs `KINORA_CLOUD=false`.
+`selfhost/` is the shipped single-origin self-host bundle: `docker-compose.yml` (Postgres + one-shot `migrate` + server + web) and `nginx.conf` (the web container reverse-proxies `/api`, `/trpc`, `/artifacts` to the server, so there's no CORS and the cookie stays host-only). Configured by `selfhost/.env`; runs `KINORA_CLOUD=false`. It **pulls prebuilt images** (`ghcr.io/kinora-dev/kinora-{server,web}:${KINORA_VERSION:-latest}`), so users need no clone and no build; `docker-compose.build.yml` is the override that restores `build:` from a checkout. The **Docker Release** workflow (`.github/workflows/docker-release.yml`, manual `workflow_dispatch` with a version input) publishes them: one job per image per arch on native runners (`ubuntu-latest` + `ubuntu-24.04-arm`, pushing by digest), then a `manifest` job folds the digests into the version/`latest` tags with `docker buildx imagetools create`. The published web image bakes `selfhost/nginx.conf`.
 
 ### Marketing site
 

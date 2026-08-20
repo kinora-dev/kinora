@@ -64,7 +64,7 @@ Point a coding agent at your kinora data with [`@kinora/mcp`](packages/mcp): it 
 
 ## Self-hosting
 
-One `docker compose` brings up the whole stack (Postgres + server + dashboard, single origin, local-FS artifacts). See [`selfhost/README.md`](selfhost/README.md).
+One `docker compose` brings up the whole stack (Postgres + server + dashboard, single origin, local-FS artifacts). The images are prebuilt for amd64 and arm64 (`ghcr.io/kinora-dev/kinora-server`, `ghcr.io/kinora-dev/kinora-web`), so there is nothing to clone or compile. See [`selfhost/README.md`](selfhost/README.md).
 
 ## Development
 

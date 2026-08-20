@@ -5,12 +5,16 @@ origin, with trace artifacts on a local volume.
 
 ## Quickstart
 
-From this `selfhost/` directory:
+The images are prebuilt, so there is nothing to clone and nothing to compile. Two files and one
+command:
 
 ```bash
-cp .env.example .env
+mkdir kinora && cd kinora
+base=https://raw.githubusercontent.com/Kinora-dev/kinora/main/selfhost
+curl -fsSLO "$base/docker-compose.yml"
+curl -fsSL -o .env "$base/.env.example"
 # edit at least: PUBLIC_URL, AUTH_SECRET, POSTGRES_PASSWORD
-docker compose up -d --build
+docker compose up -d
 ```
 
 Open `PUBLIC_URL` (default http://localhost:8080) and create your account. The first user owns
@@ -19,10 +23,20 @@ their workspace; invite teammates from Settings.
 ## What's here
 
 - `docker-compose.yml` - Postgres, a one-shot migrate, the server, and the web container.
-- `nginx.conf` - the web container's reverse proxy (serves the dashboard + trace viewer, proxies the API to the server).
 - `.env.example` - all configuration.
+- `nginx.conf` - the web container's reverse proxy (serves the dashboard + trace viewer, proxies
+  the API to the server). Already baked into the published web image; keep it around only to
+  customize it (`- ./nginx.conf:/etc/nginx/conf.d/default.conf:ro` on the `web` service).
+- `docker-compose.build.yml` - optional override to build the images from a clone instead of
+  pulling them.
 
-Images are built from the repo root via the per-package Dockerfiles; the compose `build.context` is `..`.
+The images are `ghcr.io/kinora-dev/kinora-server` and `ghcr.io/kinora-dev/kinora-web`, published
+for `linux/amd64` and `linux/arm64`. `KINORA_VERSION` in `.env` picks the tag. To build them
+yourself from a checkout of this repo:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
 
 ## How it works
 
@@ -36,6 +50,7 @@ automatically (the `migrate` service) before the server starts.
 
 | Var                                                   | Required | Notes                                                                      |
 | ----------------------------------------------------- | -------- | -------------------------------------------------------------------------- |
+| `KINORA_VERSION`                                      | no       | Image tag to run (default `latest`). Pin a version to control upgrades.    |
 | `PUBLIC_URL`                                          | yes      | The URL users reach kinora at. Drives links, cookies, and artifact URLs.   |
 | `WEB_PORT`                                            | no       | Host port for the web container (default 8080). Match `PUBLIC_URL`.        |
 | `AUTH_SECRET`                                         | yes      | Session secret. `openssl rand -hex 32`.                                    |
@@ -99,17 +114,17 @@ Create the token in the dashboard under Settings -> Workspace. See the
 
 Set `PUBLIC_URL` to your public https URL (e.g. `https://kinora.example.com`) and put the web
 container behind your own TLS proxy (Caddy, Traefik, nginx, a load balancer, ...) forwarding to
-`WEB_PORT`. Rebuild the web image after changing `PUBLIC_URL` (it is baked at build time):
-`docker compose up -d --build web`.
+`WEB_PORT`. The dashboard calls the API on whatever origin it is served from, so `PUBLIC_URL` is
+server-side only: `docker compose up -d` is enough after changing it.
 
 ## Upgrades
 
 ```bash
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-Migrations apply automatically on start.
+Migrations apply automatically on start. With `KINORA_VERSION` pinned, bump it in `.env` first.
 
 ## Backups
 

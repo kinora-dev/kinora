@@ -10,7 +10,7 @@ Self-host is configured entirely through `.env` (read by `docker-compose.yml`). 
 
 | Variable | Notes |
 | --- | --- |
-| `PUBLIC_URL` | The URL users reach kinora at. Drives links, cookies, and artifact URLs. Default `http://localhost:8080`. Baked into the web image at build time. |
+| `PUBLIC_URL` | The URL users reach kinora at. Drives links, cookies, and artifact URLs. Default `http://localhost:8080`. Server-side only: changing it needs a restart, not a rebuild. |
 | `AUTH_SECRET` | Session secret. Generate one: `openssl rand -hex 32`. |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Database credentials. |
 
@@ -18,6 +18,7 @@ Self-host is configured entirely through `.env` (read by `docker-compose.yml`). 
 
 | Variable | Default | Notes |
 | --- | --- | --- |
+| `KINORA_VERSION` | `latest` | Image tag to run. Pin a version (e.g. `0.1.0`) to control upgrades. |
 | `WEB_PORT` | `8080` | Host port the web container binds to. Match `PUBLIC_URL`. |
 | `POSTGRES_PORT` | `5432` | Postgres port. `POSTGRES_HOST` is set to the compose service automatically. |
 | `KINORA_CLOUD` | `false` | Keep `false` for self-host: no billing, every feature unlimited. |

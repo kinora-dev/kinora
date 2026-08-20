@@ -9,13 +9,16 @@ billing, and every feature (including alerts) is unlimited.
 
 ## Quickstart
 
-From the [`selfhost/`](https://github.com/Kinora-dev/kinora/tree/main/selfhost) directory of the
-repo:
+The images are prebuilt, so there is nothing to clone and nothing to compile. Grab the two files
+from [`selfhost/`](https://github.com/Kinora-dev/kinora/tree/main/selfhost) and start the stack:
 
 ```bash
-cp .env.example .env
+mkdir kinora && cd kinora
+base=https://raw.githubusercontent.com/Kinora-dev/kinora/main/selfhost
+curl -fsSLO "$base/docker-compose.yml"
+curl -fsSL -o .env "$base/.env.example"
 # edit at least: PUBLIC_URL, AUTH_SECRET, POSTGRES_PASSWORD
-docker compose up -d --build
+docker compose up -d
 ```
 
 Open `PUBLIC_URL` (default `http://localhost:8080`) and create your account. The first user owns
@@ -24,12 +27,25 @@ their workspace; invite teammates from Settings.
 ## What's in the bundle
 
 - `docker-compose.yml` - Postgres, a one-shot migrate, the server, and the web container.
-- `nginx.conf` - the web container's reverse proxy: serves the dashboard + trace viewer and
-  proxies the API to the server.
 - `.env.example` - all configuration.
+- `nginx.conf` - the web container's reverse proxy: serves the dashboard + trace viewer and
+  proxies the API to the server. Already baked into the published web image; keep it around only
+  to customize it (mount it over `/etc/nginx/conf.d/default.conf`).
+- `docker-compose.build.yml` - optional override to build the images from a clone instead of
+  pulling them.
 
-Images are built from the repo root via the per-package Dockerfiles; the compose `build.context`
-is `..`.
+## Images
+
+- `ghcr.io/kinora-dev/kinora-server`
+- `ghcr.io/kinora-dev/kinora-web`
+
+Both are published for `linux/amd64` and `linux/arm64`. `KINORA_VERSION` in `.env` picks the tag:
+`latest` tracks the newest release, or pin a version (e.g. `0.1.0`) to control when you upgrade.
+To build them yourself instead, from a clone of the repo:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
 
 ## How it works
 
@@ -60,14 +76,15 @@ Create the token in the dashboard under **Settings → Workspace**. See
 
 Set `PUBLIC_URL` to your public https URL (e.g. `https://kinora.example.com`) and put the web
 container behind your own TLS proxy (Caddy, Traefik, nginx, a load balancer) forwarding to
-`WEB_PORT`. `PUBLIC_URL` is baked into the web image at build time, so rebuild after changing it:
+`WEB_PORT`. The dashboard calls the API on whatever origin it is served from, so `PUBLIC_URL` is
+server-side only and a restart is enough:
 
 ```bash
-docker compose up -d --build web
+docker compose up -d
 ```
 
 ## Next
 
 - [Configuration](/self-hosting/configuration/): every `.env` variable.
 - [Storage & artifacts](/self-hosting/storage/): local volume vs S3-compatible store.
-- [Upgrading & backups](/self-hosting/upgrading/): pull, rebuild, and back up your volumes.
+- [Upgrading & backups](/self-hosting/upgrading/): pull the new images and back up your volumes.

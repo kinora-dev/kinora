@@ -1,23 +1,22 @@
 ---
 title: Upgrading & backups
-description: Pull the latest kinora, rebuild the stack, and back up your data volumes.
+description: Pull the latest kinora images, restart the stack, and back up your data volumes.
 ---
 
 ## Upgrading
 
 ```bash
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 Migrations apply automatically on start (the one-shot `migrate` service runs before the server).
 There is no separate migration step to run.
 
-If you changed `PUBLIC_URL`, rebuild the web image specifically, since it is baked at build time:
-
-```bash
-docker compose up -d --build web
-```
+`docker compose pull` follows `KINORA_VERSION` in your `.env`. On `latest` it fetches the newest
+release; if you pinned a version, bump it there first. Rolling back is the same move in reverse:
+set the older tag and `docker compose up -d`. Migrations are forward-only, so a rollback across a
+schema change needs a database restore from your backup.
 
 ## Backups
 
