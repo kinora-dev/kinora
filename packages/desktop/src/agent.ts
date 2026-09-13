@@ -301,7 +301,10 @@ export interface AgentChange {
 
 function git(args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile('git', args, { cwd, maxBuffer: 32 * 1024 * 1024 }, (err, stdout) => {
+    // `color.ui = always` colours output even when stdout is not a tty, which would
+    // render the reviewed diff as ANSI escape codes. color.diff has to be cleared
+    // too: it overrides color.ui for diff output.
+    execFile('git', ['-c', 'color.ui=false', '-c', 'color.diff=false', ...args], { cwd, maxBuffer: 32 * 1024 * 1024 }, (err, stdout) => {
       if (err) {
         // Keep partial stdout on the error: `diff --no-index` exits 1 *with* the diff.
         (err as NodeJS.ErrnoException & { stdout?: string }).stdout = stdout
