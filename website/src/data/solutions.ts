@@ -81,9 +81,9 @@ export const SOLUTIONS: Solution[] = [
     slug: 'playwright-flaky-test-dashboard',
     eyebrow: 'Flaky tests',
     h1: 'A flaky test dashboard for Playwright',
-    title: 'Playwright flaky test dashboard | kinora',
+    title: 'Playwright flaky test dashboard - rank every flake | kinora',
     description:
-      'kinora watches every Playwright run and surfaces the tests that pass and fail without code changes, so you can find, rank, and fix flaky tests instead of hitting retry.',
+      'See which Playwright tests pass and fail without a code change, ranked by how often they flip, with the full history and the trace one click away. Stop hitting retry.',
     tldr:
       'kinora is a flaky test dashboard for Playwright: it watches every run and surfaces the tests that pass and fail without code changes, so you can find, rank, and fix them instead of hitting retry.',
     intro:
@@ -127,9 +127,9 @@ export const SOLUTIONS: Solution[] = [
     slug: 'playwright-trace-viewer-online',
     eyebrow: 'Trace viewer',
     h1: 'The Playwright trace viewer, online',
-    title: 'Playwright trace viewer online, in the browser | kinora',
+    title: 'Playwright trace viewer online - open trace.zip in the browser',
     description:
-      'kinora embeds the full Playwright trace viewer in the browser, so any failure opens inline, live or from run history. No downloading trace.zip, no local show-trace.',
+      'Open a Playwright trace in your browser: the real trace viewer, with timeline, DOM snapshots, network and console. No trace.zip download, no playwright show-trace.',
     tldr:
       'kinora embeds the full Playwright trace viewer in the browser, so any failure, live or from run history, opens inline. No downloading trace.zip, no local playwright show-trace.',
     intro:
