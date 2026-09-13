@@ -14,7 +14,7 @@ services:
   # S3-compatible store for exercising the S3 storage path; storage-s3.test.ts targets it on :9000.
   minio:
     container_name: kinora_minio
-    image: minio/minio
+    image: quay.io/minio/minio
     command: server /data
     environment:
       MINIO_ROOT_USER: minio
