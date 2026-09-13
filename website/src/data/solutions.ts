@@ -141,9 +141,9 @@ export const SOLUTIONS: Solution[] = [
     description:
       'Open a Playwright trace in your browser: the real trace viewer, with timeline, DOM snapshots, network and console. No trace.zip download, no playwright show-trace.',
     tldr:
-      'kinora embeds the full Playwright trace viewer in the browser, so any failure, live or from run history, opens inline. No downloading trace.zip, no local playwright show-trace.',
+      'Drop a trace.zip and it opens right here, in your browser. No install, no account, and the file never leaves your machine.',
     intro:
-      'Debugging a CI failure usually means downloading a trace.zip and running the trace viewer locally. kinora hosts the trace and embeds the real Playwright trace viewer in the dashboard, so a red test is one click from its full timeline, DOM snapshots, network, and console, right in the browser.',
+      'The Playwright trace viewer is normally something you run locally: download trace.zip from CI, then playwright show-trace. kinora runs the real viewer as a web page instead, so a trace opens the moment you pick it, with the full timeline, DOM snapshots, network, console, and source. The zip is read in your browser by a service worker, so nothing is uploaded anywhere. Connect your CI later and the same viewer opens every failure straight from your run history.',
     shot: 'trace-viewer',
     shotAlt: 'the Playwright trace viewer embedded in kinora, showing timeline, snapshot, and network panels',
     cta: {
@@ -153,34 +153,42 @@ export const SOLUTIONS: Solution[] = [
     },
     points: [
       {
+        title: 'Nothing to install',
+        body: 'Drop a trace.zip on the page and it opens. No show-trace, no download step, no sign-up.',
+      },
+      {
+        title: 'The trace stays on your machine',
+        body: 'The zip is read locally in your browser, never uploaded, so traces from a private project stay private.',
+      },
+      {
         title: 'The real trace viewer',
-        body: 'The same Playwright trace viewer you know, timeline, DOM snapshots, network, and console, running inside the dashboard.',
+        body: 'Timeline, DOM snapshots, network, console, and source, vendored straight from Playwright, so everything behaves as you expect.',
       },
       {
-        title: 'No download step',
-        body: 'Click a failure and the trace opens inline. No fetching trace.zip and running show-trace on your machine.',
-      },
-      {
-        title: 'Works on history',
-        body: 'Open the trace for any past run, not just the latest, because kinora keeps them.',
-      },
-      {
-        title: 'Desktop app too',
-        body: 'Prefer local? The kinora desktop app is a standalone Playwright trace viewer that needs no account.',
+        title: 'Then straight from CI',
+        body: 'Send your runs to kinora and the same viewer opens on any failure, from any past run, with no artifact dance.',
       },
     ],
     faqs: [
       {
-        q: 'Can I view a Playwright trace online without downloading it?',
-        a: 'Yes. kinora hosts the trace and embeds the Playwright trace viewer in the browser, so it opens inline on any failure with no download step.',
+        q: 'Can I open a Playwright trace online without installing anything?',
+        a: 'Yes. Drop a trace.zip on the viewer and it opens in your browser, with no install, no account, and nothing to configure.',
+      },
+      {
+        q: 'Is my trace uploaded to kinora?',
+        a: 'No. The zip is read locally in your browser by a service worker, the same way the viewer reads a remote trace. It never reaches a kinora server.',
       },
       {
         q: 'Is it the real Playwright trace viewer?',
         a: 'Yes. The trace viewer is vendored from Playwright, so the timeline, snapshots, network, and console tabs behave exactly as you expect.',
       },
       {
-        q: 'Can I open a local trace without an account?',
-        a: 'Yes, with the kinora desktop app, a standalone local Playwright trace viewer that needs no account.',
+        q: 'Can I open traces from CI automatically?',
+        a: 'Yes. Send your runs with @kinora/reporter or the CLI, and every failure opens its trace inline in the dashboard, for any run kinora has kept.',
+      },
+      {
+        q: 'Is there a desktop app?',
+        a: 'Yes. The kinora desktop app is a standalone Playwright trace viewer that opens traces from your file manager, also without an account.',
       },
     ],
   },
