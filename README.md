@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kinora-dev/kinora/releases/latest"><img src="https://img.shields.io/github/v/release/Kinora-dev/kinora" alt="Release"></a>
+  <a href="https://www.npmjs.com/package/@kinora/reporter"><img src="https://img.shields.io/npm/v/%40kinora%2Freporter?label=%40kinora%2Freporter" alt="@kinora/reporter on npm"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-FSL--1.1--MIT-blue" alt="License: FSL-1.1-MIT"></a>
   <img src="https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white" alt="Playwright">
 </p>
