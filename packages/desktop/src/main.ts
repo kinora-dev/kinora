@@ -464,9 +464,15 @@ async function main(): Promise<void> {
   port = started.port
   registerIpc()
 
-  // Viewer probe: open a trace window and assert it renders.
+  // Viewer probe: open a trace window and assert it renders. With no trace to
+  // open the viewer shows its drop zone, so the probe names the bundled demo
+  // fixture rather than relying on an implicit default.
   if (VIEWER_PROBE) {
-    openViewer(PROBE_TRACE || pendingOpen || argvTrace())
+    const trace = PROBE_TRACE || pendingOpen || argvTrace()
+    if (trace)
+      openViewer(trace)
+    else
+      openViewerUrl(`http://127.0.0.1:${port}/trace/fixtures/demo.zip`)
     await probeViewer()
     return
   }

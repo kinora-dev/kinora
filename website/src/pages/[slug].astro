@@ -96,11 +96,11 @@ const related = SOLUTIONS.filter(o => o.slug !== s.slug)
           style="--reveal-delay: 220ms"
         >
           <a
-            href={SITE.signup}
-            data-umami-event={`get-started-${s.slug}`}
+            href={s.cta?.href ?? SITE.signup}
+            data-umami-event={s.cta?.event ?? `get-started-${s.slug}`}
             class="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-6 font-mono text-sm font-semibold text-background transition-opacity hover:opacity-90"
           >
-            Get started
+            {s.cta?.label ?? 'Get started'}
             <ArrowRight class="size-4" aria-hidden="true" />
           </a>
           <a

@@ -6,6 +6,9 @@ export const SITE = {
   signup: 'https://app.kinora.dev/signup',
   demo: 'https://demo.kinora.dev',
   docs: 'https://docs.kinora.dev',
+  // Same origin as the marketing site on purpose: the trace viewer needs a
+  // service worker, and the SEO page that ranks for it should keep the visit.
+  traceViewer: 'https://kinora.dev/trace/',
   repo: 'https://github.com/Kinora-dev/kinora',
   selfhost: 'https://docs.kinora.dev/self-hosting/',
   download: 'https://github.com/Kinora-dev/kinora/releases/latest',

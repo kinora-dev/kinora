@@ -1,3 +1,5 @@
+import { SITE } from '../lib/site'
+
 export type ShotKey = 'overview' | 'test-history' | 'tests' | 'trace-viewer' | 'compare' | 'project'
 
 export interface SolPoint {
@@ -15,6 +17,12 @@ export interface SolTool {
   desc: string
 }
 
+export interface SolCta {
+  label: string
+  href: string
+  event: string
+}
+
 export interface Solution {
   slug: string
   eyebrow: string
@@ -26,6 +34,8 @@ export interface Solution {
   shot?: ShotKey
   shotAlt?: string
   mcp?: { config: string, tools: SolTool[] }
+  // Overrides the default "Get started" hero button when the page has a tool to open.
+  cta?: SolCta
   points: SolPoint[]
   faqs: SolFaq[]
 }
@@ -136,6 +146,11 @@ export const SOLUTIONS: Solution[] = [
       'Debugging a CI failure usually means downloading a trace.zip and running the trace viewer locally. kinora hosts the trace and embeds the real Playwright trace viewer in the dashboard, so a red test is one click from its full timeline, DOM snapshots, network, and console, right in the browser.',
     shot: 'trace-viewer',
     shotAlt: 'the Playwright trace viewer embedded in kinora, showing timeline, snapshot, and network panels',
+    cta: {
+      label: 'Open a trace',
+      href: SITE.traceViewer,
+      event: 'open-trace-viewer',
+    },
     points: [
       {
         title: 'The real trace viewer',

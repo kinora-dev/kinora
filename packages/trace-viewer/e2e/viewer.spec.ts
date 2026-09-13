@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
+  // The bare viewer now shows the drop zone, so the demo trace is explicit.
+  await page.goto('/?trace=fixtures/demo.zip')
   // Trace loads asynchronously once the service worker controls the page.
   await expect(page.getByTestId('action').first()).toBeVisible()
 })

@@ -24,6 +24,8 @@ type Status = 'idle' | 'loading' | 'ready' | 'error'
 const status = ref<Status>('idle')
 const errorMessage = ref('')
 const traceUri = ref('')
+// Display name for a trace opened from disk; remote traces show their URL instead.
+const traceName = ref('')
 const model = shallowRef<TraceModel | null>(null)
 const items = shallowRef<ActionItem[]>([])
 const collapsed = ref<Set<string>>(new Set())
@@ -59,9 +61,10 @@ async function registerServiceWorker(): Promise<void> {
   }, 10_000)
 }
 
-async function load(uri: string): Promise<void> {
+async function load(uri: string, name = ''): Promise<void> {
   status.value = 'loading'
   traceUri.value = uri
+  traceName.value = name
   try {
     await registerServiceWorker()
     const res = await fetch(`contexts?trace=${encodeURIComponent(uri)}`)
@@ -86,6 +89,18 @@ async function load(uri: string): Promise<void> {
     errorMessage.value = err?.message ?? String(err)
     status.value = 'error'
   }
+}
+
+// Opening a trace from disk stays entirely client-side: the object URL is fetched
+// by the service worker, which range-reads the zip exactly as for a remote trace.
+// Nothing is uploaded.
+let objectUrl: string | null = null
+
+async function loadFile(file: File): Promise<void> {
+  if (objectUrl)
+    URL.revokeObjectURL(objectUrl)
+  objectUrl = URL.createObjectURL(file)
+  await load(objectUrl, file.name)
 }
 
 // Hide descendants of collapsed nodes: skip rows deeper than the last collapsed one.
@@ -192,6 +207,7 @@ export function useTraceStore() {
     status,
     errorMessage,
     traceUri,
+    traceName,
     model,
     items,
     visibleItems,
@@ -209,6 +225,7 @@ export function useTraceStore() {
     timeRange,
     boundaries,
     load,
+    loadFile,
     select,
     step,
     setTab,
