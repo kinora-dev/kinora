@@ -1,7 +1,8 @@
 ---
-import { Clock, CodeXml, Globe, Sparkles, SquareTerminal } from '@lucide/astro'
+import { Clock, CodeXml, FileUp, Globe, Sparkles, SquareTerminal } from '@lucide/astro'
 import traceDark from '../assets/screenshots/trace-viewer-dark.png'
 import traceLight from '../assets/screenshots/trace-viewer-light.png'
+import { SITE } from '../lib/site'
 import Screenshot from './Screenshot.astro'
 
 const chips = [
@@ -62,6 +63,23 @@ const chips = [
           )
         })
       }
+    </div>
+
+    <div
+      class="reveal mt-10 flex flex-col items-center gap-3"
+      style="--reveal-delay: 240ms"
+    >
+      <a
+        href={SITE.traceViewer}
+        data-umami-event="open-trace-viewer-home"
+        class="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-6 font-mono text-sm font-semibold text-background transition-opacity hover:opacity-90"
+      >
+        <FileUp class="size-4" aria-hidden="true" />
+        Open a trace
+      </a>
+      <p class="text-xs text-muted-foreground">
+        No account. The file stays in your browser.
+      </p>
     </div>
 
     <div class="reveal mt-14" style="--reveal-delay: 120ms">

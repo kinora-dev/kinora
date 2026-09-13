@@ -2,7 +2,7 @@
 
 A dashboard for your Playwright tests - across projects and over time - with an embedded trace viewer.
 
-**[Live demo](https://demo.kinora.dev)** (read-only, no sign-up) · [Website](https://kinora.dev) · [Docs](https://docs.kinora.dev) · [Cloud](https://app.kinora.dev)
+**[Live demo](https://demo.kinora.dev)** (read-only, no sign-up) · **[Open a trace](https://kinora.dev/trace)** (no account) · [Website](https://kinora.dev) · [Docs](https://docs.kinora.dev) · [Cloud](https://app.kinora.dev)
 
 Playwright ships a great HTML report for a single run. kinora sits one level up: push every CI run to a kinora server and get one place to track pass rates, spot trends, and surface flaky tests over time. Failing tests get a **View trace** button that opens the full Playwright trace (DOM / timeline / network / console) right in the dashboard, no separate tooling.
 
@@ -53,6 +53,8 @@ Diff any two runs: newly failing, fixed, newly flaky, and still failing, grouped
 
 Failing tests get a **View trace** button that opens the full Playwright trace inline - DOM, timeline, network, console - plus a **Copy prompt** to hand the failure to an LLM.
 
+The same viewer also runs standalone at **[kinora.dev/trace](https://kinora.dev/trace)** - drop a `trace.zip` and it opens in your browser. No account, and the file is never uploaded.
+
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/trace-viewer-light.png">
   <img alt="Embedded Playwright trace viewer" src="docs/screenshots/trace-viewer-dark.png">
@@ -64,7 +66,7 @@ Get notified when a run brings new failures or regressions. Each project can pos
 
 ## Desktop app
 
-A desktop app that signs into your account and opens straight on the latest run's failures. Re-run a failing test locally with your repo's own Playwright, jump to the source in your editor, copy a ready-to-paste AI prompt, or open the full trace inline. It also opens any local `trace.zip` with no account at all, a self-contained replacement for `playwright show-trace`.
+A desktop app that signs into your account and opens straight on the latest run's failures. Re-run a failing test locally with your repo's own Playwright, jump to the source in your editor, copy a ready-to-paste AI prompt, or open the full trace inline. It also opens any local `trace.zip` straight from your file manager, with no account, as a self-contained replacement for `playwright show-trace`.
 
 [Download](https://github.com/Kinora-dev/kinora/releases/latest) for macOS, Windows, or Linux. Auto-updates from there.
 
