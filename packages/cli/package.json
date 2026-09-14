@@ -39,15 +39,15 @@
     "prepublishOnly": "tsdown"
   },
   "dependencies": {
-    "zod": "^4.4.3"
+    "zod": "^4.6.4"
   },
   "devDependencies": {
     "@kinora/core": "workspace:*",
-    "@types/node": "^26.0.0",
-    "@vitest/coverage-v8": "^4.1.9",
-    "tsdown": "^0.22.3",
-    "tsx": "^4.22.4",
+    "@types/node": "^26.5.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "tsdown": "^0.22.14",
+    "tsx": "^4.23.13",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.11"
   }
 }

@@ -45,11 +45,11 @@
     "@kinora/core": "workspace:*"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.0",
-    "@types/node": "^26.0.0",
-    "@vitest/coverage-v8": "^4.1.9",
-    "tsdown": "^0.22.3",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.5.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "tsdown": "^0.22.14",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.11"
   }
 }

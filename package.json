@@ -24,8 +24,8 @@
     "test:e2e": "pnpm -r test:e2e"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.0.0",
-    "eslint": "^10.5.0",
+    "@antfu/eslint-config": "^9.5.1",
+    "eslint": "^10.10.0",
     "eslint-plugin-astro": "^1.7.0",
     "typescript": "~6.0.3"
   }
