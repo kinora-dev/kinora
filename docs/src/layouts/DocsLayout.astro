@@ -31,15 +31,25 @@ const activeItem = NAV.flatMap(g => g.items).find(it => norm(hrefFor(it.slug)) =
 const { prev, next } = activeItem ? neighbors(activeItem.slug) : {}
 
 const activeGroup = NAV.find(g => g.items.some(it => norm(hrefFor(it.slug)) === here))
+const abs = (path: string) => new URL(path, SITE.url).toString()
+
+// Every breadcrumb entry but the last needs an `item` URL, so the group level is only
+// listed when the group has its own index page and we are not already standing on it.
+const groupIndex = activeGroup?.items.find(it => activeGroup.items.every(o => o === it || o.slug.startsWith(`${it.slug}/`)))
+const groupHref = groupIndex && norm(hrefFor(groupIndex.slug)) !== here ? hrefFor(groupIndex.slug) : null
+const groupCrumb = activeGroup?.label && groupHref
+  ? [{ '@type': 'ListItem', 'position': 2, 'name': activeGroup.label, 'item': abs(groupHref) }]
+  : []
+
 const breadcrumb = here === '/'
   ? null
   : {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       'itemListElement': [
-        { '@type': 'ListItem', 'position': 1, 'name': 'Docs', 'item': SITE.url },
-        ...(activeGroup?.label ? [{ '@type': 'ListItem', 'position': 2, 'name': activeGroup.label }] : []),
-        { '@type': 'ListItem', 'position': activeGroup?.label ? 3 : 2, 'name': title },
+        { '@type': 'ListItem', 'position': 1, 'name': 'Docs', 'item': abs('/') },
+        ...groupCrumb,
+        { '@type': 'ListItem', 'position': groupCrumb.length ? 3 : 2, 'name': title, 'item': abs(Astro.url.pathname) },
       ],
     }
 
