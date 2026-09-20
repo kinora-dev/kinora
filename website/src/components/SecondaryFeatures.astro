@@ -7,12 +7,20 @@ import {
   Server,
   Upload,
 } from '@lucide/astro'
+import { DOCS } from '../lib/site'
+import DocsLink from './DocsLink.astro'
 
-const items = [
+const items: {
+  icon: typeof GitPullRequest
+  title: string
+  body: string
+  docs?: { label: string, href: string, event: string }[]
+}[] = [
   {
     icon: GitPullRequest,
     title: 'GitHub PR comments',
     body: 'Post a run summary on the PR straight from CI: pass/fail, tests newly failing vs the base branch, one click to the trace.',
+    docs: [{ label: 'PR comments', href: DOCS.prComments, event: 'docs-pr-comments' }],
   },
   {
     icon: GitBranch,
@@ -23,6 +31,10 @@ const items = [
     icon: Upload,
     title: 'Reporter or CLI',
     body: 'Auto-upload at the end of every run, or push an existing results.json from a separate CI job. Same data either way.',
+    docs: [
+      { label: 'Reporter', href: DOCS.reporter, event: 'docs-reporter' },
+      { label: 'CLI', href: DOCS.cli, event: 'docs-cli' },
+    ],
   },
   {
     icon: FingerprintPattern,
@@ -38,6 +50,7 @@ const items = [
     icon: Server,
     title: 'Self-hosted, fair source',
     body: 'Your results stay on your own box. FSL server and dashboard, MIT client libraries you embed.',
+    docs: [{ label: 'Self-hosting', href: DOCS.selfHosting, event: 'docs-self-hosting' }],
   },
 ];
 ---
@@ -77,6 +90,15 @@ const items = [
               <p class="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {item.body}
               </p>
+              {item.docs && (
+                <div class="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  {item.docs.map(d => (
+                    <DocsLink href={d.href} event={d.event}>
+                      {d.label}
+                    </DocsLink>
+                  ))}
+                </div>
+              )}
             </article>
           )
         })

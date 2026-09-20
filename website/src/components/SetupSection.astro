@@ -1,5 +1,5 @@
 ---
-import { SITE } from '../lib/site'
+import { DOCS, SITE } from '../lib/site'
 import CodeBlock from './CodeBlock.astro'
 
 const configSnippet = `export default defineConfig({
@@ -78,9 +78,8 @@ const steps: {
           so a test keeps a stable identity across runs and ingest methods.
         </p>
         <a
-          href={`${SITE.repo}#send-your-tests`}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={DOCS.gettingStarted}
+          data-umami-event="setup-docs"
           class="mt-6 inline-flex items-center gap-1.5 font-mono text-sm font-medium text-signal underline-offset-4 hover:underline"
         >
           Read the docs &rarr;

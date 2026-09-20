@@ -1,15 +1,25 @@
-import { SITE } from '../lib/site'
+import { DOCS, SITE } from '../lib/site'
 
 export type ShotKey = 'overview' | 'test-history' | 'tests' | 'trace-viewer' | 'compare' | 'project'
+
+export interface DocsRef {
+  label: string
+  href: string
+  event: string
+}
 
 export interface SolPoint {
   title: string
   body: string
+  docs?: DocsRef[]
 }
 
 export interface SolFaq {
   q: string
   a: string
+  // Kept out of `a`: the answer is reused verbatim in the FAQPage JSON-LD
+  // and in llms.txt, which both want plain prose.
+  docs?: DocsRef[]
 }
 
 export interface SolTool {
@@ -38,6 +48,9 @@ export interface Solution {
   cta?: SolCta
   points: SolPoint[]
   faqs: SolFaq[]
+  // Rendered as a "Docs" row under the FAQ, so every landing page has at
+  // least one route into docs.kinora.dev.
+  docs?: DocsRef[]
 }
 
 export const SOLUTIONS: Solution[] = [
@@ -80,11 +93,16 @@ export const SOLUTIONS: Solution[] = [
       {
         q: 'Does it keep traces for old runs?',
         a: 'Yes, subject to your retention window. When you self-host, traces are kept for as long as you keep them on your own storage.',
+        docs: [{ label: 'Artifact storage', href: DOCS.storage, event: 'docs-sol-storage-faq' }],
       },
       {
         q: 'Is a Playwright report with history free?',
         a: 'Self-hosting kinora is free forever, and the cloud has a free tier. Both give you cross-run history out of the box.',
       },
+    ],
+    docs: [
+      { label: 'Getting started', href: DOCS.gettingStarted, event: 'docs-sol-history' },
+      { label: 'Reporter', href: DOCS.reporter, event: 'docs-sol-history-reporter' },
     ],
   },
   {
@@ -116,6 +134,7 @@ export const SOLUTIONS: Solution[] = [
       {
         title: 'Alerts on regressions',
         body: 'Get notified in Slack, email, or webhook the moment a stable test starts failing.',
+        docs: [{ label: 'Alerts guide', href: DOCS.alerts, event: 'docs-sol-alerts' }],
       },
     ],
     faqs: [
@@ -126,11 +145,16 @@ export const SOLUTIONS: Solution[] = [
       {
         q: 'Can I get alerted about new flaky tests?',
         a: 'Yes. Per-project alerts fire on new failures and regressions, delivered via Slack, email, or webhook.',
+        docs: [{ label: 'Alerts guide', href: DOCS.alerts, event: 'docs-sol-alerts-faq' }],
       },
       {
         q: 'Do I need to change my tests to use it?',
         a: 'No. Send results with @kinora/reporter or the CLI and flaky detection is automatic; there are no test-code changes.',
       },
+    ],
+    docs: [
+      { label: 'Alerts', href: DOCS.alerts, event: 'docs-sol-flaky-alerts' },
+      { label: 'Getting started', href: DOCS.gettingStarted, event: 'docs-sol-flaky' },
     ],
   },
   {
@@ -190,6 +214,10 @@ export const SOLUTIONS: Solution[] = [
         q: 'Is there a desktop app?',
         a: 'Yes. The kinora desktop app is a standalone Playwright trace viewer that opens traces from your file manager, also without an account.',
       },
+    ],
+    docs: [
+      { label: 'Desktop app', href: DOCS.desktop, event: 'docs-sol-viewer-desktop' },
+      { label: 'Getting started', href: DOCS.gettingStarted, event: 'docs-sol-viewer' },
     ],
   },
   {
@@ -253,6 +281,7 @@ export const SOLUTIONS: Solution[] = [
         a: 'Yes. The MCP server runs locally over stdio and points at either kinora cloud or your self-hosted server, authenticated with your API token.',
       },
     ],
+    docs: [{ label: 'MCP server', href: DOCS.mcp, event: 'docs-sol-mcp' }],
   },
   {
     slug: 'playwright-report-github-actions',
@@ -299,6 +328,10 @@ export const SOLUTIONS: Solution[] = [
         a: 'Yes. Merge shards with Playwright\'s merge-reports so the run uploads once as a single report. For matrix legs that share one pull request, give each leg its own PR comment label so they keep separate comments.',
       },
     ],
+    docs: [
+      { label: 'PR comments', href: DOCS.prComments, event: 'docs-sol-gha-pr' },
+      { label: 'REST API', href: DOCS.api, event: 'docs-sol-gha-api' },
+    ],
   },
   {
     slug: 'self-hosted-playwright-dashboard',
@@ -325,6 +358,7 @@ export const SOLUTIONS: Solution[] = [
       {
         title: 'Your traces, your storage',
         body: 'trace.zip artifacts land on a local volume by default, or in any S3-compatible store: AWS, Cloudflare R2, MinIO, or Hetzner.',
+        docs: [{ label: 'Artifact storage', href: DOCS.storage, event: 'docs-sol-storage' }],
       },
       {
         title: 'Nothing metered',
@@ -344,6 +378,10 @@ export const SOLUTIONS: Solution[] = [
         q: 'Do self-hosted runs lose any features?',
         a: 'No, the opposite. Self-host unlocks everything: unlimited projects and retention, alerts, GitHub PR comments, the MCP server, and the desktop app all work the same as on cloud.',
       },
+    ],
+    docs: [
+      { label: 'Self-hosting', href: DOCS.selfHosting, event: 'docs-sol-selfhost' },
+      { label: 'Environment reference', href: DOCS.environment, event: 'docs-sol-selfhost-env' },
     ],
   },
 ]

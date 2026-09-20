@@ -1,5 +1,5 @@
 ---
-import { SITE } from '../lib/site'
+import { DOCS } from '../lib/site'
 import CodeBlock from './CodeBlock.astro'
 
 const mcpConfig = `{
@@ -48,9 +48,7 @@ const tools = [
           cloud or your own self-host.
         </p>
         <a
-          href={`${SITE.repo}#debug-from-your-agent-mcp`}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={DOCS.mcp}
           data-umami-event="mcp-docs"
           class="mt-6 inline-flex items-center gap-1.5 font-mono text-sm font-medium text-signal underline-offset-4 hover:underline"
         >

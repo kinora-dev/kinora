@@ -1,6 +1,6 @@
 ---
 import { ArrowRight, Check } from '@lucide/astro'
-import { SITE } from '../lib/site'
+import { DOCS, SITE } from '../lib/site'
 import GithubIcon from './GithubIcon.astro'
 
 interface Tier {
@@ -12,7 +12,8 @@ interface Tier {
   meter?: string
   cta: { label: string, href: string }
   featured?: boolean
-  features: string[]
+  // A feature can carry a docs deep link when there is a guide behind it.
+  features: (string | { label: string, href: string, event: string })[]
 }
 
 const tiers: Tier[] = [
@@ -45,7 +46,11 @@ const tiers: Tier[] = [
       '10,000 test results / mo',
       'Unlimited projects',
       '90-day retention',
-      'Regression alerts (Slack, email, webhook)',
+      {
+        label: 'Regression alerts (Slack, email, webhook)',
+        href: DOCS.alerts,
+        event: 'docs-alerts',
+      },
       'Email support',
     ],
   },
@@ -197,7 +202,7 @@ const tiers: Tier[] = [
 
             <ul class="mt-6 flex flex-col gap-2.5 text-sm">
               {tier.features.map(f =>
-                f.startsWith('Everything in')
+                typeof f === 'string' && f.startsWith('Everything in')
 ? (
                   <li class="font-medium text-foreground">{f}</li>
                 )
@@ -207,7 +212,19 @@ const tiers: Tier[] = [
                       class="mt-0.5 size-4 shrink-0 text-signal"
                       aria-hidden="true"
                     />
-                    <span>{f}</span>
+                    {typeof f === 'string'
+? (
+                      <span>{f}</span>
+                    )
+: (
+                      <a
+                        href={f.href}
+                        data-umami-event={f.event}
+                        class="underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground"
+                      >
+                        {f.label}
+                      </a>
+                    )}
                   </li>
                 ),
               )}

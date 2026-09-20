@@ -19,6 +19,22 @@ export const SITE = {
   email: 'hi@kinora.dev',
 } as const
 
+// Deep links into docs.kinora.dev, kept in one place so a docs reorg is a
+// single edit here instead of a grep across every section and data file.
+export const DOCS = {
+  gettingStarted: `${SITE.docs}/getting-started/`,
+  reporter: `${SITE.docs}/guides/reporter/`,
+  cli: `${SITE.docs}/guides/cli/`,
+  mcp: `${SITE.docs}/guides/mcp/`,
+  desktop: `${SITE.docs}/guides/desktop/`,
+  alerts: `${SITE.docs}/guides/alerts/`,
+  prComments: `${SITE.docs}/guides/pr-comments/`,
+  api: `${SITE.docs}/reference/api/`,
+  environment: `${SITE.docs}/reference/environment/`,
+  selfHosting: SITE.selfhost,
+  storage: `${SITE.docs}/self-hosting/storage/`,
+} as const
+
 export const NAV: { label: string, href: string, event?: string }[] = [
   { label: 'Features', href: '/#features' },
   { label: 'Trace viewer', href: '/#trace' },

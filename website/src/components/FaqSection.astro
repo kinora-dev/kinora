@@ -2,6 +2,7 @@
 import { ChevronDown } from '@lucide/astro'
 import { COMPARISONS } from '../data/comparisons'
 import { HOME_FAQS as faqs } from '../data/faq'
+import DocsLink from './DocsLink.astro'
 ---
 
 <section id="faq" class="border-b border-border">
@@ -35,6 +36,15 @@ import { HOME_FAQS as faqs } from '../data/faq'
             <p class="px-6 pb-5 text-pretty leading-relaxed text-muted-foreground">
               {f.a}
             </p>
+            {f.docs && (
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-6 pb-5">
+                {f.docs.map(d => (
+                  <DocsLink href={d.href} event={d.event}>
+                    {d.label}
+                  </DocsLink>
+                ))}
+              </div>
+            )}
           </details>
         ))
       }

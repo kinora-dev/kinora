@@ -1,0 +1,20 @@
+---
+interface Props {
+  href: string
+  event?: string
+  class?: string
+}
+
+const { href, event, class: className } = Astro.props
+---
+
+<a
+  href={href}
+  data-umami-event={event}
+  class:list={[
+    'inline-flex items-center gap-1.5 font-mono text-xs font-medium text-signal underline-offset-4 hover:underline',
+    className,
+  ]}
+>
+  <slot /> &rarr;
+</a>

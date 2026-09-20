@@ -3,7 +3,8 @@ import { Download, Play, Sparkles, SquarePen, SquarePlay } from '@lucide/astro'
 import { Image } from 'astro:assets'
 import desktopDark from '../assets/screenshots/desktop-dark.png'
 import desktopLight from '../assets/screenshots/desktop-light.png'
-import { SITE } from '../lib/site'
+import { DOCS, SITE } from '../lib/site'
+import DocsLink from './DocsLink.astro'
 
 const chips = [
   { icon: Play, label: 'Re-run locally' },
@@ -82,6 +83,9 @@ const chips = [
       <p class="font-mono text-xs text-muted-foreground">
         macOS &middot; Windows &middot; Linux
       </p>
+      <DocsLink href={DOCS.desktop} event="docs-desktop" class="mt-1">
+        Desktop guide
+      </DocsLink>
     </div>
 
     <div class="reveal mt-14" style="--reveal-delay: 120ms">

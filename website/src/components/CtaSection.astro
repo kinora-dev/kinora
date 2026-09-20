@@ -1,6 +1,7 @@
 ---
 import { ArrowRight, Play } from '@lucide/astro'
 import { SITE } from '../lib/site'
+import DocsLink from './DocsLink.astro'
 import GithubIcon from './GithubIcon.astro';
 ---
 
@@ -72,5 +73,8 @@ import GithubIcon from './GithubIcon.astro';
         Star on GitHub
       </a>
     </div>
+    <p class="reveal mt-6" style="--reveal-delay: 260ms">
+      <DocsLink href={SITE.docs} event="docs-cta">Or read the docs</DocsLink>
+    </p>
   </div>
 </section>
