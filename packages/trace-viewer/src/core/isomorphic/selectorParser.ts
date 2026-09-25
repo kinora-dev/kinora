@@ -75,9 +75,18 @@ export function parseSelector(selector: string): ParsedSelector {
       const nested = { name: part.name, source: part.body, body: { parsed: parseSelector(innerSelector), distance } };
       const lastFrame = [...nested.body.parsed.parts].reverse().find(part => part.name === 'internal:control' && part.body === 'enter-frame');
       const lastFrameIndex = lastFrame ? nested.body.parsed.parts.indexOf(lastFrame) : -1;
+      // The "any-frame" token applies to the whole selector, so nested selectors must not repeat it.
+      const outerParts = parts[0]?.name === 'internal:control' && parts[0].body === 'any-frame' ? parts.slice(1) : parts;
       // Allow nested selectors to start with the same frame selector.
-      if (lastFrameIndex !== -1 && selectorPartsEqual(nested.body.parsed.parts.slice(0, lastFrameIndex + 1), parts.slice(0, lastFrameIndex + 1)))
+      if (lastFrameIndex !== -1 && selectorPartsEqual(nested.body.parsed.parts.slice(0, lastFrameIndex + 1), outerParts.slice(0, lastFrameIndex + 1))) {
         nested.body.parsed.parts.splice(0, lastFrameIndex + 1);
+        if (nested.body.parsed.capture !== undefined) {
+          if (nested.body.parsed.capture <= lastFrameIndex)
+            throw new InvalidSelectorError(`Can not capture the selector before diving into the frame. Only use * after the last frame has been selected`);
+          // The capture refers to a part index, so it shifts along with the removed prefix.
+          nested.body.parsed.capture -= lastFrameIndex + 1;
+        }
+      }
       parts.push(nested);
       continue;
     }
@@ -91,19 +100,34 @@ export function parseSelector(selector: string): ParsedSelector {
   };
 }
 
-export function splitSelectorByFrame(selectorText: string): ParsedSelector[] {
+// Matches in any frame of the subtree, instead of the frame itself. Only allowed as the first token.
+export const kAnyFrameSelector = 'internal:control=any-frame';
+
+// Splits a selector into per-frame chunks separated by "enter-frame" boundaries.
+// The optional leading "any-frame" token is consumed and reported separately.
+export function splitSelectorByFrame(selectorText: string): { anyFrame: boolean, chunks: ParsedSelector[] } {
   const selector = parseSelector(selectorText);
-  const result: ParsedSelector[] = [];
+  const chunks: ParsedSelector[] = [];
   let chunk: ParsedSelector = {
     parts: [],
   };
+  let anyFrame = false;
   let chunkStartIndex = 0;
   for (let i = 0; i < selector.parts.length; ++i) {
     const part = selector.parts[i];
+    if (part.name === 'internal:control' && part.body === 'any-frame') {
+      // The starting frame applies to the whole selector, so the token only makes sense as the very first one.
+      if (i !== 0)
+        throw new InvalidSelectorError(`"${part.body}" is only allowed as the first selector token, while parsing selector ${selectorText}`);
+      anyFrame = true;
+      chunkStartIndex = i + 1;
+      continue;
+    }
     if (part.name === 'internal:control' && part.body === 'enter-frame') {
-      if (!chunk.parts.length)
+      const lastPart = chunk.parts[chunk.parts.length - 1];
+      if (!lastPart || (lastPart.name === 'internal:control' && lastPart.body === 'enter-frame'))
         throw new InvalidSelectorError('Selector cannot start with entering frame, select the iframe first');
-      result.push(chunk);
+      chunks.push(chunk);
       chunk = { parts: [] };
       chunkStartIndex = i + 1;
       continue;
@@ -112,12 +136,18 @@ export function splitSelectorByFrame(selectorText: string): ParsedSelector[] {
       chunk.capture = i - chunkStartIndex;
     chunk.parts.push(part);
   }
-  if (!chunk.parts.length)
+  if (!chunk.parts.length) {
+    if (anyFrame && !chunks.length)
+      throw new InvalidSelectorError(`Selector cannot be empty after frameLocator(), while parsing selector ${selectorText}`);
     throw new InvalidSelectorError(`Selector cannot end with entering frame, while parsing selector ${selectorText}`);
-  result.push(chunk);
-  if (typeof selector.capture === 'number' && typeof result[result.length - 1].capture !== 'number')
+  }
+  const lastPart = chunk.parts[chunk.parts.length - 1];
+  if (lastPart.name === 'internal:control' && lastPart.body === 'enter-frame')
+    throw new InvalidSelectorError(`Selector cannot end with entering frame, while parsing selector ${selectorText}`);
+  chunks.push(chunk);
+  if (typeof selector.capture === 'number' && typeof chunks[chunks.length - 1].capture !== 'number')
     throw new InvalidSelectorError(`Can not capture the selector before diving into the frame. Only use * after the last frame has been selected`);
-  return result;
+  return { anyFrame, chunks };
 }
 
 function selectorPartsEqual(list1: ParsedSelectorPart[], list2: ParsedSelectorPart[]) {

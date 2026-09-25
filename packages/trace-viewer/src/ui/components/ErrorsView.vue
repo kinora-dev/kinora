@@ -29,8 +29,8 @@ watchEffect(async () => {
   const att = m?.attachments.find(a => a.name === 'error-context')
   if (!m || !att)
     return
-  const url = att.sha1
-    ? m.createRelativeUrl(`sha1/${att.sha1}`)
+  const url = att.file
+    ? m.createRelativeUrl(`file/${att.file}`)
     : att.base64
       ? `data:${att.contentType};base64,${att.base64}`
       : undefined

@@ -21,7 +21,7 @@ import type { NestedSelectorBody } from './selectorParser';
 import type { ParsedSelector } from './selectorParser';
 
 export type Language = 'javascript' | 'python' | 'java' | 'csharp' | 'jsonl';
-export type LocatorType = 'default' | 'role' | 'text' | 'label' | 'placeholder' | 'alt' | 'title' | 'test-id' | 'nth' | 'first' | 'last' | 'visible' | 'has-text' | 'has-not-text' | 'has' | 'hasNot' | 'frame' | 'frame-locator' | 'and' | 'or' | 'chain';
+export type LocatorType = 'default' | 'role' | 'text' | 'label' | 'placeholder' | 'alt' | 'title' | 'test-id' | 'nth' | 'first' | 'last' | 'visible' | 'filter-visible' | 'has-text' | 'has-not-text' | 'has' | 'hasNot' | 'frame' | 'frame-locator' | 'any-frame' | 'and' | 'or' | 'chain';
 export type LocatorBase = 'page' | 'locator' | 'frame-locator';
 export type Quote = '\'' | '"' | '`';
 
@@ -104,7 +104,11 @@ function innerAsLocators(factory: LocatorFactory, parsed: ParsedSelector, isFram
       continue;
     }
     if (part.name === 'visible') {
-      tokens.push([factory.generateLocator(base, 'visible', part.body as string), factory.generateLocator(base, 'default', `visible=${part.body}`)]);
+      const tokenList: string[] = [];
+      if (part.body === 'true')
+        tokenList.push(factory.generateLocator(base, 'visible', ''));
+      tokenList.push(factory.generateLocator(base, 'filter-visible', part.body as string), factory.generateLocator(base, 'default', `visible=${part.body}`));
+      tokens.push(tokenList);
       continue;
     }
     if (part.name === 'internal:text') {
@@ -204,6 +208,11 @@ function innerAsLocators(factory: LocatorFactory, parsed: ParsedSelector, isFram
         tokens.push([factory.generateLocator(base, 'title', text, { exact })]);
         continue;
       }
+    }
+    if (part.name === 'internal:control' && (part.body as string) === 'any-frame') {
+      tokens.push([factory.generateLocator(base, 'any-frame', '')]);
+      nextBase = 'frame-locator';
+      continue;
     }
     if (part.name === 'internal:control' && (part.body as string) === 'enter-frame') {
       // transform last tokens from `${selector}` into `${selector}.contentFrame()` and `frameLocator(${selector})`
@@ -315,6 +324,8 @@ export class JavaScriptLocatorFactory implements LocatorFactory {
         return `frameLocator(${this.quote(body as string)})`;
       case 'frame':
         return `contentFrame()`;
+      case 'any-frame':
+        return `frameLocator()`;
       case 'nth':
         return `nth(${body})`;
       case 'first':
@@ -322,6 +333,8 @@ export class JavaScriptLocatorFactory implements LocatorFactory {
       case 'last':
         return `last()`;
       case 'visible':
+        return `visible()`;
+      case 'filter-visible':
         return `filter({ visible: ${body === 'true' ? 'true' : 'false'} })`;
       case 'role':
         const attrs: string[] = [];
@@ -414,6 +427,8 @@ export class PythonLocatorFactory implements LocatorFactory {
         return `frame_locator(${this.quote(body as string)})`;
       case 'frame':
         return `content_frame`;
+      case 'any-frame':
+        return `frame_locator()`;
       case 'nth':
         return `nth(${body})`;
       case 'first':
@@ -421,6 +436,8 @@ export class PythonLocatorFactory implements LocatorFactory {
       case 'last':
         return `last`;
       case 'visible':
+        return `visible`;
+      case 'filter-visible':
         return `filter(visible=${body === 'true' ? 'True' : 'False'})`;
       case 'role':
         const attrs: string[] = [];
@@ -526,6 +543,8 @@ export class JavaLocatorFactory implements LocatorFactory {
         return `frameLocator(${this.quote(body as string)})`;
       case 'frame':
         return `contentFrame()`;
+      case 'any-frame':
+        return `frameLocator()`;
       case 'nth':
         return `nth(${body})`;
       case 'first':
@@ -533,6 +552,8 @@ export class JavaLocatorFactory implements LocatorFactory {
       case 'last':
         return `last()`;
       case 'visible':
+        return `visible()`;
+      case 'filter-visible':
         return `filter(new ${clazz}.FilterOptions().setVisible(${body === 'true' ? 'true' : 'false'}))`;
       case 'role':
         const attrs: string[] = [];
@@ -628,6 +649,8 @@ export class CSharpLocatorFactory implements LocatorFactory {
         return `FrameLocator(${this.quote(body as string)})`;
       case 'frame':
         return `ContentFrame`;
+      case 'any-frame':
+        return `FrameLocator()`;
       case 'nth':
         return `Nth(${body})`;
       case 'first':
@@ -635,6 +658,8 @@ export class CSharpLocatorFactory implements LocatorFactory {
       case 'last':
         return `Last`;
       case 'visible':
+        return `Visible`;
+      case 'filter-visible':
         return `Filter(new() { Visible = ${body === 'true' ? 'true' : 'false'} })`;
       case 'role':
         const attrs: string[] = [];
@@ -734,8 +759,13 @@ export class JsonlLocatorFactory implements LocatorFactory {
 
   chainLocators(locators: string[]): string {
     const objects = locators.map(l => JSON.parse(l));
-    for (let i = 0; i < objects.length - 1; ++i)
-      objects[i].next = objects[i + 1];
+    for (let i = 0; i < objects.length - 1; ++i) {
+      // A locator may already be a chain, e.g. `contentFrame()` produces one. Append to its tail.
+      let tail = objects[i];
+      while (tail.next)
+        tail = tail.next;
+      tail.next = objects[i + 1];
+    }
     return JSON.stringify(objects[0]);
   }
 }

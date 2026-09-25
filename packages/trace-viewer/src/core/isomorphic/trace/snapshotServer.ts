@@ -17,38 +17,45 @@
 import type { URLSearchParams } from 'url';
 import type { SnapshotRenderer } from './snapshotRenderer';
 import type { SnapshotStorage } from './snapshotStorage';
-import type { ResourceSnapshot } from '@trace/snapshot';
+import type { ActionPhase, ResourceSnapshot } from './trace';
 
 export class SnapshotServer {
   private _snapshotStorage: SnapshotStorage;
-  private _resourceLoader: (sha1: string) => Promise<Blob | undefined>;
+  private _resourceLoader: (file: string) => Promise<Blob | undefined>;
   private _snapshotIds = new Map<string, SnapshotRenderer>();
 
-  constructor(snapshotStorage: SnapshotStorage, resourceLoader: (sha1: string) => Promise<Blob | undefined>) {
+  constructor(snapshotStorage: SnapshotStorage, resourceLoader: (file: string) => Promise<Blob | undefined>) {
     this._snapshotStorage = snapshotStorage;
     this._resourceLoader = resourceLoader;
   }
 
-  serveSnapshot(pageOrFrameId: string, searchParams: URLSearchParams, snapshotUrl: string): Response {
-    const snapshot = this._snapshot(pageOrFrameId, searchParams);
+  serveSnapshot(callId: string, searchParams: URLSearchParams, snapshotUrl: string): Response {
+    const snapshot = this._snapshot(callId, searchParams);
     if (!snapshot)
       return new Response(null, { status: 404 });
 
     const renderedSnapshot = snapshot.render();
     this._snapshotIds.set(snapshotUrl, snapshot);
-    return new Response(renderedSnapshot.html, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    return new Response(renderedSnapshot.html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        // Only allow our own bootstrap script.
+        'Content-Security-Policy': `script-src 'nonce-${renderedSnapshot.scriptNonce}'; object-src 'none'`,
+      },
+    });
   }
 
-  async serveClosestScreenshot(pageOrFrameId: string, searchParams: URLSearchParams): Promise<Response> {
-    const snapshot = this._snapshot(pageOrFrameId, searchParams);
-    const sha1 = snapshot?.closestScreenshot();
-    if (!sha1)
+  async serveClosestScreenshot(callId: string, searchParams: URLSearchParams): Promise<Response> {
+    const snapshot = this._snapshot(callId, searchParams);
+    const file = snapshot?.closestScreenshot();
+    if (!file)
       return new Response(null, { status: 404 });
-    return new Response(await this._resourceLoader(sha1));
+    return new Response(await this._resourceLoader(file));
   }
 
-  serveSnapshotInfo(pageOrFrameId: string, searchParams: URLSearchParams): Response {
-    const snapshot = this._snapshot(pageOrFrameId, searchParams);
+  serveSnapshotInfo(callId: string, searchParams: URLSearchParams): Response {
+    const snapshot = this._snapshot(callId, searchParams);
     return this._respondWithJson(snapshot ? {
       viewport: snapshot.viewport(),
       url: snapshot.snapshot().frameUrl,
@@ -59,9 +66,8 @@ export class SnapshotServer {
     });
   }
 
-  private _snapshot(pageOrFrameId: string, params: URLSearchParams) {
-    const name = params.get('name')!;
-    return this._snapshotStorage.snapshotByName(pageOrFrameId, name);
+  private _snapshot(callId: string, params: URLSearchParams) {
+    return this._snapshotStorage.snapshotForCall(callId, params.get('phase') as ActionPhase, params.get('frameId') || undefined);
   }
 
   private _respondWithJson(object: any): Response {
@@ -85,8 +91,8 @@ export class SnapshotServer {
     if (!resource)
       return new Response(null, { status: 404 });
 
-    const sha1 = resource.response.content._sha1;
-    const content = sha1 ? await this._resourceLoader(sha1) || new Blob([]) : new Blob([]);
+    const file = resource.response.content._file;
+    const content = file ? await this._resourceLoader(file) || new Blob([]) : new Blob([]);
 
     let contentType = resource.response.content.mimeType;
     const isTextEncoding = /^text\/|^application\/(javascript|json)/.test(contentType);

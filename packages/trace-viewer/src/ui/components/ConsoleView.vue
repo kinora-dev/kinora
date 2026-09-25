@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ConsoleMessageTraceEvent } from '@trace/trace'
-import { eventsForAction } from '@isomorphic/trace/traceModel'
 import { cn } from '@kinora/ui'
 import { computed } from 'vue'
 import { inWindow } from '../lib/timeline'
@@ -13,7 +12,7 @@ const messages = computed(() => {
   const source = range
     ? (store.model.value?.events ?? []).filter(e => inWindow(e.time, range))
     : store.selectedAction.value
-      ? eventsForAction(store.selectedAction.value)
+      ? (store.model.value?.eventsForAction(store.selectedAction.value) ?? [])
       : []
   return source
     .filter((e): e is ConsoleMessageTraceEvent => e.type === 'console')

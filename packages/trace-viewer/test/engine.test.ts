@@ -1,4 +1,5 @@
 import type { Entry } from '@zip.js/zip.js'
+import type { ActionPhase } from '../src/core/isomorphic/trace/trace'
 import type { TraceLoaderBackend } from '../src/core/isomorphic/trace/traceLoader'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -73,34 +74,13 @@ describe('vendored trace engine', () => {
     it(`renders a DOM snapshot to HTML from ${fixture}`, async () => {
       const loader = await loadTrace(fixture)
       const storage = loader.storage()
-      const frameIds = storage.snapshotsForTest()
+      const snapshots = storage.snapshotsForTest()
+      const [callId, phase] = snapshots[0]?.split('/') ?? []
+      const html = callId && phase
+        ? storage.snapshotForCall(callId, phase as ActionPhase)?.render().html
+        : undefined
 
-      // Collect every snapshot name referenced by actions, then find the first
-      // (frameId, name) pair that resolves to a renderer.
-      const names = new Set<string>()
-      for (const ctx of loader.contextEntries) {
-        for (const action of ctx.actions) {
-          for (const n of [action.beforeSnapshot, action.inputSnapshot, action.afterSnapshot]) {
-            if (n)
-              names.add(n)
-          }
-        }
-      }
-
-      function firstRenderedSnapshot(): string | undefined {
-        for (const frameId of frameIds) {
-          for (const name of names) {
-            const renderer = storage.snapshotByName(frameId, name)
-            if (renderer)
-              return renderer.render().html
-          }
-        }
-        return undefined
-      }
-
-      const html = firstRenderedSnapshot()
-
-      if (!frameIds.length) {
+      if (!snapshots.length) {
         // eslint-disable-next-line no-console
         console.log(`[${fixture}] no DOM snapshots in this trace, skipping render assertion`)
         return

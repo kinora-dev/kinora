@@ -1,4 +1,5 @@
-import type { ActionTraceEventInContext, ResourceEntry } from '@isomorphic/trace/traceModel'
+import type { ActionEntry } from '@isomorphic/trace/entries'
+import type { ResourceEntry } from '@isomorphic/trace/traceModel'
 
 export type ResourceCategory = 'Fetch' | 'HTML' | 'JS' | 'CSS' | 'Font' | 'Image' | 'Other'
 
@@ -79,7 +80,7 @@ function toNetworkRow(r: ResourceEntry): NetworkRow {
 // per-action window would usually be empty.
 export function resourcesForAction(
   resources: ResourceEntry[],
-  action: ActionTraceEventInContext | undefined,
+  action: ActionEntry | undefined,
 ): NetworkRow[] {
   if (!action)
     return []
@@ -143,10 +144,10 @@ export function toFetch(r: ResourceEntry): string {
 }
 
 // URL to fetch a response/post body blob stored in the trace.
-export function bodyUrl(model: { createRelativeUrl: (p: string) => string } | null, sha1: string | undefined): string | undefined {
-  if (!sha1 || !model)
+export function bodyUrl(model: { createRelativeUrl: (p: string) => string } | null, file: string | undefined): string | undefined {
+  if (!file || !model)
     return undefined
-  return model.createRelativeUrl(`sha1/${sha1}`)
+  return model.createRelativeUrl(`file/${file}`)
 }
 
 // null when not JSON or unparseable, so callers fall back to the raw text.

@@ -56,7 +56,7 @@ test('attachments tab previews the screenshot', async ({ page }) => {
 })
 
 test('filmstrip renders screencast frames', async ({ page }) => {
-  await expect(page.locator('img[src*="sha1/"]').first()).toBeVisible()
+  await expect(page.locator('img[src*="file/"]').first()).toBeVisible()
 })
 
 test('play advances the selected action', async ({ page }) => {
@@ -107,8 +107,7 @@ test('plays a video attachment inline', async ({ page, baseURL }) => {
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.duration)).toBeGreaterThan(0)
 })
 
-// Chromium never routes `<a download>` through the service worker, so downloading from the raw
-// sha1 url saves the app's SPA fallback page instead of the attachment.
+// Chromium never routes `<a download>` through the service worker, so fetch the body first.
 test('downloads attachment bodies rather than the app shell', async ({ page, baseURL }) => {
   await openVideoTrace(page, baseURL)
 

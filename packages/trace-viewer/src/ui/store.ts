@@ -1,5 +1,4 @@
-import type { ContextEntry } from '@isomorphic/trace/entries'
-import type { ActionTraceEventInContext } from '@isomorphic/trace/traceModel'
+import type { ActionEntry, ContextEntry } from '@isomorphic/trace/entries'
 import type { Snapshot, SnapshotTab } from './lib/snapshots'
 import type { TimeRange } from './lib/timeline'
 import { buildActionTree, TraceModel } from '@isomorphic/trace/traceModel'
@@ -11,7 +10,7 @@ export interface ActionItem {
   id: string
   depth: number
   hasChildren: boolean
-  action: ActionTraceEventInContext
+  action: ActionEntry
 }
 
 export interface SnapshotInfo {
@@ -79,8 +78,10 @@ async function load(uri: string, name = ''): Promise<void> {
     // Default selection: failed action, else the last page action with a
     // snapshot (most representative page state), else the first action.
     const failed = m.failedAction()
-    const lastWithPage = [...items.value].reverse().find(
-      i => i.action.pageId && (i.action.afterSnapshot || i.action.beforeSnapshot),
+    const lastWithPage = [...items.value].reverse().find(i =>
+      m.hasDomSnapshotForCall(i.action.callId, 'after')
+      || m.hasDomSnapshotForCall(i.action.callId, 'action')
+      || m.hasDomSnapshotForCall(i.action.callId, 'before'),
     )
     selectedId.value = (failed?.callId ?? lastWithPage?.id ?? items.value[0]?.id) ?? null
     status.value = 'ready'
@@ -128,8 +129,8 @@ function toggleCollapse(id: string): void {
 }
 
 const selectedIndex = computed(() => items.value.findIndex(i => i.id === selectedId.value))
-const selectedAction = computed<ActionTraceEventInContext | undefined>(() => items.value[selectedIndex.value]?.action)
-const snapshots = computed(() => collectSnapshots(selectedAction.value))
+const selectedAction = computed<ActionEntry | undefined>(() => items.value[selectedIndex.value]?.action)
+const snapshots = computed(() => collectSnapshots(model.value, selectedAction.value))
 const currentSnapshot = computed<Snapshot | undefined>(() => snapshots.value[snapshotTab.value])
 const currentSnapshotUrl = computed(() => snapshotUrl(traceUri.value, currentSnapshot.value))
 

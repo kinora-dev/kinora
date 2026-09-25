@@ -20,8 +20,8 @@ interface AttachmentView {
 
 function attachmentUrl(att: Attachment): string | undefined {
   const model = store.model.value
-  if (att.sha1 && model)
-    return model.createRelativeUrl(`sha1/${att.sha1}`)
+  if (att.file && model)
+    return model.createRelativeUrl(`file/${att.file}`)
   if (att.base64)
     return `data:${att.contentType};base64,${att.base64}`
   return undefined
@@ -52,8 +52,7 @@ const attachments = computed<AttachmentView[]>(() =>
 
 const downloadFailed = reactive<Record<string, boolean>>({})
 
-// Chromium never routes `<a download>` through the service worker, so the raw sha1 url
-// would hit the static server and save its SPA fallback page instead of the attachment.
+// Chromium never routes `<a download>` through the service worker, so fetch first.
 async function download(att: AttachmentView): Promise<void> {
   if (!att.url)
     return

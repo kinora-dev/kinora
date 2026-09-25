@@ -16,7 +16,7 @@
 
 import { escapeHTMLAttribute, escapeHTML } from '../stringUtils';
 
-import type { FrameSnapshot, NodeNameAttributesChildNodesSnapshot, NodeSnapshot, RenderedFrameSnapshot, ResourceSnapshot, SubtreeReferenceSnapshot } from '@trace/snapshot';
+import type { FrameSnapshot, NodeNameAttributesChildNodesSnapshot, NodeSnapshot, ResourceSnapshot, SubtreeReferenceSnapshot } from './trace';
 import type { PageEntry } from './entries';
 import type { LRUCache } from '../lruCache';
 
@@ -37,8 +37,18 @@ function isSubtreeReferenceSnapshot(n: NodeSnapshot): n is SubtreeReferenceSnaps
   return Array.isArray(n) && Array.isArray(n[0]);
 }
 
+export type RenderedSnapshotHtml = { html: string, scriptNonce: string };
+
+export type RenderedFrameSnapshot = {
+  html: string;
+  scriptNonce: string;
+  pageId: string;
+  frameId: string;
+  index: number;
+};
+
 export class SnapshotRenderer {
-  private _htmlCache: LRUCache<SnapshotRenderer, string>;
+  private _htmlCache: LRUCache<SnapshotRenderer, RenderedSnapshotHtml>;
   private _snapshots: FrameSnapshot[];
   private _index: number;
   readonly snapshotName: string | undefined;
@@ -47,7 +57,7 @@ export class SnapshotRenderer {
   private _callId: string;
   private _screencastFrames: PageEntry['screencastFrames'];
 
-  constructor(htmlCache: LRUCache<SnapshotRenderer, string>, resources: ResourceSnapshot[], snapshots: FrameSnapshot[], screencastFrames: PageEntry['screencastFrames'], index: number) {
+  constructor(htmlCache: LRUCache<SnapshotRenderer, RenderedSnapshotHtml>, resources: ResourceSnapshot[], snapshots: FrameSnapshot[], screencastFrames: PageEntry['screencastFrames'], index: number) {
     this._htmlCache = htmlCache;
     this._resources = resources;
     this._snapshots = snapshots;
@@ -71,7 +81,7 @@ export class SnapshotRenderer {
     const closestFrame = (wallTime && this._screencastFrames[0]?.frameSwapWallTime)
       ? findClosest(this._screencastFrames, frame => frame.frameSwapWallTime!, wallTime)
       : findClosest(this._screencastFrames, frame => frame.timestamp, timestamp);
-    return closestFrame?.sha1;
+    return closestFrame?.file;
   }
 
   render(): RenderedFrameSnapshot {
@@ -79,12 +89,7 @@ export class SnapshotRenderer {
     const visit = (n: NodeSnapshot, snapshotIndex: number, parentTag: string | undefined, parentAttrs: [string, string][] | undefined) => {
       // Text node.
       if (typeof n === 'string') {
-        // Best-effort Electron support: rewrite custom protocol in url() links in stylesheets.
-        // Old snapshotter was sending lower-case.
-        if (parentTag === 'STYLE' || parentTag === 'style')
-          result.push(escapeURLsInStyleSheet(rewriteURLsInStyleSheetForCustomProtocol(n)));
-        else
-          result.push(escapeHTML(n));
+        result.push(escapeHTML(n));
         return;
       }
 
@@ -163,6 +168,13 @@ export class SnapshotRenderer {
             attrValue = rewriteURLForCustomProtocol(value);
           result.push(' ', attrName, '="', escapeHTMLAttribute(attrValue), '"');
         }
+        if (upperName === 'STYLE') {
+          // Style has always exactly one child which is a text node.
+          const styleContent = typeof children[0] === 'string' ? children[0] : '';
+          result.push(' ', '__playwright_style_content__', '="', escapeHTMLAttribute(rewriteURLsInStyleSheetForCustomProtocol(styleContent)), '"');
+          result.push('></', nodeName, '>');
+          return;
+        }
         result.push('>');
         for (const child of children)
           visit(child, snapshotIndex, nodeName, attrs);
@@ -176,21 +188,24 @@ export class SnapshotRenderer {
     };
 
     const snapshot = this._snapshot;
-    const html = this._htmlCache.getOrCompute(this, () => {
+    const { html, scriptNonce } = this._htmlCache.getOrCompute(this, () => {
       visit(snapshot.html, this._index, undefined, undefined);
       // Sanitize doctype to prevent injection from crafted trace files.
       // Valid doctype names (from document.doctype.name) only contain alphanumeric characters.
       const safeDoctype = snapshot.doctype?.replace(/[^a-zA-Z0-9]/g, '');
       const prefix = safeDoctype ? `<!DOCTYPE ${safeDoctype}>` : '';
+      // The nonce allows our bootstrap script to run under the strict `script-src` policy
+      // that the snapshot is served with. See SnapshotServer.serveSnapshot().
+      const scriptNonce = generateNonce();
       const html = prefix + [
         // Hide the document in order to prevent flickering. We will unhide once script has processed shadow.
         '<style>*,*::before,*::after { visibility: hidden }</style>',
-        `<script>${snapshotScript(this.viewport(), this._callId, this.snapshotName)}</script>`
+        `<script nonce="${scriptNonce}">${snapshotScript(this.viewport(), this._callId, this.snapshotName)}</script>`
       ].join('') + result.join('');
-      return { value: html, size: html.length };
+      return { value: { html, scriptNonce }, size: html.length };
     });
 
-    return { html, pageId: snapshot.pageId, frameId: snapshot.frameId, index: this._index };
+    return { html, scriptNonce, pageId: snapshot.pageId, frameId: snapshot.frameId, index: this._index };
   }
 
   resourceByUrl(url: string, method: string): ResourceSnapshot | undefined {
@@ -234,14 +249,14 @@ export class SnapshotRenderer {
         if (index >= 0 && index < this._snapshots.length)
           override = this._snapshots[index].resourceOverrides.find(o => o.url === url);
       }
-      if (override?.sha1) {
+      if (override?.file) {
         result = {
           ...result,
           response: {
             ...result.response,
             content: {
               ...result.response.content,
-              _sha1: override.sha1,
+              _file: override.file,
             }
           },
         };
@@ -294,6 +309,12 @@ declare global {
   }
 }
 
+function generateNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function snapshotScript(viewport: ViewportSize, ...targetIds: (string | undefined)[]) {
   function applyPlaywrightAttributes(blankSnapshotUrl: string, viewport: ViewportSize, ...targetIds: (string | undefined)[]) {
     // eslint-disable-next-line no-restricted-globals
@@ -324,7 +345,7 @@ function snapshotScript(viewport: ViewportSize, ...targetIds: (string | undefine
     const canvasElements: HTMLCanvasElement[] = [];
 
     let topSnapshotWindow: Window = win;
-    while (topSnapshotWindow !== topSnapshotWindow.parent && !topSnapshotWindow.location.pathname.match(/\/page@[a-z0-9]+$/))
+    while (topSnapshotWindow !== topSnapshotWindow.parent && new URLSearchParams(topSnapshotWindow.location.search).has('frameId'))
       topSnapshotWindow = topSnapshotWindow.parent;
 
     const visit = (root: Document | ShadowRoot) => {
@@ -333,6 +354,11 @@ function snapshotScript(viewport: ViewportSize, ...targetIds: (string | undefine
         scrollTops.push(e);
       for (const e of root.querySelectorAll(`[__playwright_scroll_left_]`))
         scrollLefts.push(e);
+
+      for (const element of root.querySelectorAll(`style[__playwright_style_content__]`)) {
+        element.textContent = element.getAttribute('__playwright_style_content__');
+        element.removeAttribute('__playwright_style_content__');
+      }
 
       for (const element of root.querySelectorAll(`[__playwright_value_]`)) {
         const inputElement = element as HTMLInputElement | HTMLTextAreaElement;
@@ -394,13 +420,12 @@ function snapshotScript(viewport: ViewportSize, ...targetIds: (string | undefine
         if (!src) {
           iframe.setAttribute('src', blankSnapshotUrl);
         } else {
-          // Retain query parameters to inherit name=, time=, pointX=, pointY= and other values from parent.
+          // The attribute value is recorded as `/snapshot/<frameId>` by the snapshotter.
+          const frameId = src.substring(src.lastIndexOf('/') + 1);
+          // All frames of a page share the snapshot name in the path, so we only swap the frame id.
+          // Retain query parameters to inherit time=, pointX=, pointY= and other values from parent.
           const url = new URL(win.location.href);
-          // We can be loading iframe from within iframe, reset base to be absolute.
-          const index = url.pathname.lastIndexOf('/snapshot/');
-          if (index !== -1)
-            url.pathname = url.pathname.substring(0, index + 1);
-          url.pathname += src.substring(1);
+          url.searchParams.set('frameId', frameId);
           iframe.setAttribute('src', url.toString());
         }
       }
@@ -663,21 +688,6 @@ function rewriteURLsInStyleSheetForCustomProtocol(text: string): string {
       return match;
     return match.replace(protocol + '//', `https://pw-${protocol.slice(0, -1)}--`);
   });
-}
-
-// url() inside a <style> tag can mess up with html parsing, so we encode some of them.
-// As an example, the following url will close the </style> tag:
-// url('data:image/svg+xml,<svg><defs><style>.a{fill:none}</style></defs><g class="a"></g></svg>')
-const urlToEscapeRegex1 = /url\(\s*'([^']*)'\s*\)/ig;
-const urlToEscapeRegex2 = /url\(\s*"([^"]*)"\s*\)/ig;
-function escapeURLsInStyleSheet(text: string): string {
-  const replacer = (match: string, url: string) => {
-    // Conservatively encode only urls with a closing tag.
-    if (url.includes('</'))
-      return match.replace(url, encodeURI(url));
-    return match;
-  };
-  return text.replace(urlToEscapeRegex1, replacer).replace(urlToEscapeRegex2, replacer);
 }
 
 export const blankSnapshotUrl = 'data:text/html;base64,' + btoa(`<body></body><style>body { color-scheme: light dark; background: light-dark(white, #333) }</style>`);

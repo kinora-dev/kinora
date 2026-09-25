@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { groupImageDiffs } from '../src/ui/lib/attachments'
 
 function att(name: string, contentType = 'image/png'): Attachment {
-  return { name, contentType, sha1: name } as Attachment
+  return { name, contentType, file: name, callId: 'call@1' }
 }
 
 describe('groupImageDiffs', () => {

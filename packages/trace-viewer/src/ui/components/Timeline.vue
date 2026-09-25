@@ -46,7 +46,7 @@ const frames = computed(() => {
       if (f.timestamp < min || f.timestamp > max)
         continue
       out.push({
-        url: m.createRelativeUrl(`sha1/${f.sha1}`),
+        url: m.createRelativeUrl(`file/${f.file}`),
         left: ((f.timestamp - min) / span) * 100,
         timestamp: f.timestamp,
       })

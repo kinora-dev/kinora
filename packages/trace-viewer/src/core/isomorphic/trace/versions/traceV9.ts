@@ -14,163 +14,20 @@
  * limitations under the License.
  */
 
-// see http://www.softwareishard.com/blog/har-12-spec/
-type ResourceSnapshot = {
-  pageref?: string;
-  startedDateTime: string;
-  time: number;
-  request: Request;
-  response: Response;
-  cache: Cache;
-  timings: Timings;
-  serverIPAddress?: string;
-  connection?: string;
-  _frameref?: string;
-  _monotonicTime?: number;
-  _serverPort?: number;
-  _securityDetails?: SecurityDetails;
-  _wasAborted?: boolean;
-  _wasFulfilled?: boolean;
-  _wasContinued?: boolean;
-  _apiRequest?: boolean;
-  _resourceType?: string;
-  _webSocketMessages?: WebSocketMessage[];
-};
+import type { Entry as HAREntry } from './har';
+import type { Language } from '../../locatorGenerators';
+import type { Point, Rect } from '../../types';
 
-type WebSocketMessage = {
-  type: 'send' | 'receive';
-  time: number;
-  opcode: number;
-  data: string;
-};
+export type Size = { width: number, height: number };
 
-type Request = {
-  method: string;
-  url: string;
-  httpVersion: string;
-  cookies: Cookie[];
-  headers: Header[];
-  queryString: QueryParameter[];
-  postData?: PostData;
-  headersSize: number;
-  bodySize: number;
-  comment?: string;
-};
-
-type Response = {
-  status: number;
-  statusText: string;
-  httpVersion: string;
-  cookies: Cookie[];
-  headers: Header[];
-  content: Content;
-  redirectURL: string;
-  headersSize: number;
-  bodySize: number;
-  comment?: string;
-  _transferSize?: number;
-  _failureText?: string
-};
-
-type Cookie = {
-  name: string;
-  value: string;
-  path?: string;
-  domain?: string;
-  expires?: string;
-  httpOnly?: boolean;
-  secure?: boolean;
-  sameSite?: string;
-  comment?: string;
-};
-
-type Header = {
-  name: string;
-  value: string;
-  comment?: string;
-};
-
-type QueryParameter = {
-  name: string;
-  value: string;
-  comment?: string;
-};
-
-type PostData = {
-  mimeType: string;
-  params: Param[];
-  text: string;
-  comment?: string;
-  _sha1?: string;
-  _file?: string;
-};
-
-type Param = {
-  name: string;
-  value?: string;
-  fileName?: string;
-  contentType?: string;
-  comment?: string;
-};
-
-type Content = {
-  size: number;
-  compression?: number;
-  mimeType: string;
-  text?: string;
-  encoding?: string;
-  comment?: string;
-  _sha1?: string;
-  _file?: string;
-};
-
-type Cache = {
-  beforeRequest?: CacheState | null;
-  afterRequest?: CacheState | null;
-  comment?: string;
-};
-
-type CacheState = {
-  expires?: string;
-  lastAccess: string;
-  eTag: string;
-  hitCount: number;
-  comment?: string;
-};
-
-type Timings = {
-  blocked?: number;
-  dns?: number;
-  connect?: number;
-  send: number;
-  wait: number;
-  receive: number;
-  ssl?: number;
-  comment?: string;
-};
-
-type SecurityDetails = {
-  protocol?: string;
-  subjectName?: string;
-  issuer?: string;
-  validFrom?: number;
-  validTo?: number;
-};
-
-type Language = 'javascript' | 'python' | 'java' | 'csharp' | 'jsonl';
-type Point = { x: number, y: number };
-type Size = { width: number, height: number };
-
-type StackFrame = {
+export type StackFrame = {
   file: string,
   line: number,
   column: number,
   function?: string,
 };
 
-type Binary = Buffer;
-
-type SerializedValue = {
+export type SerializedValue = {
   n?: number,
   b?: boolean,
   s?: string,
@@ -179,7 +36,7 @@ type SerializedValue = {
   u?: string,
   bi?: string,
   ta?: {
-    b: Binary,
+    b: Buffer,
     k: 'i8' | 'ui8' | 'ui8c' | 'i16' | 'ui16' | 'i32' | 'ui32' | 'f32' | 'f64' | 'bi64' | 'bui64',
   },
   e?: {
@@ -201,7 +58,7 @@ type SerializedValue = {
   ref?: number,
 };
 
-type SerializedError = {
+export type SerializedError = {
   error?: {
     message: string,
     name: string,
@@ -210,42 +67,14 @@ type SerializedError = {
   value?: SerializedValue,
 };
 
-// Text node.
-type TextNodeSnapshot = string;
-// Subtree reference, "x snapshots ago, node #y". Could point to a text node.
-// Only nodes that are not references are counted, starting from zero, using post-order traversal.
-type SubtreeReferenceSnapshot = [ [number, number] ];
-// Node name, and optional attributes and child nodes.
-type NodeNameAttributesChildNodesSnapshot = [ string ] | [ string, Record<string, string>, ...NodeSnapshot[] ];
+// Make sure you add _modernize_N_to_N1(event: any) to traceModernizer.ts.
+// 6 => released in ~1.40
+// 7 => released in ~1.45
+// 8 => released in 1.53
+// 9 => released in 1.63
+export type VERSION = 9;
 
-type NodeSnapshot =
-  TextNodeSnapshot |
-  SubtreeReferenceSnapshot |
-  NodeNameAttributesChildNodesSnapshot;
-
-type ResourceOverride = {
-  url: string,
-  sha1?: string,
-  ref?: number
-};
-
-type FrameSnapshot = {
-  snapshotName?: string,
-  callId: string,
-  pageId: string,
-  frameId: string,
-  frameUrl: string,
-  timestamp: number,
-  wallTime?: number,
-  collectionTime: number,
-  doctype?: string,
-  html: NodeSnapshot,
-  resourceOverrides: ResourceOverride[],
-  viewport: { width: number, height: number },
-  isMainFrame: boolean,
-};
-
-type BrowserContextEventOptions = {
+export type BrowserContextEventOptions = {
   baseURL?: string,
   viewport?: Size,
   deviceScaleFactor?: number,
@@ -260,23 +89,54 @@ export type ContextCreatedTraceEvent = {
   browserName: string,
   channel?: string,
   platform: string,
+  playwrightVersion?: string,
   wallTime: number,
   monotonicTime: number,
   title?: string,
   options: BrowserContextEventOptions,
   sdkLanguage?: Language,
   testIdAttributeName?: string,
-  contextId?: string,
+  testTimeout?: number,
+  annotations?: TraceEventAnnotation[],
 };
 
 export type ScreencastFrameTraceEvent = {
   type: 'screencast-frame',
   pageId: string,
-  sha1: string,
+  file: string,
   width: number,
   height: number,
   timestamp: number,
   frameSwapWallTime?: number,
+};
+
+export type VideoTraceEvent = {
+  type: 'video',
+  pageId: string,
+  file: string,
+  width: number,
+  height: number,
+  timestamp: number,
+};
+
+export type ActionPhase = 'before' | 'action' | 'after';
+
+export type ScreenshotTraceEvent = {
+  type: 'screenshot',
+  callId: string,
+  phase: ActionPhase,
+  pageId: string,
+  timestamp: number,
+  file: string,
+};
+
+export type AriaSnapshotTraceEvent = {
+  type: 'aria-snapshot',
+  callId: string,
+  phase: ActionPhase,
+  pageId: string,
+  timestamp: number,
+  file: string,
 };
 
 export type BeforeActionTraceEvent = {
@@ -284,32 +144,32 @@ export type BeforeActionTraceEvent = {
   callId: string;
   startTime: number;
   title?: string;
+  subtitle?: string;
   class: string;
   method: string;
   params: Record<string, any>;
   stepId?: string;
-  beforeSnapshot?: string;
   stack?: StackFrame[];
-  pageId?: string;
   parentId?: string;
+  group?: string;
 };
 
 export type InputActionTraceEvent = {
   type: 'input',
   callId: string;
-  inputSnapshot?: string;
   point?: Point;
+  box?: Rect;
 };
 
 export type AfterActionTraceEventAttachment = {
   name: string;
   contentType: string;
   path?: string;
-  sha1?: string;
+  file?: string;
   base64?: string;
 };
 
-export type AfterActionTraceEventAnnotation = {
+export type TraceEventAnnotation = {
   type: string,
   description?: string
 };
@@ -318,10 +178,9 @@ export type AfterActionTraceEvent = {
   type: 'after',
   callId: string;
   endTime: number;
-  afterSnapshot?: string;
   error?: SerializedError['error'];
   attachments?: AfterActionTraceEventAttachment[];
-  annotations?: AfterActionTraceEventAnnotation[];
+  annotations?: TraceEventAnnotation[];
   result?: any;
   point?: Point;
 };
@@ -356,6 +215,44 @@ export type ConsoleMessageTraceEvent = {
   },
 };
 
+export type ResourceSnapshot = HAREntry;
+
+// Text node.
+export type TextNodeSnapshot = string;
+// Subtree reference, "x snapshots ago, node #y". Could point to a text node.
+// Only nodes that are not references are counted, starting from zero, using post-order traversal.
+export type SubtreeReferenceSnapshot = [ [number, number] ];
+// Node name, and optional attributes and child nodes.
+export type NodeNameAttributesChildNodesSnapshot = [ string ] | [ string, Record<string, string>, ...NodeSnapshot[] ];
+
+export type NodeSnapshot =
+  TextNodeSnapshot |
+  SubtreeReferenceSnapshot |
+  NodeNameAttributesChildNodesSnapshot;
+
+export type ResourceOverride = {
+  url: string,
+  file?: string,
+  ref?: number
+};
+
+export type FrameSnapshot = {
+  phase?: ActionPhase,
+  snapshotName?: string, // Legacy, only present in traces recorded before phase was introduced.
+  callId: string,
+  pageId: string,
+  frameId: string,
+  frameUrl: string,
+  timestamp: number,
+  wallTime?: number,
+  collectionTime: number,
+  doctype?: string,
+  html: NodeSnapshot,
+  resourceOverrides: ResourceOverride[],
+  viewport: { width: number, height: number },
+  isMainFrame: boolean,
+};
+
 export type ResourceSnapshotTraceEvent = {
   type: 'resource-snapshot',
   snapshot: ResourceSnapshot,
@@ -388,6 +285,9 @@ export type ErrorTraceEvent = {
 export type TraceEvent =
     ContextCreatedTraceEvent |
     ScreencastFrameTraceEvent |
+    VideoTraceEvent |
+    ScreenshotTraceEvent |
+    AriaSnapshotTraceEvent |
     ActionTraceEvent |
     BeforeActionTraceEvent |
     InputActionTraceEvent |

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { StackFrame } from '@protocol/channels'
+import type { StackFrame } from '@trace/trace'
 import { cn } from '@kinora/ui'
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { calculateSha1 } from '../lib/sha1'
@@ -33,7 +33,7 @@ watch([frames, selectedFrame], async () => {
   loading.value = true
   try {
     const sha1 = await calculateSha1(frame.file)
-    const res = await fetch(model.createRelativeUrl(`sha1/src@${sha1}.txt`))
+    const res = await fetch(model.createRelativeUrl(`file/resources/src@${sha1}.txt`))
     content.value = res.ok ? await res.text() : `Source unavailable for ${frame.file}`
   }
   catch {

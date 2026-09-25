@@ -17,61 +17,61 @@
 import { rewriteURLForCustomProtocol, SnapshotRenderer } from './snapshotRenderer';
 import { LRUCache } from '../lruCache';
 
-import type { FrameSnapshot, ResourceSnapshot } from '@trace/snapshot';
+import type { RenderedSnapshotHtml } from './snapshotRenderer';
+import type { ActionPhase, FrameSnapshot, ResourceSnapshot } from './trace';
 import type { PageEntry } from './entries';
 
 
 export class SnapshotStorage {
-  private _frameSnapshots = new Map<string, {
-    raw: FrameSnapshot[],
-    renderers: SnapshotRenderer[],
-  }>();
-  private _cache = new LRUCache<SnapshotRenderer, string>(100_000_000);  // 100MB per each trace
-  private _contextToResources = new Map<string, ResourceSnapshot[]>();
+  private _snapshotsByFrameId = new Map<string, FrameSnapshot[]>();
+  private _renderersByCallIdAndPhase = new Map<string, SnapshotRenderer[]>();
+  private _cache = new LRUCache<SnapshotRenderer, RenderedSnapshotHtml>(100_000_000);  // 100MB per each trace
+  private _resources: ResourceSnapshot[] = [];
   private _resourceUrlsWithOverrides = new Set<string>();
 
-  addResource(contextId: string, resource: ResourceSnapshot): void {
+  addResource(resource: ResourceSnapshot): void {
     resource.request.url = rewriteURLForCustomProtocol(resource.request.url);
-    this._ensureResourcesForContext(contextId).push(resource);
+    this._resources.push(resource);
   }
 
-  addFrameSnapshot(contextId: string, snapshot: FrameSnapshot, screencastFrames: PageEntry['screencastFrames']) {
+  addFrameSnapshot(snapshot: FrameSnapshot, screencastFrames: PageEntry['screencastFrames']) {
     for (const override of snapshot.resourceOverrides)
       override.url = rewriteURLForCustomProtocol(override.url);
-    let frameSnapshots = this._frameSnapshots.get(snapshot.frameId);
+    let frameSnapshots = this._snapshotsByFrameId.get(snapshot.frameId);
     if (!frameSnapshots) {
-      frameSnapshots = {
-        raw: [],
-        renderers: [],
-      };
-      this._frameSnapshots.set(snapshot.frameId, frameSnapshots);
-      if (snapshot.isMainFrame)
-        this._frameSnapshots.set(snapshot.pageId, frameSnapshots);
+      frameSnapshots = [];
+      this._snapshotsByFrameId.set(snapshot.frameId, frameSnapshots);
     }
-    frameSnapshots.raw.push(snapshot);
-    const resources = this._ensureResourcesForContext(contextId);
-    const renderer = new SnapshotRenderer(this._cache, resources, frameSnapshots.raw, screencastFrames, frameSnapshots.raw.length - 1);
-    frameSnapshots.renderers.push(renderer);
+    frameSnapshots.push(snapshot);
+    const renderer = new SnapshotRenderer(this._cache, this._resources, frameSnapshots, screencastFrames, frameSnapshots.length - 1);
+    if (snapshot.phase) {
+      const key = callIdAndPhase(snapshot.callId, snapshot.phase);
+      let renderers = this._renderersByCallIdAndPhase.get(key);
+      if (!renderers) {
+        renderers = [];
+        this._renderersByCallIdAndPhase.set(key, renderers);
+      }
+      renderers.push(renderer);
+    }
     return renderer;
   }
 
-  snapshotByName(pageOrFrameId: string, snapshotName: string): SnapshotRenderer | undefined {
-    const snapshot = this._frameSnapshots.get(pageOrFrameId);
-    return snapshot?.renderers.find(r => r.snapshotName === snapshotName);
+  snapshotForCall(callId: string, phase: ActionPhase, frameId?: string): SnapshotRenderer | undefined {
+    const renderers = this._renderersByCallIdAndPhase.get(callIdAndPhase(callId, phase)) || [];
+    return renderers.find(r => frameId ? r.snapshot().frameId === frameId : r.snapshot().isMainFrame);
   }
 
   snapshotsForTest() {
-    return [...this._frameSnapshots.keys()];
+    return [...this._renderersByCallIdAndPhase.keys()];
   }
 
   finalize() {
     // Resources are not necessarily sorted in the trace file, so sort them now.
-    for (const resources of this._contextToResources.values())
-      resources.sort((a, b) => (a._monotonicTime || 0) - (b._monotonicTime || 0));
+    this._resources.sort((a, b) => (a._monotonicTime || 0) - (b._monotonicTime || 0));
     // Resources that have overrides should not be cached, otherwise we might get stale content
     // while serving snapshots with different override values.
-    for (const frameSnapshots of this._frameSnapshots.values()) {
-      for (const snapshot of frameSnapshots.raw) {
+    for (const frameSnapshots of this._snapshotsByFrameId.values()) {
+      for (const snapshot of frameSnapshots) {
         for (const override of snapshot.resourceOverrides)
           this._resourceUrlsWithOverrides.add(override.url);
       }
@@ -81,13 +81,8 @@ export class SnapshotStorage {
   hasResourceOverride(url: string) {
     return this._resourceUrlsWithOverrides.has(url);
   }
+}
 
-  private _ensureResourcesForContext(contextId: string): ResourceSnapshot[] {
-    let resources = this._contextToResources.get(contextId);
-    if (!resources) {
-      resources = [];
-      this._contextToResources.set(contextId, resources);
-    }
-    return resources;
-  }
+function callIdAndPhase(callId: string, phase: ActionPhase): string {
+  return `${callId}/${phase}`;
 }

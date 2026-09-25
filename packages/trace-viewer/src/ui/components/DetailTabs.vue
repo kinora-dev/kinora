@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { eventsForAction } from '@isomorphic/trace/traceModel'
 import { cn } from '@kinora/ui'
 import { computed, ref } from 'vue'
 import { resourcesForAction } from '../lib/network'
@@ -28,7 +27,7 @@ const consoleCount = computed(() => {
   const action = store.selectedAction.value
   if (!action)
     return 0
-  return eventsForAction(action).filter(e => e.type === 'console').length
+  return store.model.value?.eventsForAction(action).filter(e => e.type === 'console').length ?? 0
 })
 const networkCount = computed(() =>
   resourcesForAction(store.model.value?.resources ?? [], store.selectedAction.value).length,

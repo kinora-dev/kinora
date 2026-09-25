@@ -70,7 +70,7 @@ watch(selected, async (sel) => {
   if (!sel)
     return
   const content = sel.resource.response?.content
-  const url = bodyUrl(store.model.value, content?._sha1)
+  const url = bodyUrl(store.model.value, content?._file)
   if (!url)
     return
   const mime = content?.mimeType ?? ''

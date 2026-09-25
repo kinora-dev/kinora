@@ -14,21 +14,16 @@
  * limitations under the License.
  */
 
-import { getActionGroup, renderTitleForCall } from '../protocolFormatter';
+import { getActionGroup, renderFullTitleForCall } from '../protocolFormatter';
 
 import type { Language } from '../locatorGenerators';
-import type { ResourceSnapshot } from '@trace/snapshot';
-import type * as trace from '@trace/trace';
-import type { ActionTraceEvent } from '@trace/trace';
+import type * as trace from './trace';
+import type { ActionTraceEvent, ResourceSnapshot } from './trace';
 import type { ActionEntry, ContextEntry, PageEntry } from './entries';
-import type { StackFrame } from '@protocol/channels';
 import type { ActionGroup } from '../protocolFormatter';
 
-const contextSymbol = Symbol('context');
-const nextInContextSymbol = Symbol('nextInContext');
 const prevByEndTimeSymbol = Symbol('prevByEndTime');
 const nextByStartTimeSymbol = Symbol('nextByStartTime');
-const eventsSymbol = Symbol('events');
 
 export type SourceLocation = {
   file: string;
@@ -44,20 +39,20 @@ export type SourceModel = {
 
 export type ResourceEntry = ResourceSnapshot & { id: string };
 
-export type ActionTraceEventInContext = ActionEntry & {
-  context: ContextEntry;
-};
+export function resourceOwnerRef(resource: ResourceSnapshot): string | undefined {
+  return resource.pageref ?? resource._serviceWorkerRef ?? resource._apiRequestRef;
+}
 
 export type ActionTreeItem = {
   id: string;
   children: ActionTreeItem[];
   parent: ActionTreeItem | undefined;
-  action: ActionTraceEventInContext;
+  action: ActionEntry;
 };
 
 export type ErrorDescription = {
-  action?: ActionTraceEventInContext;
-  stack?: StackFrame[];
+  action?: ActionEntry;
+  stack?: trace.StackFrame[];
   message: string;
 };
 
@@ -74,7 +69,8 @@ export class TraceModel {
   readonly title?: string;
   readonly options: trace.BrowserContextEventOptions;
   readonly pages: PageEntry[];
-  readonly actions: ActionTraceEventInContext[];
+  readonly videos: trace.VideoTraceEvent[];
+  readonly actions: ActionEntry[];
   readonly attachments: Attachment[];
   readonly visibleAttachments: Attachment[];
   readonly events: (trace.EventTraceEvent | trace.ConsoleMessageTraceEvent)[];
@@ -83,6 +79,8 @@ export class TraceModel {
   readonly errorDescriptors: ErrorDescription[];
   readonly hasSource: boolean;
   readonly hasStepData: boolean;
+  readonly hasDomSnapshots: boolean;
+  readonly hasAriaSnapshots: boolean;
   readonly sdkLanguage: Language | undefined;
   readonly testIdAttributeName: string | undefined;
   readonly sources: Map<string, SourceModel>;
@@ -90,10 +88,14 @@ export class TraceModel {
   readonly actionCounters: Map<string, number>;
   readonly traceUri: string;
   readonly testTimeout?: number;
-
+  readonly annotations?: trace.TraceEventAnnotation[];
+  readonly resourceOwnerRefToTitle = new Map<string, string>();
+  private _eventsForAction = new Map<ActionEntry, (trace.EventTraceEvent | trace.ConsoleMessageTraceEvent)[]>();
+  private _screenshots = new Map<string, trace.ScreenshotTraceEvent>();
+  private _ariaSnapshots = new Map<string, trace.AriaSnapshotTraceEvent>();
+  private _domSnapshots = new Set<string>();
 
   constructor(traceUri: string, contexts: ContextEntry[]) {
-    contexts.forEach(contextEntry => indexModel(contextEntry));
     const libraryContext = contexts.find(context => context.origin === 'library');
 
     this.traceUri = traceUri;
@@ -106,9 +108,11 @@ export class TraceModel {
     this.title = libraryContext?.title || '';
     this.options = libraryContext?.options || {};
     this.testTimeout = contexts.find(c => c.origin === 'testRunner')?.testTimeout;
+    this.annotations = contexts.find(c => c.origin === 'testRunner')?.annotations;
     // Next call updates all timestamps for all events in library contexts, so it must be done first.
     this.actions = mergeActionsAndUpdateTiming(contexts);
     this.pages = ([] as PageEntry[]).concat(...contexts.map(c => c.pages));
+    this.videos = [];
     this.wallTime = contexts.map(c => c.wallTime).reduce((prev, cur) => Math.min(prev || Number.MAX_VALUE, cur!), Number.MAX_VALUE);
     this.startTime = contexts.map(c => c.startTime).reduce((prev, cur) => Math.min(prev, cur), Number.MAX_VALUE);
     this.endTime = contexts.map(c => c.endTime).reduce((prev, cur) => Math.max(prev, cur), Number.MIN_VALUE);
@@ -117,12 +121,38 @@ export class TraceModel {
     this.errors = ([] as trace.ErrorTraceEvent[]).concat(...contexts.map(c => c.errors));
     this.hasSource = contexts.some(c => c.hasSource);
     this.hasStepData = contexts.some(context => context.origin === 'testRunner');
-    this.resources = [...contexts.map(c => c.resources)].flat().map(entry => ({ ...entry, id: `${entry.pageref}-${entry.startedDateTime}-${entry.request.url}` }));
+    this.resources = [];
+    for (let i = 0; i < contexts.length; ++i) {
+      for (const entry of contexts[i].resources)
+        this.resources.push({ ...entry, id: `${resourceOwnerRef(entry) ?? i}-${entry.startedDateTime}-${entry.request.url}` });
+    }
+    for (const context of contexts) {
+      for (const event of context.screenshots || [])
+        this._screenshots.set(`${event.callId}/${event.phase}`, event);
+      for (const event of context.ariaSnapshots || [])
+        this._ariaSnapshots.set(`${event.callId}/${event.phase}`, event);
+      for (const entry of context.domSnapshots || [])
+        this._domSnapshots.add(`${entry.callId}/${entry.phase}`);
+      this.videos.push(...(context.videos || []));
+    }
+    this.hasDomSnapshots = !!this._domSnapshots.size;
+    this.hasAriaSnapshots = !!this._screenshots.size || !!this._ariaSnapshots.size;
     this.attachments = this.actions.flatMap(action => action.attachments?.map(attachment => ({ ...attachment, callId: action.callId, traceUri })) ?? []);
     this.visibleAttachments = this.attachments.filter(attachment => !attachment.name.startsWith('_'));
 
+    this.pages.forEach((page, index) => this.resourceOwnerRefToTitle.set(page.pageId, 'page#' + (index + 1)));
+
     this.events.sort((a1, a2) => a1.time - a2.time);
     this.resources.sort((a1, a2) => a1._monotonicTime! - a2._monotonicTime!);
+
+    let serviceWorkerCount = 0;
+    let apiRequestCount = 0;
+    for (const resource of this.resources) {
+      if (resource._serviceWorkerRef && !this.resourceOwnerRefToTitle.has(resource._serviceWorkerRef))
+        this.resourceOwnerRefToTitle.set(resource._serviceWorkerRef, `service-worker#${++serviceWorkerCount}`);
+      if (resource._apiRequestRef && !this.resourceOwnerRefToTitle.has(resource._apiRequestRef))
+        this.resourceOwnerRefToTitle.set(resource._apiRequestRef, `api#${++apiRequestCount}`);
+    }
     this.errorDescriptors = this.hasStepData ? this._errorDescriptorsFromTestRunner() : this._errorDescriptorsFromActions();
     this.sources = collectSources(this.actions, this.errorDescriptors);
 
@@ -145,6 +175,50 @@ export class TraceModel {
     return this.actions.findLast(a => a.error);
   }
 
+  screenshotForCall(callId: string, phase: trace.ActionPhase): trace.ScreenshotTraceEvent | undefined {
+    return this._screenshots.get(`${callId}/${phase}`);
+  }
+
+  hasDomSnapshotForCall(callId: string, phase: trace.ActionPhase): boolean {
+    return this._domSnapshots.has(`${callId}/${phase}`);
+  }
+
+  ariaSnapshotForCall(callId: string, phase: trace.ActionPhase): trace.AriaSnapshotTraceEvent | undefined {
+    return this._ariaSnapshots.get(`${callId}/${phase}`);
+  }
+
+  eventsForAction(action: ActionEntry): (trace.EventTraceEvent | trace.ConsoleMessageTraceEvent)[] {
+    let result = this._eventsForAction.get(action);
+    if (result)
+      return result;
+
+    let nextAction = nextActionByStartTime(action);
+    while (nextAction && nextAction.class === 'Route')
+      nextAction = nextActionByStartTime(nextAction);
+    result = this.events.filter(event => {
+      return event.time >= action.startTime && (!nextAction || event.time < nextAction.startTime);
+    });
+    this._eventsForAction.set(action, result);
+    return result;
+  }
+
+  stats(action: ActionEntry): { errors: number, warnings: number } {
+    let errors = 0;
+    let warnings = 0;
+    for (const event of this.eventsForAction(action)) {
+      if (event.type === 'console') {
+        const type = event.messageType;
+        if (type === 'warning')
+          ++warnings;
+        else if (type === 'error')
+          ++errors;
+      }
+      if (event.type === 'event' && event.method === 'pageError')
+        ++errors;
+    }
+    return { errors, warnings };
+  }
+
   filteredActions(actionsFilter: ActionGroup[]) {
     const filter = new Set<string>(actionsFilter);
     return this.actions.filter(action => !action.group || filter.has(action.group));
@@ -155,7 +229,7 @@ export class TraceModel {
     const { rootItem } = buildActionTree(actions);
     const actionTree: string[] = [];
     const visit = (actionItem: ActionTreeItem, indent: string) => {
-      const title = renderTitleForCall({ ...actionItem.action, type: actionItem.action.class });
+      const title = renderFullTitleForCall({ ...actionItem.action, type: actionItem.action.class });
       actionTree.push(`${indent}${title || actionItem.id}`);
       for (const child of actionItem.children)
         visit(child, indent + '  ');
@@ -186,30 +260,8 @@ export class TraceModel {
   }
 }
 
-function indexModel(context: ContextEntry) {
-  for (const page of context.pages)
-    (page as any)[contextSymbol] = context;
-  for (let i = 0; i < context.actions.length; ++i) {
-    const action = context.actions[i] as any;
-    action[contextSymbol] = context;
-  }
-  let lastNonRouteAction = undefined;
-  for (let i = context.actions.length - 1; i >= 0; i--) {
-    const action = context.actions[i] as ActionTraceEvent;
-    (action as any)[nextInContextSymbol] = lastNonRouteAction;
-    if (action.class !== 'Route')
-      lastNonRouteAction = action;
-  }
-  for (const event of context.events)
-    (event as any)[contextSymbol] = context;
-  for (const resource of context.resources)
-    (resource as any)[contextSymbol] = context;
-}
-
 function mergeActionsAndUpdateTiming(contexts: ContextEntry[]) {
-  const result: ActionTraceEventInContext[] = [];
-  const actions = mergeActionsAndUpdateTimingSameTrace(contexts);
-  result.push(...actions);
+  const result = mergeActionsAndUpdateTimingSameTrace(contexts);
 
   result.sort((a1, a2) => {
     if (a2.parentId === a1.callId)
@@ -238,8 +290,8 @@ function mergeActionsAndUpdateTiming(contexts: ContextEntry[]) {
 
 let lastTmpStepId = 0;
 
-function mergeActionsAndUpdateTimingSameTrace(contexts: ContextEntry[]): ActionTraceEventInContext[] {
-  const map = new Map<string, ActionTraceEventInContext>();
+function mergeActionsAndUpdateTimingSameTrace(contexts: ContextEntry[]): ActionEntry[] {
+  const map = new Map<string, ActionEntry>();
 
   const libraryContexts = contexts.filter(context => context.origin === 'library');
   const testRunnerContexts = contexts.filter(context => context.origin === 'testRunner');
@@ -247,24 +299,23 @@ function mergeActionsAndUpdateTimingSameTrace(contexts: ContextEntry[]): ActionT
   // With library-only or test-runner-only traces there is nothing to match.
   if (!testRunnerContexts.length || !libraryContexts.length) {
     return contexts.map(context => {
-      return context.actions.map(action => ({ ...action, context }));
+      return context.actions.map(action => ({ ...action }));
     }).flat();
+  }
+
+  const timeOrigin = (context: ContextEntry) => context.wallTime - context.monotonicTime;
+  const runnerContext = testRunnerContexts.find(context => context.monotonicTime);
+  for (const context of libraryContexts) {
+    if (runnerContext && context.monotonicTime)
+      adjustMonotonicTime(context, timeOrigin(context) - timeOrigin(runnerContext));
   }
 
   for (const context of libraryContexts) {
     for (const action of context.actions) {
       // Never merge stepless events.
-      map.set(action.stepId || `tmp-step@${++lastTmpStepId}`, { ...action, context });
+      map.set(action.stepId || `tmp-step@${++lastTmpStepId}`, { ...action });
     }
   }
-
-  // Protocol call aka library contexts have startTime/endTime as server-side times.
-  // Step aka test runner contexts have startTime/endTime as client-side times.
-  // Adjust startTime/endTime on the library contexts to align them with the test
-  // runner steps.
-  const delta = monotonicTimeDeltaBetweenLibraryAndRunner(testRunnerContexts, map);
-  if (delta)
-    adjustMonotonicTime(libraryContexts, delta);
 
   const nonPrimaryIdToPrimaryId = new Map<string, string>();
   for (const context of testRunnerContexts) {
@@ -290,56 +341,45 @@ function mergeActionsAndUpdateTimingSameTrace(contexts: ContextEntry[]): ActionT
       }
       if (action.parentId)
         action.parentId = nonPrimaryIdToPrimaryId.get(action.parentId) ?? action.parentId;
-      map.set(action.stepId || `tmp-step@${++lastTmpStepId}`, { ...action, context });
+      map.set(action.stepId || `tmp-step@${++lastTmpStepId}`, { ...action });
     }
   }
   return [...map.values()];
 }
 
-function adjustMonotonicTime(contexts: ContextEntry[], monotonicTimeDelta: number) {
-  for (const context of contexts) {
-    context.startTime += monotonicTimeDelta;
-    context.endTime += monotonicTimeDelta;
-    for (const action of context.actions) {
-      if (action.startTime)
-        action.startTime += monotonicTimeDelta;
-      if (action.endTime)
-        action.endTime += monotonicTimeDelta;
-    }
-    for (const event of context.events)
-      event.time += monotonicTimeDelta;
-    for (const event of context.stdio)
-      event.timestamp += monotonicTimeDelta;
-    for (const page of context.pages) {
-      for (const frame of page.screencastFrames)
-        frame.timestamp += monotonicTimeDelta;
-    }
-    for (const resource of context.resources) {
-      if (resource._monotonicTime)
-        resource._monotonicTime += monotonicTimeDelta;
-    }
+function adjustMonotonicTime(context: ContextEntry, monotonicTimeDelta: number) {
+  if (!monotonicTimeDelta)
+    return;
+  context.startTime += monotonicTimeDelta;
+  context.endTime += monotonicTimeDelta;
+  context.monotonicTime += monotonicTimeDelta;
+  for (const action of context.actions) {
+    if (action.startTime)
+      action.startTime += monotonicTimeDelta;
+    if (action.endTime)
+      action.endTime += monotonicTimeDelta;
+  }
+  for (const event of context.events)
+    event.time += monotonicTimeDelta;
+  for (const event of context.stdio)
+    event.timestamp += monotonicTimeDelta;
+  for (const page of context.pages) {
+    for (const frame of page.screencastFrames)
+      frame.timestamp += monotonicTimeDelta;
+  }
+  for (const video of context.videos || [])
+    video.timestamp += monotonicTimeDelta;
+  for (const screenshot of context.screenshots || [])
+    screenshot.timestamp += monotonicTimeDelta;
+  for (const ariaSnapshot of context.ariaSnapshots || [])
+    ariaSnapshot.timestamp += monotonicTimeDelta;
+  for (const resource of context.resources) {
+    if (resource._monotonicTime)
+      resource._monotonicTime += monotonicTimeDelta;
   }
 }
 
-function monotonicTimeDeltaBetweenLibraryAndRunner(nonPrimaryContexts: ContextEntry[], libraryActions: Map<string, ActionTraceEventInContext>) {
-  // We cannot rely on wall time or monotonic time to be the in sync
-  // between library and test runner contexts. So we find first action
-  // that is present in both runner and library contexts and use it
-  // to calculate the time delta, assuming the two events happened at the
-  // same instant.
-  for (const context of nonPrimaryContexts) {
-    for (const action of context.actions) {
-      if (!action.startTime)
-        continue;
-      const libraryAction = action.stepId ? libraryActions.get(action.stepId) : undefined;
-      if (libraryAction)
-        return action.startTime - libraryAction.startTime;
-    }
-  }
-  return 0;
-}
-
-export function buildActionTree(actions: ActionTraceEventInContext[]): { rootItem: ActionTreeItem, itemMap: Map<string, ActionTreeItem> } {
+export function buildActionTree(actions: ActionEntry[]): { rootItem: ActionTreeItem, itemMap: Map<string, ActionTreeItem> } {
   const itemMap = new Map<string, ActionTreeItem>();
 
   for (const action of actions) {
@@ -371,50 +411,12 @@ export function buildActionTree(actions: ActionTraceEventInContext[]): { rootIte
   return { rootItem, itemMap };
 }
 
-export function context(action: ActionTraceEvent | trace.EventTraceEvent | ResourceSnapshot): ContextEntry {
-  return (action as any)[contextSymbol];
-}
-
-function nextInContext(action: ActionTraceEvent): ActionTraceEvent {
-  return (action as any)[nextInContextSymbol];
-}
-
 export function previousActionByEndTime(action: ActionTraceEvent): ActionTraceEvent {
   return (action as any)[prevByEndTimeSymbol];
 }
 
 export function nextActionByStartTime(action: ActionTraceEvent): ActionTraceEvent {
   return (action as any)[nextByStartTimeSymbol];
-}
-
-export function stats(action: ActionTraceEvent): { errors: number, warnings: number } {
-  let errors = 0;
-  let warnings = 0;
-  for (const event of eventsForAction(action)) {
-    if (event.type === 'console') {
-      const type = event.messageType;
-      if (type === 'warning')
-        ++warnings;
-      else if (type === 'error')
-        ++errors;
-    }
-    if (event.type === 'event' && event.method === 'pageError')
-      ++errors;
-  }
-  return { errors, warnings };
-}
-
-export function eventsForAction(action: ActionTraceEvent): (trace.EventTraceEvent | trace.ConsoleMessageTraceEvent)[] {
-  let result: (trace.EventTraceEvent | trace.ConsoleMessageTraceEvent)[] = (action as any)[eventsSymbol];
-  if (result)
-    return result;
-
-  const nextAction = nextInContext(action);
-  result = context(action).events.filter(event => {
-    return event.time >= action.startTime && (!nextAction || event.time < nextAction.startTime);
-  });
-  (action as any)[eventsSymbol] = result;
-  return result;
 }
 
 function collectSources(actions: trace.ActionTraceEvent[], errorDescriptors: ErrorDescription[]): Map<string, SourceModel> {
@@ -441,7 +443,7 @@ function collectSources(actions: trace.ActionTraceEvent[], errorDescriptors: Err
   return result;
 }
 
-const kFakeRootAction: ActionTraceEventInContext = {
+const kFakeRootAction: ActionEntry = {
   type: 'action',
   callId: '',
   startTime: 0,
@@ -450,20 +452,4 @@ const kFakeRootAction: ActionTraceEventInContext = {
   method: '',
   params: {},
   log: [],
-  context: {
-    origin: 'library',
-    startTime: 0,
-    endTime: 0,
-    browserName: '',
-    wallTime: 0,
-    options: {},
-    pages: [],
-    resources: [],
-    actions: [],
-    events: [],
-    stdio: [],
-    errors: [],
-    hasSource: false,
-    contextId: '',
-  },
 };
