@@ -6,8 +6,8 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { s3Storage } from '../src/lib/storage'
 
 // Exercises the real S3 path (lib-storage streaming Upload + presigned GET + delete) against the
-// MinIO from the dev docker-compose (always up alongside Postgres). The global `storage` singleton
-// stays on local FS (test-env keeps S3_* empty) so the FS path + signed /artifacts serving stay covered.
+// S3-compatible server on localhost:9000. The global `storage` singleton stays on local FS
+// (test-env keeps S3_* empty) so the FS path + signed /artifacts serving stay covered.
 const config = {
   endpoint: 'http://localhost:9000',
   region: 'us-east-1',
