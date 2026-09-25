@@ -83,6 +83,8 @@ for (const item of downloads) {
 for (const item of generated)
   await handleFile(item.local, item.content)
 
+await handleReadmeVersion()
+
 if (mode === 'check') {
   if (stale.length) {
     console.error(`Playwright trace viewer vendored code is out of sync with ${tag}:`)
@@ -107,6 +109,20 @@ async function handleFile(local, content) {
     return
   }
   await mkdir(path.dirname(localPath), { recursive: true })
+  await writeFile(localPath, content)
+}
+
+async function handleReadmeVersion() {
+  const local = 'packages/trace-viewer/README.md'
+  const localPath = path.join(root, local)
+  const previous = await readFile(localPath, 'utf8')
+  const content = previous.replace(/synced from Playwright `v[^`]+`/, `synced from Playwright \`${tag}\``)
+  if (previous === content)
+    return
+  if (mode === 'check') {
+    stale.push(local)
+    return
+  }
   await writeFile(localPath, content)
 }
 

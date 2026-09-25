@@ -1,0 +1,70 @@
+name: Playwright Vendor Autosync
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - package.json
+      - pnpm-lock.yaml
+      - packages/*/package.json
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  autosync:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.actor == 'renovate[bot]' || startsWith(github.event.pull_request.head.ref, 'renovate/'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.RENOVATE_AUTOSYNC_TOKEN || github.token }}
+          fetch-depth: 0
+
+      - name: Check whether Playwright changed
+        id: playwright
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
+          if git diff --unified=0 origin/${{ github.event.pull_request.base.ref }}...HEAD -- package.json 'packages/*/package.json' | grep -E '"(@playwright/test|playwright)"'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        if: steps.playwright.outputs.changed == 'true'
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.playwright.outputs.changed == 'true'
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        if: steps.playwright.outputs.changed == 'true'
+
+      - name: Sync vendored Playwright trace viewer
+        if: steps.playwright.outputs.changed == 'true'
+        run: pnpm vendor:playwright-trace
+
+      - name: Typecheck trace viewer
+        if: steps.playwright.outputs.changed == 'true'
+        run: pnpm --filter @kinora/trace-viewer typecheck
+
+      - name: Commit vendored sync
+        if: steps.playwright.outputs.changed == 'true'
+        run: |
+          if git diff --quiet; then
+            echo "Vendored Playwright trace viewer is already in sync."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/trace-viewer/README.md packages/trace-viewer/src/core packages/trace-viewer/src/sw
+          git commit -m "chore(trace-viewer): sync vendored playwright engine"
+          git push
