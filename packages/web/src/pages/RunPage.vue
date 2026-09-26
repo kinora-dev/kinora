@@ -11,6 +11,7 @@ import { useRouteQuery } from '@vueuse/router'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
+import FilterCombobox from '@/components/FilterCombobox.vue'
 import SearchInput from '@/components/app/SearchInput.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
 import { useManifest, useRun } from '@/composables/queries'
@@ -56,17 +57,25 @@ const commitHref = computed(() => {
 const ciRunHref = computed(() => httpsUrl(report.value?.meta.ci?.runUrl))
 
 const filter = useRouteQuery<'all' | PwTestStatus>('status', 'all')
+const tag = useRouteQuery('tag', 'all')
 const search = useRouteQuery('q', '')
 
 const tests = computed(() => report.value?.tests ?? [])
+const tags = computed(() => [...new Set(tests.value.flatMap(t => t.tags))].sort())
+
+const tagMatched = computed(() => {
+  if (tag.value === 'all')
+    return tests.value
+  return tests.value.filter(t => t.tags.includes(tag.value))
+})
 
 // Search-matched set, before the status tab. Tab counts derive from this so
-// they track the search box; the tab itself only narrows the visible list.
+// they track the tag/search filters; the tab itself only narrows the visible list.
 const searchMatched = computed(() => {
   const q = search.value.trim().toLowerCase()
   if (!q)
-    return tests.value
-  return tests.value.filter(
+    return tagMatched.value
+  return tagMatched.value.filter(
     t => t.titlePath.join(' ').toLowerCase().includes(q) || t.file.toLowerCase().includes(q),
   )
 })
@@ -219,7 +228,17 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <SearchInput v-model="search" placeholder="Filter by title or file..." />
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <FilterCombobox
+            v-if="tags.length > 1"
+            v-model="tag"
+            :options="tags"
+            all-label="All tags"
+            search-placeholder="Search tag..."
+            trigger-class="w-40"
+          />
+          <SearchInput v-model="search" placeholder="Filter by title or file..." />
+        </div>
       </div>
 
       <!-- Tests -->
