@@ -1,0 +1,35 @@
+---
+import { ArrowRight } from '@lucide/astro'
+import { SITE } from '../lib/site'
+---
+
+<section class="border-b border-border">
+  <div class="mx-auto max-w-3xl px-5 py-14 sm:px-8 sm:py-16">
+    <div class="reveal overflow-hidden rounded-xl border border-border bg-card/40 p-7 sm:p-8">
+      <p class="font-mono text-xs font-medium uppercase tracking-wider text-signal">Try Kinora</p>
+      <h2 class="mt-3 text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
+        Keep Playwright test history beyond a single CI run.
+      </h2>
+      <p class="mt-3 text-pretty leading-relaxed text-muted-foreground">
+        Upload reports from CI, track flaky tests over time, and open failed traces inline from the same dashboard.
+      </p>
+      <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+        <a
+          href={SITE.signup}
+          data-umami-event="blog-cta-get-started"
+          class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-signal px-5 font-mono text-sm font-semibold text-background transition-opacity hover:opacity-90"
+        >
+          Get started
+          <ArrowRight class="size-4" aria-hidden="true" />
+        </a>
+        <a
+          href={SITE.docs}
+          data-umami-event="blog-cta-docs"
+          class="inline-flex h-11 items-center justify-center rounded-md border border-border bg-background px-5 font-mono text-sm font-semibold transition-colors hover:bg-muted"
+        >
+          Read the docs
+        </a>
+      </div>
+    </div>
+  </div>
+</section>

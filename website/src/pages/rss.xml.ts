@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro'
-import { blogPath, getPublishedBlogPosts } from '../lib/blog'
+import { blogCanonicalUrl, getPublishedBlogPosts } from '../lib/blog'
 import { SITE } from '../lib/site'
 
 function xml(value: string): string {
@@ -15,7 +15,7 @@ export const GET: APIRoute = async ({ site }) => {
   const base = site ?? new URL(SITE.url)
   const posts = await getPublishedBlogPosts()
   const items = posts.map((post) => {
-    const url = new URL(blogPath(post), base).toString()
+    const url = blogCanonicalUrl(post, base)
     return `<item>
 <title>${xml(post.data.title)}</title>
 <link>${xml(url)}</link>

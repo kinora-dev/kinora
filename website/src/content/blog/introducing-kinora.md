@@ -7,6 +7,11 @@ tags:
   - testing
   - opensource
 slug: introducing-kinora
+image: /og-image.png
+imageAlt: Kinora Playwright test reporting dashboard
+author:
+  name: Joris Gallot
+  url: https://jorisgallot.dev
 draft: true
 ---
 

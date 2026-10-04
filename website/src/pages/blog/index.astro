@@ -4,18 +4,25 @@ import CtaSection from '../../components/CtaSection.astro'
 import SiteFooter from '../../components/SiteFooter.astro'
 import SiteHeader from '../../components/SiteHeader.astro'
 import Layout from '../../layouts/Layout.astro'
-import { blogPath, formatBlogDate, getPublishedBlogPosts } from '../../lib/blog'
+import { blogCanonicalUrl, blogPath, formatBlogDate, getPublishedBlogPosts } from '../../lib/blog'
 import { SITE } from '../../lib/site'
 
 const posts = await getPublishedBlogPosts()
+const site = Astro.site ?? new URL(SITE.url)
 
 const schemas = [
   {
     '@type': 'Blog',
     'name': 'kinora blog',
     'description': 'Articles about Playwright reporting, flaky tests, traces, CI debugging, and building Kinora.',
-    'url': new URL('/blog', Astro.site ?? SITE.url).toString(),
-    'publisher': { '@id': `${new URL(Astro.site ?? SITE.url).origin}/#organization` },
+    'url': new URL('/blog', site).toString(),
+    'publisher': { '@id': `${site.origin}/#organization` },
+    'blogPost': posts.map(post => ({
+      '@type': 'BlogPosting',
+      'headline': post.data.title,
+      'url': blogCanonicalUrl(post, site),
+      'datePublished': post.data.date.toISOString(),
+    })),
   },
 ]
 ---

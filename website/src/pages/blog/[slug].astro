@@ -2,11 +2,12 @@
 import type { BlogPost } from '../../lib/blog'
 import { ArrowLeft } from '@lucide/astro'
 import { render } from 'astro:content'
-import CtaSection from '../../components/CtaSection.astro'
+import BlogAuthor from '../../components/BlogAuthor.astro'
+import BlogPostCta from '../../components/BlogPostCta.astro'
 import SiteFooter from '../../components/SiteFooter.astro'
 import SiteHeader from '../../components/SiteHeader.astro'
 import Layout from '../../layouts/Layout.astro'
-import { blogPath, formatBlogDate, getPublishedBlogPosts } from '../../lib/blog'
+import { blogCanonicalUrl, blogImageAlt, blogImageUrl, blogPath, formatBlogDate, getPublishedBlogPosts } from '../../lib/blog'
 import { SITE } from '../../lib/site'
 
 export async function getStaticPaths() {
@@ -17,7 +18,10 @@ export async function getStaticPaths() {
 const { post } = Astro.props as { post: BlogPost }
 const { Content } = await render(post)
 const site = Astro.site ?? new URL(SITE.url)
-const canonical = new URL(blogPath(post), site).toString()
+const canonical = blogCanonicalUrl(post, site)
+const image = blogImageUrl(post, site)
+const imageAlt = blogImageAlt(post)
+const modifiedDate = post.data.updatedDate ?? post.data.date
 
 const schemas = [
   {
@@ -25,16 +29,25 @@ const schemas = [
     'headline': post.data.title,
     'description': post.data.description,
     'datePublished': post.data.date.toISOString(),
-    'dateModified': (post.data.updatedDate ?? post.data.date).toISOString(),
+    'dateModified': modifiedDate.toISOString(),
     'url': canonical,
     'mainEntityOfPage': canonical,
+    'image': image,
     'author': {
       '@type': 'Person',
-      'name': 'Joris Gallot',
-      'url': 'https://jorisgallot.dev',
+      'name': post.data.author.name,
+      ...(post.data.author.url ? { url: post.data.author.url } : {}),
     },
     'publisher': { '@id': `${site.origin}/#organization` },
     'keywords': post.data.tags.join(', '),
+  },
+  {
+    '@type': 'BreadcrumbList',
+    'itemListElement': [
+      { '@type': 'ListItem', 'position': 1, 'name': 'kinora', 'item': site.toString() },
+      { '@type': 'ListItem', 'position': 2, 'name': 'Blog', 'item': new URL('/blog', site).toString() },
+      { '@type': 'ListItem', 'position': 3, 'name': post.data.title, 'item': canonical },
+    ],
   },
 ]
 ---
@@ -43,6 +56,14 @@ const schemas = [
   title={`${post.data.title} - kinora blog`}
   description={post.data.description}
   pathname={blogPath(post)}
+  canonicalUrl={canonical}
+  image={image}
+  imageAlt={imageAlt}
+  ogType="article"
+  publishedTime={post.data.date.toISOString()}
+  modifiedTime={modifiedDate.toISOString()}
+  tags={post.data.tags}
+  author={post.data.author.name}
   schemas={schemas}
 >
   <SiteHeader />
@@ -91,11 +112,12 @@ const schemas = [
           >
             <Content />
           </div>
+          <BlogAuthor author={post.data.author} date={post.data.date} updatedDate={post.data.updatedDate} />
         </div>
       </div>
     </article>
 
-    <CtaSection />
+    <BlogPostCta />
   </main>
   <SiteFooter />
 </Layout>

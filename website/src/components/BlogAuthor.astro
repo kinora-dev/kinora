@@ -1,0 +1,40 @@
+---
+import { formatBlogDate } from '../lib/blog'
+
+interface Props {
+  author: {
+    name: string
+    url?: string
+  }
+  date: Date
+  updatedDate?: Date
+}
+
+const { author, date, updatedDate } = Astro.props
+---
+
+<div class="mt-12 rounded-xl border border-border bg-card/40 p-5 sm:p-6">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <p class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Written by</p>
+      {
+        author.url
+          ? (
+              <a
+                href={author.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="mt-1 inline-flex font-semibold tracking-tight text-foreground transition-colors hover:text-signal"
+              >
+                {author.name}
+              </a>
+            )
+          : <p class="mt-1 font-semibold tracking-tight text-foreground">{author.name}</p>
+      }
+    </div>
+    <div class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground sm:text-right">
+      <p>Published {formatBlogDate(date)}</p>
+      {updatedDate && <p class="mt-1">Updated {formatBlogDate(updatedDate)}</p>}
+    </div>
+  </div>
+</div>

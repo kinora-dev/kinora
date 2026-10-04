@@ -10,8 +10,15 @@ interface Props {
   title?: string
   description?: string
   pathname?: string
+  canonicalUrl?: string
   robots?: string
   image?: string
+  imageAlt?: string
+  ogType?: 'website' | 'article'
+  publishedTime?: string
+  modifiedTime?: string
+  tags?: string[]
+  author?: string
   schemas?: Record<string, unknown>[]
 }
 
@@ -20,12 +27,19 @@ const {
   title = `${SITE.name} - ${SITE.tagline}`,
   description = SITE.description,
   pathname = Astro.url.pathname,
+  canonicalUrl,
   robots = 'index,follow',
   image = '/og-image.png',
+  imageAlt = `${SITE.name} - ${SITE.tagline}`,
+  ogType = 'website',
+  publishedTime,
+  modifiedTime,
+  tags = [],
+  author,
   schemas = [],
 } = Astro.props
 
-const canonical = new URL(pathname, site).toString()
+const canonical = new URL(canonicalUrl ?? pathname, site).toString()
 const imageUrl = new URL(image, site).toString()
 
 const isProd = import.meta.env.MODE === 'production'
@@ -137,7 +151,7 @@ const structuredData = {
 
     <meta property="og:site_name" content="kinora" />
     <meta property="og:locale" content="en_US" />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:url" content={canonical} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -145,12 +159,28 @@ const structuredData = {
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content={`${SITE.name} - ${SITE.tagline}`} />
+    <meta property="og:image:alt" content={imageAlt} />
+    {
+      ogType === 'article' && publishedTime && (
+        <meta property="article:published_time" content={publishedTime} />
+      )
+    }
+    {
+      ogType === 'article' && modifiedTime && (
+        <meta property="article:modified_time" content={modifiedTime} />
+      )
+    }
+    {
+      ogType === 'article' && author && (
+        <meta property="article:author" content={author} />
+      )
+    }
+    {ogType === 'article' && tags.map(tag => <meta property="article:tag" content={tag} />)}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={imageUrl} />
-    <meta name="twitter:image:alt" content={`${SITE.name} - ${SITE.tagline}`} />
+    <meta name="twitter:image:alt" content={imageAlt} />
 
     <script
       is:inline
