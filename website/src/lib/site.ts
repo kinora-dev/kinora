@@ -42,5 +42,6 @@ export const NAV: { label: string, href: string, event?: string }[] = [
   { label: 'Agents', href: '/#mcp' },
   { label: 'Pricing', href: '/#pricing' },
   { label: 'Setup', href: '/#setup' },
+  { label: 'Blog', href: '/blog', event: 'blog-nav' },
   { label: 'Docs', href: SITE.docs, event: 'docs-nav' },
 ]

@@ -1,0 +1,101 @@
+---
+import type { BlogPost } from '../../lib/blog'
+import { ArrowLeft } from '@lucide/astro'
+import { render } from 'astro:content'
+import CtaSection from '../../components/CtaSection.astro'
+import SiteFooter from '../../components/SiteFooter.astro'
+import SiteHeader from '../../components/SiteHeader.astro'
+import Layout from '../../layouts/Layout.astro'
+import { blogPath, formatBlogDate, getPublishedBlogPosts } from '../../lib/blog'
+import { SITE } from '../../lib/site'
+
+export async function getStaticPaths() {
+  const posts = await getPublishedBlogPosts()
+  return posts.map(post => ({ params: { slug: post.data.slug }, props: { post } }))
+}
+
+const { post } = Astro.props as { post: BlogPost }
+const { Content } = await render(post)
+const site = Astro.site ?? new URL(SITE.url)
+const canonical = new URL(blogPath(post), site).toString()
+
+const schemas = [
+  {
+    '@type': 'BlogPosting',
+    'headline': post.data.title,
+    'description': post.data.description,
+    'datePublished': post.data.date.toISOString(),
+    'dateModified': (post.data.updatedDate ?? post.data.date).toISOString(),
+    'url': canonical,
+    'mainEntityOfPage': canonical,
+    'author': {
+      '@type': 'Person',
+      'name': 'Joris Gallot',
+      'url': 'https://jorisgallot.dev',
+    },
+    'publisher': { '@id': `${site.origin}/#organization` },
+    'keywords': post.data.tags.join(', '),
+  },
+]
+---
+
+<Layout
+  title={`${post.data.title} - kinora blog`}
+  description={post.data.description}
+  pathname={blogPath(post)}
+  schemas={schemas}
+>
+  <SiteHeader />
+  <main>
+    <article>
+      <header class="relative overflow-hidden border-b border-border">
+        <div
+          class="app-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(120%_80%_at_50%_0%,black,transparent)]"
+          aria-hidden="true"
+        >
+        </div>
+        <div class="relative mx-auto max-w-3xl px-5 pt-10 pb-14 sm:px-8 sm:pt-16">
+          <a
+            href="/blog"
+            class="reveal inline-flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft class="size-3.5" aria-hidden="true" />
+            Blog
+          </a>
+          <div
+            class="reveal mt-8 flex flex-wrap items-center gap-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground"
+            style="--reveal-delay: 60ms"
+          >
+            <time datetime={post.data.date.toISOString()}>{formatBlogDate(post.data.date)}</time>
+            {post.data.tags.map(tag => <span>#{tag}</span>)}
+          </div>
+          <h1
+            class="reveal mt-4 text-balance text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl"
+            style="--reveal-delay: 120ms"
+          >
+            {post.data.title}
+          </h1>
+          <p
+            class="reveal mt-6 text-pretty text-lg leading-relaxed text-muted-foreground"
+            style="--reveal-delay: 180ms"
+          >
+            {post.data.description}
+          </p>
+        </div>
+      </header>
+
+      <div class="border-b border-border">
+        <div class="mx-auto max-w-3xl px-5 py-14 sm:px-8 sm:py-16">
+          <div
+            class="reveal text-pretty leading-7 text-muted-foreground [&_a]:text-signal [&_a]:underline [&_a]:decoration-border [&_a]:underline-offset-4 [&_a:hover]:decoration-signal [&_blockquote]:my-8 [&_blockquote]:border-l-2 [&_blockquote]:border-signal [&_blockquote]:pl-5 [&_blockquote]:text-foreground [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-sm [&_h2]:mt-12 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-foreground [&_h3]:mt-8 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:tracking-tight [&_h3]:text-foreground [&_li]:mt-2 [&_ol]:my-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mt-5 [&_pre]:my-6 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-border [&_pre]:bg-card [&_pre]:p-4 [&_pre_code]:border-0 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_strong]:text-foreground [&_ul]:my-6 [&_ul]:list-disc [&_ul]:pl-6"
+          >
+            <Content />
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <CtaSection />
+  </main>
+  <SiteFooter />
+</Layout>

@@ -1,0 +1,112 @@
+---
+import { ArrowRight } from '@lucide/astro'
+import CtaSection from '../../components/CtaSection.astro'
+import SiteFooter from '../../components/SiteFooter.astro'
+import SiteHeader from '../../components/SiteHeader.astro'
+import Layout from '../../layouts/Layout.astro'
+import { blogPath, formatBlogDate, getPublishedBlogPosts } from '../../lib/blog'
+import { SITE } from '../../lib/site'
+
+const posts = await getPublishedBlogPosts()
+
+const schemas = [
+  {
+    '@type': 'Blog',
+    'name': 'kinora blog',
+    'description': 'Articles about Playwright reporting, flaky tests, traces, CI debugging, and building Kinora.',
+    'url': new URL('/blog', Astro.site ?? SITE.url).toString(),
+    'publisher': { '@id': `${new URL(Astro.site ?? SITE.url).origin}/#organization` },
+  },
+]
+---
+
+<Layout
+  title="kinora blog - Playwright testing, traces, and CI debugging"
+  description="Articles about Playwright test reporting, flaky test tracking, trace debugging, CI workflows, and building Kinora."
+  pathname="/blog"
+  schemas={schemas}
+>
+  <SiteHeader />
+  <main>
+    <section class="relative overflow-hidden border-b border-border">
+      <div
+        class="app-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(120%_80%_at_50%_0%,black,transparent)]"
+        aria-hidden="true"
+      >
+      </div>
+      <div class="relative mx-auto max-w-4xl px-5 pt-16 pb-14 text-center sm:px-8 sm:pt-24">
+        <p class="reveal font-mono text-xs font-medium uppercase tracking-wider text-signal">
+          [ Blog ]
+        </p>
+        <h1
+          class="reveal mt-4 text-balance text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl"
+          style="--reveal-delay: 60ms"
+        >
+          Playwright testing, traces, and CI debugging
+        </h1>
+        <p
+          class="reveal mx-auto mt-6 max-w-2xl text-pretty text-lg text-muted-foreground"
+          style="--reveal-delay: 140ms"
+        >
+          Practical notes on keeping Playwright test history useful, tracking flaky tests, debugging failures with traces, and building Kinora.
+        </p>
+      </div>
+    </section>
+
+    <section class="border-b border-border">
+      <div class="mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-20">
+        {
+          posts.length > 0
+            ? (
+                <div class="grid gap-px overflow-hidden rounded-xl border border-border bg-border">
+                  {posts.map((post, i) => (
+                    <article class="reveal bg-background p-6 sm:p-8" style={`--reveal-delay: ${(i % 3) * 70}ms`}>
+                      <div class="flex flex-wrap items-center gap-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                        <time datetime={post.data.date.toISOString()}>{formatBlogDate(post.data.date)}</time>
+                        {post.data.tags.map(tag => <span>#{tag}</span>)}
+                      </div>
+                      <h2 class="mt-4 text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
+                        <a href={blogPath(post)} class="transition-colors hover:text-signal">
+                          {post.data.title}
+                        </a>
+                      </h2>
+                      <p class="mt-3 max-w-3xl text-pretty leading-relaxed text-muted-foreground">
+                        {post.data.description}
+                      </p>
+                      <a
+                        href={blogPath(post)}
+                        class="mt-5 inline-flex items-center gap-2 font-mono text-sm font-semibold text-signal transition-opacity hover:opacity-80"
+                      >
+                        Read article
+                        <ArrowRight class="size-4" aria-hidden="true" />
+                      </a>
+                    </article>
+                  ))}
+                </div>
+              )
+            : (
+                <div class="reveal rounded-xl border border-border bg-card/40 p-8 text-center sm:p-12">
+                  <p class="font-mono text-xs font-medium uppercase tracking-wider text-signal">Coming soon</p>
+                  <h2 class="mt-3 text-balance text-2xl font-semibold tracking-tight">The first Kinora articles are being drafted.</h2>
+                  <p class="mx-auto mt-3 max-w-2xl text-pretty leading-relaxed text-muted-foreground">
+                    The blog will start with practical posts on Playwright HTML reports, flaky test tracking, and CI trace debugging.
+                  </p>
+                  <a
+                    href={SITE.repo}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="mt-6 inline-flex h-11 items-center gap-2 rounded-md border border-border bg-background px-5 font-mono text-sm font-semibold transition-colors hover:bg-muted"
+                  >
+                    Follow Kinora on GitHub
+                    <ArrowRight class="size-4" aria-hidden="true" />
+                  </a>
+                </div>
+              )
+        }
+      </div>
+    </section>
+
+    <CtaSection />
+  </main>
+  <SiteFooter />
+</Layout>
