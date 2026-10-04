@@ -1,0 +1,982 @@
+/* kinora promo film. Tokens mirror the dark theme in packages/ui/src/theme.css,
+   and the dashboard / trace viewer pieces mirror the real components' classes. */
+
+@font-face {
+  font-family: 'Hanken Grotesk Variable';
+  font-style: normal;
+  font-display: block;
+  font-weight: 100 900;
+  src: url('/fonts/hanken-grotesk.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  font-style: normal;
+  font-display: block;
+  font-weight: 100 800;
+  src: url('/fonts/jetbrains-mono.woff2') format('woff2-variations');
+}
+
+:root {
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --border: oklch(1 0 0 / 10%);
+  --pass: oklch(0.72 0.17 152);
+  --flaky: oklch(0.81 0.16 82);
+  --fail: oklch(0.68 0.2 25);
+  --signal: oklch(0.76 0.18 55);
+  --sans: 'Hanken Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+#stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  transform-origin: 0 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+#lens {
+  inset: 0;
+}
+
+#stage > *,
+#lens > * {
+  position: absolute;
+}
+
+/* ---- Atmosphere ---------------------------------------------------------- */
+
+/* The control-room grid from the site hero. */
+#grid {
+  inset: -120px;
+  background-image:
+    linear-gradient(to right, oklch(1 0 0 / 4.5%) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(1 0 0 / 4.5%) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: center center;
+  mask-image: radial-gradient(75% 85% at 50% 45%, #000 30%, transparent 100%);
+}
+
+/* The dot is the only light in the room. */
+#glow {
+  left: 0;
+  top: 0;
+  width: 1700px;
+  height: 1700px;
+  margin: -850px 0 0 -850px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--signal) 100%, transparent) 0%,
+    color-mix(in oklch, var(--signal) 46%, transparent) 9%,
+    color-mix(in oklch, var(--signal) 17%, transparent) 22%,
+    color-mix(in oklch, var(--signal) 5%, transparent) 42%,
+    transparent 70%
+  );
+  mix-blend-mode: screen;
+}
+
+/* The same light again, falling on whatever the dot is hovering over. */
+#lume {
+  left: 0;
+  top: 0;
+  width: 900px;
+  height: 900px;
+  margin: -450px 0 0 -450px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--signal) 50%, transparent) 0%,
+    color-mix(in oklch, var(--signal) 16%, transparent) 22%,
+    transparent 62%
+  );
+  mix-blend-mode: screen;
+}
+
+#vignette {
+  inset: 0;
+  background: radial-gradient(120% 120% at 50% 50%, transparent 55%, oklch(0 0 0 / 55%) 100%);
+  pointer-events: none;
+}
+
+#scrim {
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--background) 0%,
+    color-mix(in oklch, var(--background) 92%, transparent) 26%,
+    transparent 46%
+  );
+}
+
+#space {
+  inset: 0;
+  perspective: 2400px;
+  perspective-origin: 50% 50%;
+}
+
+.plane {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+/* ---- The dot ------------------------------------------------------------- */
+
+#dot {
+  left: 0;
+  top: 0;
+  width: 100px;
+  height: 100px;
+  margin: -50px 0 0 -50px;
+  border-radius: 50%;
+  background: var(--signal);
+  box-shadow:
+    0 0 28px color-mix(in oklch, var(--signal) 55%, transparent),
+    0 0 90px color-mix(in oklch, var(--signal) 30%, transparent);
+}
+
+#beam {
+  left: 0;
+  top: 0;
+  width: 2px;
+  margin-left: -1px;
+  transform-origin: 50% 0;
+  border-radius: 1px;
+  background: var(--signal);
+  box-shadow: 0 0 10px color-mix(in oklch, var(--signal) 70%, transparent);
+}
+
+.ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100px;
+  height: 100px;
+  margin: -50px 0 0 -50px;
+  border-radius: 50%;
+  border: 2px solid var(--signal);
+}
+
+#portal {
+  left: 0;
+  top: 0;
+  background: var(--fail);
+}
+
+/* ---- Type ---------------------------------------------------------------- */
+
+.line {
+  --w: 0;
+  --o: 0;
+  --feather: 110px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 0.28em 0.14em;
+  white-space: nowrap;
+  font: 600 66px/1 var(--sans);
+  letter-spacing: -0.035em;
+  transform-origin: 0 0;
+  /* Written on from the left, erased from the left: a signal passing through. */
+  mask-image: linear-gradient(
+    90deg,
+    transparent calc(var(--o) * (100% + var(--feather)) - var(--feather)),
+    #000 calc(var(--o) * (100% + var(--feather))),
+    #000 calc(var(--w) * (100% + var(--feather)) - var(--feather)),
+    transparent calc(var(--w) * (100% + var(--feather)))
+  );
+}
+
+.line.mono {
+  font-family: var(--mono);
+}
+
+#wordmark {
+  font: 600 164px/1 var(--mono);
+  letter-spacing: -0.025em;
+  text-transform: lowercase;
+}
+
+#tagline {
+  font: 500 31px/1 var(--mono);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  --feather: 60px;
+}
+
+#url {
+  font: 500 26px/1 var(--mono);
+  letter-spacing: 0;
+  color: color-mix(in oklch, var(--foreground) 82%, transparent);
+  --feather: 40px;
+}
+
+/* ---- Dashboard wall (OverviewPage + ProjectCard) ------------------------- */
+
+#wall {
+  width: 1240px;
+  height: 566px;
+}
+
+.label {
+  font: 500 10px/1.5 var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.stats {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding: 20px 24px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+  background: color-mix(in oklch, var(--card) 80%, transparent);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat b {
+  font: 600 24px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.stats .sep {
+  width: 1px;
+  height: 40px;
+  background: var(--border);
+}
+
+.card {
+  position: absolute;
+  width: 400px;
+  height: 215px;
+}
+
+.card-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 30%), 0 18px 50px oklch(0 0 0 / 35%);
+  overflow: hidden;
+}
+
+/* Footer band, painted inside the card surface so it keeps the rounded corners. */
+.card-bg::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 37.5px;
+  border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+  background: color-mix(in oklch, var(--muted) 30%, transparent);
+}
+
+.card-chrome {
+  position: absolute;
+  inset: 0;
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 16px;
+}
+
+.card-title {
+  font: 600 15px/1.5 var(--sans);
+  letter-spacing: -0.025em;
+}
+
+.badge {
+  --c: var(--pass);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--background);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--c) 25%, transparent);
+  color: var(--c);
+  font: 500 10px/1 var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.badge i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.card-rate {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 0 0 20px;
+}
+
+.card-rate .col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label em {
+  font-style: normal;
+  opacity: 0.6;
+}
+
+.rate {
+  font: 600 30px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The real sparkline is 220px wide in a 180px slot and runs off the card edge. */
+.spark {
+  width: 200px;
+  height: 40px;
+  overflow: hidden;
+  color: var(--muted-foreground);
+}
+
+.spark svg {
+  display: block;
+  overflow: visible;
+}
+
+.strip {
+  position: absolute;
+  left: 20px;
+  top: 124px;
+  width: 360px;
+  height: 38px;
+}
+
+.bar {
+  --c: var(--pass);
+  --f: 0;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  border-radius: 2px;
+  transform-origin: 50% 100%;
+  background: color-mix(in oklch, var(--c), white calc(var(--f) * 100%));
+}
+
+.card-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  font: 400 11px/1.5 var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.reticle {
+  position: absolute;
+  left: 0;
+  top: -5px;
+  height: 48px;
+  color: var(--flaky);
+}
+
+.reticle svg {
+  display: block;
+  overflow: visible;
+}
+
+/* RunStrip's tooltip: inverted, mono. */
+.tip {
+  position: absolute;
+  bottom: 52px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: var(--foreground);
+  color: var(--background);
+  font: 400 12px/1.4 var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px oklch(0 0 0 / 45%);
+  transform-origin: 50% 100%;
+}
+
+.tip b {
+  display: block;
+  font-weight: 600;
+}
+
+.tip span {
+  display: block;
+  opacity: 0.7;
+}
+
+.tip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: 2px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+/* ---- Trace viewer (Workbench: ActionsList + Timeline + snapshot) --------- */
+
+#trace {
+  width: 860px;
+  height: 560px;
+}
+
+.tw {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  box-shadow: 0 30px 90px oklch(0 0 0 / 60%);
+}
+
+.tw-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  font: 400 13px/1 var(--sans);
+  color: var(--muted-foreground);
+}
+
+.tw-head .mono {
+  font: 400 12px/1 var(--mono);
+}
+
+.tw-head b {
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.tw-actions {
+  position: absolute;
+  left: 0;
+  top: 38px;
+  bottom: 0;
+  width: 232px;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.tw-actions-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 36px;
+  padding: 12px 12px 0;
+  border-bottom: 1px solid var(--border);
+  font: 600 12px/1 var(--sans);
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.tw-actions-head span {
+  font: 400 11px/1 var(--mono);
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+.act {
+  --sel: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 25px;
+  padding-right: 10px;
+  font: 400 13px/1 var(--sans);
+  color: color-mix(in oklch, var(--foreground) 80%, transparent);
+  background: color-mix(in oklch, var(--signal) calc(var(--sel) * 12%), transparent);
+}
+
+.act::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--signal);
+  opacity: var(--sel);
+}
+
+.act svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.act .t {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.act .d {
+  font: 400 11px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
+}
+
+.tw-main {
+  position: absolute;
+  left: 232px;
+  top: 38px;
+  right: 0;
+  bottom: 0;
+}
+
+.tw-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font: 400 11px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.tw-bar svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.tw-bar .now {
+  flex: 1;
+  font: 500 14px/1 var(--sans);
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.tw-film {
+  position: relative;
+  height: 44px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--muted) 10%, transparent);
+}
+
+.tw-film .in,
+.tw-track .in {
+  position: absolute;
+  inset: 6px 8px;
+}
+
+.thumb {
+  position: absolute;
+  top: 0;
+  width: 56px;
+  height: 100%;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: #fff;
+  overflow: hidden;
+}
+
+.thumb.built::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  width: 22px;
+  height: 4px;
+  border-radius: 1px;
+  background: #18181b;
+  box-shadow: 0 8px 0 -1px #a1a1aa, 0 14px 0 -1px #d4d4d8;
+}
+
+.thumb.built::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 17px;
+  background: #e4e4e7;
+}
+
+.tw-track {
+  position: relative;
+  height: 28px;
+  background: color-mix(in oklch, var(--muted) 20%, transparent);
+}
+
+.seg {
+  --sel: 0;
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--pass) 70%, transparent);
+  box-shadow:
+    0 0 0 calc(var(--sel) * 1px) var(--background),
+    0 0 0 calc(var(--sel) * 3px) var(--signal);
+}
+
+.seg.step {
+  background: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
+}
+
+.seg.error {
+  background: var(--fail);
+}
+
+.tw-snap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 108px;
+  bottom: 0;
+}
+
+.browser {
+  position: absolute;
+  inset: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.browser-chrome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+}
+
+.browser-chrome i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.browser-chrome span {
+  flex: 1;
+  margin-left: 6px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: var(--background);
+  font: 400 10.5px/1 var(--mono);
+  color: var(--muted-foreground);
+}
+
+/* The snapshots are a deck of cards hinged at the bottom: a Kinora reel. */
+.pages {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 28px;
+  bottom: 0;
+  perspective: 1500px;
+  perspective-origin: 50% 30%;
+}
+
+.page {
+  position: absolute;
+  inset: 0;
+  border-radius: 0 0 9px 9px;
+  background: #fff;
+  color: #18181b;
+  overflow: hidden;
+  transform-origin: 50% 100%;
+  backface-visibility: hidden;
+}
+
+.page .shade {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+}
+
+.pg-load {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 2px;
+  background: #2563eb;
+}
+
+.pg {
+  display: flex;
+  height: 100%;
+}
+
+/* Before content arrives the page is a skeleton, not a white hole. */
+.pg.sk i {
+  display: block;
+  border-radius: 5px;
+  background: #ececef;
+}
+
+.pg-main {
+  flex: 1;
+  padding: 20px 24px;
+}
+
+.pg-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 13px/1 var(--sans);
+}
+
+.pg-logo {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: #f59e0b;
+  font: 800 11px/1 var(--sans);
+}
+
+.pg-steps {
+  display: flex;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.pg-step {
+  flex: 1;
+  padding-top: 7px;
+  border-top: 2px solid #e4e4e7;
+  font: 600 11px/1.2 var(--sans);
+}
+
+.pg-step.done {
+  border-color: #16a34a;
+}
+
+.pg-step b {
+  font-weight: 600;
+}
+
+.pg-step small {
+  display: block;
+  margin-top: 2px;
+  font: 400 9.5px/1.2 var(--sans);
+  color: #71717a;
+}
+
+.pg-step.bad small {
+  color: #dc2626;
+}
+
+.pg-h1 {
+  position: relative;
+  display: inline-block;
+  margin-top: 16px;
+  padding: 0 4px 2px 0;
+  font: 700 27px/1.15 var(--sans);
+  letter-spacing: -0.03em;
+}
+
+/* Playwright's locator highlight. */
+.pg-hl {
+  position: absolute;
+  inset: -2px -6px -2px -5px;
+  border: 1.5px solid #1f6feb;
+  background: #6fa8dc55;
+  transform-origin: 0 50%;
+  opacity: 0;
+}
+
+.pg-p {
+  margin-top: 4px;
+  max-width: 300px;
+  font: 400 10.5px/1.45 var(--sans);
+  color: #52525b;
+}
+
+.pg-field {
+  margin-top: 10px;
+  font: 600 9.5px/1 var(--sans);
+}
+
+.pg-input {
+  display: flex;
+  align-items: center;
+  width: 210px;
+  height: 24px;
+  margin-top: 5px;
+  padding: 0 8px;
+  border-radius: 5px;
+  border: 1px solid #d4d4d8;
+  font: 400 10px/1 var(--mono);
+  color: #18181b;
+}
+
+.pg-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  margin-top: 9px;
+  padding: 0 12px;
+  border-radius: 5px;
+  background: #18181b;
+  color: #fff;
+  font: 600 10.5px/1 var(--sans);
+}
+
+.pg-btn.pressed {
+  background: #52525b;
+}
+
+.pg-side {
+  width: 186px;
+  padding: 24px 18px;
+  border-left: 1px solid #e4e4e7;
+  background: #f4f4f5;
+  font: 400 10.5px/1 var(--sans);
+  color: #52525b;
+}
+
+.pg-side h4 {
+  margin: 0 0 6px;
+  font: 600 12px/1 var(--sans);
+  color: #18181b;
+}
+
+.pg-side div {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid #e4e4e7;
+}
+
+.pg-side div b {
+  font-weight: 500;
+  color: #18181b;
+}
+
+.pg-side div:last-child {
+  border: 0;
+  padding-top: 12px;
+  font-weight: 600;
+  color: #18181b;
+}
+
+.pg-side div:last-child b {
+  font: 700 16px/0.7 var(--sans);
+}
+
+/* The error block from the test history page. */
+.tw-error {
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: 22px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--fail) 35%, transparent);
+  background: color-mix(in oklch, var(--fail) 14%, var(--background));
+  box-shadow: 0 14px 40px oklch(0 0 0 / 55%);
+  font: 400 11.5px/1.55 var(--mono);
+  color: var(--fail);
+  white-space: pre;
+}
+
+/* ---- Preview transport (never part of a render) -------------------------- */
+
+#transport {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: oklch(0 0 0 / 70%);
+  color: var(--muted-foreground);
+  font: 400 12px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+#transport input {
+  flex: 1;
+  accent-color: var(--signal);
+}
+
+#transport button {
+  all: unset;
+  cursor: pointer;
+  color: var(--foreground);
+}
+
+#stamp {
+  left: 24px;
+  top: 20px;
+  font: 500 26px/1 var(--mono);
+  color: #fff;
+  text-shadow: 0 0 6px #000, 0 0 2px #000;
+  font-variant-numeric: tabular-nums;
+}
+
+.render #transport {
+  display: none;
+}

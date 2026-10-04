@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>kinora promo</title>
+    <link rel="stylesheet" href="./promo.css" />
+  </head>
+  <body>
+    <!-- 1920x1080 stage. Everything on it is placed by src/film.js as a function of time. -->
+    <div id="stage">
+      <!-- The lens moves the whole picture: slow pushes, and a kick on impacts. -->
+      <div id="lens">
+        <div id="grid"></div>
+        <div id="glow"></div>
+        <div id="space">
+          <div id="wall" class="plane"></div>
+          <div id="trace" class="plane"></div>
+        </div>
+        <div id="lume"></div>
+        <div id="scrim"></div>
+        <div id="portal"></div>
+        <div id="type"></div>
+        <div id="beam"></div>
+        <div id="rings"></div>
+        <div id="dot"></div>
+      </div>
+      <div id="vignette"></div>
+      <div id="stamp"></div>
+    </div>
+    <div id="transport">
+      <button id="play" type="button">pause</button>
+      <input id="scrub" type="range" min="0" max="1" step="any" value="0" />
+      <span id="clock"></span>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
