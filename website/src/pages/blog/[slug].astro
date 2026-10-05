@@ -1,9 +1,25 @@
 ---
+import type { ImageMetadata } from 'astro'
 import type { BlogPost } from '../../lib/blog'
 import { ArrowLeft } from '@lucide/astro'
 import { render } from 'astro:content'
+import compareDark from '../../assets/screenshots/compare-dark.png'
+import compareLight from '../../assets/screenshots/compare-light.png'
+import desktopDark from '../../assets/screenshots/desktop-dark.png'
+import desktopLight from '../../assets/screenshots/desktop-light.png'
+import overviewDark from '../../assets/screenshots/overview-dark.png'
+import overviewLight from '../../assets/screenshots/overview-light.png'
+import projectDark from '../../assets/screenshots/project-dark.png'
+import projectLight from '../../assets/screenshots/project-light.png'
+import testHistoryDark from '../../assets/screenshots/test-history-dark.png'
+import testHistoryLight from '../../assets/screenshots/test-history-light.png'
+import testsDark from '../../assets/screenshots/tests-dark.png'
+import testsLight from '../../assets/screenshots/tests-light.png'
+import traceViewerDark from '../../assets/screenshots/trace-viewer-dark.png'
+import traceViewerLight from '../../assets/screenshots/trace-viewer-light.png'
 import BlogAuthor from '../../components/BlogAuthor.astro'
 import BlogPostCta from '../../components/BlogPostCta.astro'
+import Screenshot from '../../components/Screenshot.astro'
 import SiteFooter from '../../components/SiteFooter.astro'
 import SiteHeader from '../../components/SiteHeader.astro'
 import Layout from '../../layouts/Layout.astro'
@@ -15,11 +31,22 @@ export async function getStaticPaths() {
   return posts.map(post => ({ params: { slug: post.data.slug }, props: { post } }))
 }
 
+const COVER_SHOTS: Record<BlogPost['data']['cover'], { light: ImageMetadata, dark: ImageMetadata, label: string }> = {
+  'overview': { light: overviewLight, dark: overviewDark, label: 'kinora.dev/overview' },
+  'test-history': { light: testHistoryLight, dark: testHistoryDark, label: 'kinora.dev/test-history' },
+  'trace-viewer': { light: traceViewerLight, dark: traceViewerDark, label: 'kinora.dev/trace' },
+  'tests': { light: testsLight, dark: testsDark, label: 'kinora.dev/tests' },
+  'project': { light: projectLight, dark: projectDark, label: 'kinora.dev/project' },
+  'compare': { light: compareLight, dark: compareDark, label: 'kinora.dev/compare' },
+  'desktop': { light: desktopLight, dark: desktopDark, label: 'kinora desktop' },
+}
+
 const { post } = Astro.props as { post: BlogPost }
 const { Content } = await render(post)
 const site = Astro.site ?? new URL(SITE.url)
+const cover = COVER_SHOTS[post.data.cover]
 const canonical = blogCanonicalUrl(post, site)
-const image = blogImageUrl(post, site)
+const image = post.data.image === '/og-image.png' ? new URL(cover.light.src, site).toString() : blogImageUrl(post, site)
 const imageAlt = blogImageAlt(post)
 const modifiedDate = post.data.updatedDate ?? post.data.date
 
@@ -102,13 +129,21 @@ const schemas = [
           >
             {post.data.description}
           </p>
+          <Screenshot
+            light={cover.light}
+            dark={cover.dark}
+            label={cover.label}
+            alt={imageAlt}
+            loading="eager"
+            class="mt-10"
+          />
         </div>
       </header>
 
       <div class="border-b border-border">
         <div class="mx-auto max-w-3xl px-5 py-14 sm:px-8 sm:py-16">
           <div
-            class="reveal text-pretty leading-7 text-muted-foreground [&_a]:text-signal [&_a]:underline [&_a]:decoration-border [&_a]:underline-offset-4 [&_a:hover]:decoration-signal [&_blockquote]:my-8 [&_blockquote]:border-l-2 [&_blockquote]:border-signal [&_blockquote]:pl-5 [&_blockquote]:text-foreground [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-sm [&_h2]:mt-12 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-foreground [&_h3]:mt-8 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:tracking-tight [&_h3]:text-foreground [&_li]:mt-2 [&_ol]:my-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mt-5 [&_pre]:my-6 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-border [&_pre]:bg-card [&_pre]:p-4 [&_pre_code]:border-0 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_strong]:text-foreground [&_ul]:my-6 [&_ul]:list-disc [&_ul]:pl-6"
+            class="text-pretty leading-7 text-muted-foreground [&_a]:text-signal [&_a]:underline [&_a]:decoration-border [&_a]:underline-offset-4 [&_a:hover]:decoration-signal [&_blockquote]:my-8 [&_blockquote]:border-l-2 [&_blockquote]:border-signal [&_blockquote]:pl-5 [&_blockquote]:text-foreground [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-sm [&_h2]:mt-12 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-foreground [&_h3]:mt-8 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:tracking-tight [&_h3]:text-foreground [&_li]:mt-2 [&_ol]:my-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mt-5 [&_pre]:my-6 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:border [&_pre]:border-border [&_pre]:bg-card [&_pre]:p-4 [&_pre_code]:border-0 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_strong]:text-foreground [&_ul]:my-6 [&_ul]:list-disc [&_ul]:pl-6"
           >
             <Content />
           </div>

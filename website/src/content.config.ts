@@ -20,6 +20,7 @@ const blog = defineCollection({
     canonicalUrl: z.string().optional(),
     image: z.string().default('/og-image.png'),
     imageAlt: z.string().optional(),
+    cover: z.enum(['overview', 'test-history', 'trace-viewer', 'tests', 'project', 'compare', 'desktop']).default('overview'),
     author: blogAuthor.default({
       name: 'Joris Gallot',
       url: 'https://jorisgallot.dev',
