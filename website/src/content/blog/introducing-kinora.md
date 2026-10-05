@@ -132,4 +132,3 @@ If you are using Playwright in CI and want a persistent dashboard for your test 
 - [Read the docs](https://docs.kinora.dev)
 - [Star the project on GitHub](https://github.com/kinora-dev/kinora)
 
-This is the first post in a series about Playwright reporting, flaky test tracking, CI debugging, and building Kinora in public.
