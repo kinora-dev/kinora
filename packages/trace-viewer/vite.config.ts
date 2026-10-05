@@ -6,7 +6,7 @@ import { sentryVitePlugin } from '@sentry/vite-plugin'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
-import pkg from '../../package.json'
+import pkg from '../../package.json' with { type: 'json' }
 
 // Release version = the root package.json, the one the Release workflow bumps.
 const release = `@kinora/trace-viewer@${pkg.version}`
