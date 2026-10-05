@@ -5,13 +5,13 @@
   "description": "Playwright reporter that uploads test results to a kinora server",
   "author": "Joris Gallot",
   "license": "MIT",
-  "homepage": "https://github.com/Kinora-dev/kinora#readme",
+  "homepage": "https://github.com/kinora-dev/kinora#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Kinora-dev/kinora.git",
+    "url": "git+https://github.com/kinora-dev/kinora.git",
     "directory": "packages/reporter"
   },
-  "bugs": "https://github.com/Kinora-dev/kinora/issues",
+  "bugs": "https://github.com/kinora-dev/kinora/issues",
   "keywords": [
     "playwright",
     "reporter",

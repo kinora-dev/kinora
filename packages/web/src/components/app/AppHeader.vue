@@ -118,7 +118,7 @@ async function signOut(): Promise<void> {
               </RouterLink>
             </DropdownMenuItem>
             <DropdownMenuItem as-child>
-              <a href="https://github.com/Kinora-dev/kinora/releases/latest" target="_blank" rel="noopener noreferrer">
+              <a href="https://github.com/kinora-dev/kinora/releases/latest" target="_blank" rel="noopener noreferrer">
                 <MonitorDown class="size-4" />
                 Desktop app
               </a>

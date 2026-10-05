@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kinora-dev/kinora/releases/latest"><img src="https://img.shields.io/github/v/release/Kinora-dev/kinora?label=release" alt="Latest GitHub release"></a>
+  <a href="https://github.com/kinora-dev/kinora/releases/latest"><img src="https://img.shields.io/github/v/release/kinora-dev/kinora?label=release" alt="Latest GitHub release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-FSL--1.1--MIT-blue" alt="License: FSL-1.1-MIT"></a>
   <img src="https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white" alt="Playwright">
 </p>
@@ -56,7 +56,7 @@ Git and CI metadata are filled in automatically on GitHub Actions. No reporter? 
 
 ## Desktop app
 
-[Download](https://github.com/Kinora-dev/kinora/releases/latest) for macOS, Windows or Linux. It signs into your account and opens on the latest run's failures, re-runs a failing test locally, and opens any local `trace.zip` without an account, a self-contained replacement for `playwright show-trace`.
+[Download](https://github.com/kinora-dev/kinora/releases/latest) for macOS, Windows or Linux. It signs into your account and opens on the latest run's failures, re-runs a failing test locally, and opens any local `trace.zip` without an account, a self-contained replacement for `playwright show-trace`.
 
 ## Debug from your agent
 

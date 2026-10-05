@@ -44,7 +44,7 @@ You can use Kinora in two ways:
 - Self-host it for free with Docker Compose.
 - Use the hosted Kinora cloud when you do not want to run the infrastructure yourself.
 
-The source is available on [GitHub](https://github.com/Kinora-dev/kinora), with MIT-licensed embeddable packages and fair-source app packages.
+The source is available on [GitHub](https://github.com/kinora-dev/kinora), with MIT-licensed embeddable packages and fair-source app packages.
 
 ## Why not just use the Playwright HTML report?
 
@@ -130,6 +130,6 @@ If you are using Playwright in CI and want a persistent dashboard for your test 
 - [Try the hosted app](https://app.kinora.dev/signup)
 - [Open the live demo](https://demo.kinora.dev)
 - [Read the docs](https://docs.kinora.dev)
-- [Star the project on GitHub](https://github.com/Kinora-dev/kinora)
+- [Star the project on GitHub](https://github.com/kinora-dev/kinora)
 
 This is the first post in a series about Playwright reporting, flaky test tracking, CI debugging, and building Kinora in public.

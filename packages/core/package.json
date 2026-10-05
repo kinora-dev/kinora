@@ -5,13 +5,13 @@
   "description": "Shared contracts (zod schemas), helpers, and ingest client for kinora, the Playwright report dashboard",
   "author": "Joris Gallot",
   "license": "MIT",
-  "homepage": "https://github.com/Kinora-dev/kinora#readme",
+  "homepage": "https://github.com/kinora-dev/kinora#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Kinora-dev/kinora.git",
+    "url": "git+https://github.com/kinora-dev/kinora.git",
     "directory": "packages/core"
   },
-  "bugs": "https://github.com/Kinora-dev/kinora/issues",
+  "bugs": "https://github.com/kinora-dev/kinora/issues",
   "keywords": [
     "playwright",
     "test-report",

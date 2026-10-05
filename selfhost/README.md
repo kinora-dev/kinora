@@ -10,7 +10,7 @@ command:
 
 ```bash
 mkdir kinora && cd kinora
-base=https://raw.githubusercontent.com/Kinora-dev/kinora/main/selfhost
+base=https://raw.githubusercontent.com/kinora-dev/kinora/main/selfhost
 curl -fsSLO "$base/docker-compose.yml"
 curl -fsSL -o .env "$base/.env.example"
 # edit at least: PUBLIC_URL, AUTH_SECRET, POSTGRES_PASSWORD

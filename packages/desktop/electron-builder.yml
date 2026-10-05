@@ -64,5 +64,5 @@ linux:
 
 publish:
   provider: github
-  owner: Kinora-dev
+  owner: kinora-dev
   repo: kinora

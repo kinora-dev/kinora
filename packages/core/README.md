@@ -1,6 +1,6 @@
 # @kinora/core
 
-Shared contract layer and helpers for [kinora](https://github.com/Kinora-dev/kinora), a dashboard for Playwright test reports across projects and over time.
+Shared contract layer and helpers for [kinora](https://github.com/kinora-dev/kinora), a dashboard for Playwright test reports across projects and over time.
 
 This is the package every other part of kinora depends on, so a test keeps a stable identity no matter how it was uploaded: the [`reporter`](https://www.npmjs.com/package/@kinora/reporter) and [`cli`](https://www.npmjs.com/package/@kinora/cli) use it to normalize Playwright output and POST it, and the server and dashboard use it to validate and shape that data. It is MIT so the libraries you embed in your own test suite can depend on it.
 

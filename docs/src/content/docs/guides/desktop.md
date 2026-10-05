@@ -13,7 +13,7 @@ The kinora desktop app is two things in one shell:
 ## Download
 
 Grab the latest build for your platform from the
-[releases page](https://github.com/Kinora-dev/kinora/releases/latest):
+[releases page](https://github.com/kinora-dev/kinora/releases/latest):
 
 - **macOS** - `.dmg` for Apple Silicon and Intel, signed and notarized.
 - **Windows** - `.exe` installer.

@@ -1,6 +1,6 @@
 # @kinora/cli
 
-CLI that uploads a Playwright `json` report to a [kinora](https://github.com/Kinora-dev/kinora) server. Use it when you can't run the [`@kinora/reporter`](https://github.com/Kinora-dev/kinora/tree/main/packages/reporter) inline (e.g. results are produced in one CI job and uploaded from another), or to bulk-import a backlog of historical reports.
+CLI that uploads a Playwright `json` report to a [kinora](https://github.com/kinora-dev/kinora) server. Use it when you can't run the [`@kinora/reporter`](https://github.com/kinora-dev/kinora/tree/main/packages/reporter) inline (e.g. results are produced in one CI job and uploaded from another), or to bulk-import a backlog of historical reports.
 
 ## Upload a report
 

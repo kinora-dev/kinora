@@ -82,7 +82,7 @@ onMounted(() => {
             or
             <a
               class="underline underline-offset-2 hover:text-fail"
-              href="https://github.com/Kinora-dev/kinora/issues/new"
+              href="https://github.com/kinora-dev/kinora/issues/new"
               target="_blank"
               rel="noreferrer"
             >open an issue</a>.

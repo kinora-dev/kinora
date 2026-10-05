@@ -1,6 +1,6 @@
 # @kinora/reporter
 
-Playwright reporter that uploads your test results to a [kinora](https://github.com/Kinora-dev/kinora) server: pass rates, trends, flaky tests, and the full Playwright trace for failures, across projects and over time.
+Playwright reporter that uploads your test results to a [kinora](https://github.com/kinora-dev/kinora) server: pass rates, trends, flaky tests, and the full Playwright trace for failures, across projects and over time.
 
 It runs on `onEnd`, posts the normalized run, then uploads the trace.zip for each test that produced one (videos and screenshots too, see below). Upload never fails your test run.
 

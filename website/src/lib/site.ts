@@ -9,9 +9,9 @@ export const SITE = {
   // Same origin as the marketing site on purpose: the trace viewer needs a
   // service worker, and the SEO page that ranks for it should keep the visit.
   traceViewer: 'https://kinora.dev/trace/',
-  repo: 'https://github.com/Kinora-dev/kinora',
+  repo: 'https://github.com/kinora-dev/kinora',
   selfhost: 'https://docs.kinora.dev/self-hosting/',
-  download: 'https://github.com/Kinora-dev/kinora/releases/latest',
+  download: 'https://github.com/kinora-dev/kinora/releases/latest',
   tagline: 'Playwright test intelligence',
   description:
     'A dashboard for your Playwright tests, across projects and over time, with an embedded trace viewer. Track pass rates, spot trends, surface flaky tests, and open the full trace inline.',

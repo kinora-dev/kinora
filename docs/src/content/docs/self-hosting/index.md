@@ -10,11 +10,11 @@ billing, and every feature (including alerts) is unlimited.
 ## Quickstart
 
 The images are prebuilt, so there is nothing to clone and nothing to compile. Grab the two files
-from [`selfhost/`](https://github.com/Kinora-dev/kinora/tree/main/selfhost) and start the stack:
+from [`selfhost/`](https://github.com/kinora-dev/kinora/tree/main/selfhost) and start the stack:
 
 ```bash
 mkdir kinora && cd kinora
-base=https://raw.githubusercontent.com/Kinora-dev/kinora/main/selfhost
+base=https://raw.githubusercontent.com/kinora-dev/kinora/main/selfhost
 curl -fsSLO "$base/docker-compose.yml"
 curl -fsSL -o .env "$base/.env.example"
 # edit at least: PUBLIC_URL, AUTH_SECRET, POSTGRES_PASSWORD
