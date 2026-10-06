@@ -50,7 +50,7 @@ server with `KINORA_URL` - see [Self-hosting](/self-hosting/).
 | `token` | `string` | env `KINORA_TOKEN` | Project API token. Prefer the env var. |
 | `git` | `{ sha?, branch?, baseBranch?, repoUrl? }` | auto on GitHub Actions / GitLab CI | Git metadata. `repoUrl` links a sha to its commit; `baseBranch` powers "regression vs base" in the PR comment. |
 | `ci` | `{ provider?, runUrl?, runNumber? }` | auto on GitHub Actions / GitLab CI | CI metadata for the run. |
-| `prComment` | `boolean \| { label?, policy? }` | off | Post/update a summary comment on the GitHub PR. See [GitHub PR comments](/guides/pr-comments/). |
+| `prComment` | `boolean \| { label?, policy? }` | off | Post/update a summary comment on the GitHub PR or GitLab MR. See [PR comments](/guides/pr-comments/). |
 
 On GitHub Actions and GitLab CI, `git` and `ci` are filled from the standard `GITHUB_*` / `CI_*`
 env vars (including the repo URL, so shas link to their commit in the dashboard). On a GitLab merge

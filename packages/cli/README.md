@@ -26,7 +26,7 @@ Bulk-import a backlog of historical reports with `kinora import <dir>`.
 
 ## Documentation
 
-All flags, bulk import, GitHub PR comments, and CI examples are in the docs:
+All flags, bulk import, PR/MR comments, and CI examples are in the docs:
 
 **https://docs.kinora.dev/guides/cli/**
 

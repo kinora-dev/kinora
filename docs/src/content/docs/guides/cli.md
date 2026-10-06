@@ -55,7 +55,7 @@ npx @kinora/cli import ./reports --project web-app --token <project-token> --con
 --ci-run-url <url>
 --ci-run-number <n>
 --git-base-branch <b> PR base branch (auto-detected in CI); powers "regression vs base"
---pr-comment          post/update a summary on the GitHub PR (see PR comments guide)
+--pr-comment          post/update a summary on the GitHub PR or GitLab MR (see PR comments guide)
 --pr-label <label>    distinguish matrix legs that share one PR
 --pr-policy <policy>  always (default) | on-failure (skip the comment on green runs)
 --concurrency <n>     parallel uploads for bulk import (default: 6)
@@ -88,4 +88,4 @@ e2e:
     - npx @kinora/cli upload results.json --project web-app
 ```
 
-For posting a summary on the pull request, see [GitHub PR comments](/guides/pr-comments/).
+For posting a summary on the pull request, see [PR comments](/guides/pr-comments/).

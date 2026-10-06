@@ -1,17 +1,31 @@
 import type { RunRegression } from '../contracts/ingest'
 import type { Counts } from '../contracts/kinora'
 
-// Post/update a single GitHub PR comment from the CI job, using the ambient GITHUB_TOKEN.
+// Post/update a single PR/MR comment from the CI job: on GitHub with the ambient GITHUB_TOKEN, on
+// GitLab with a GITLAB_TOKEN CI variable (the job token can only read merge request notes).
 // env + file reads are injected so this module stays node-free (safe to bundle for the web).
 
-export interface PrContext {
+interface PrContextBase {
   token: string
+  isShard: boolean // a per-shard run: skip so only the merged/single run comments
+}
+
+export interface GitHubPrContext extends PrContextBase {
+  provider: 'github'
   apiUrl: string // GITHUB_API_URL (differs on GHES)
   owner: string
   repo: string
   prNumber: number
-  isShard: boolean // a per-shard run: skip so only the merged/single run comments
 }
+
+export interface GitLabMrContext extends PrContextBase {
+  provider: 'gitlab'
+  apiUrl: string // CI_API_V4_URL (differs on self-managed)
+  projectId: string // the project the MR lives in (the target project for a fork MR)
+  mrIid: number
+}
+
+export type PrContext = GitHubPrContext | GitLabMrContext
 
 export type PrCommentPolicy = 'always' | 'on-failure'
 
@@ -27,11 +41,35 @@ export interface PrCommentInput {
 
 const MAX_LISTED = 15 // cap the failing-test list so the comment stays under GitHub's size limit
 
-// Resolve the PR context from CI env. Returns null when not a same-repo pull_request with a token.
+// Resolve the PR/MR context from CI env. Returns null when not a pull/merge request run with a token.
 export function resolvePrContext(
   env: Record<string, string | undefined>,
   readFile: (path: string) => string | undefined,
 ): PrContext | null {
+  return env.GITLAB_CI ? resolveGitLabContext(env) : resolveGitHubContext(env, readFile)
+}
+
+// Merge request pipelines only: CI_MERGE_REQUEST_IID is unset on branch pipelines.
+function resolveGitLabContext(env: Record<string, string | undefined>): GitLabMrContext | null {
+  const token = env.GITLAB_TOKEN
+  const projectId = env.CI_MERGE_REQUEST_PROJECT_ID || env.CI_PROJECT_ID
+  const mrIid = Number(env.CI_MERGE_REQUEST_IID)
+  if (!token || !projectId || !Number.isInteger(mrIid) || mrIid <= 0)
+    return null
+  return {
+    provider: 'gitlab',
+    token,
+    apiUrl: env.CI_API_V4_URL || 'https://gitlab.com/api/v4',
+    projectId,
+    mrIid,
+    isShard: !!env.__KINORA_IS_SHARD,
+  }
+}
+
+function resolveGitHubContext(
+  env: Record<string, string | undefined>,
+  readFile: (path: string) => string | undefined,
+): GitHubPrContext | null {
   const token = env.GITHUB_TOKEN
   const eventName = env.GITHUB_EVENT_NAME
   const repository = env.GITHUB_REPOSITORY
@@ -51,6 +89,7 @@ export function resolvePrContext(
     return null
 
   return {
+    provider: 'github',
     token,
     apiUrl: env.GITHUB_API_URL || 'https://api.github.com',
     owner,
@@ -135,21 +174,32 @@ export function buildPrCommentBody(input: PrCommentInput): string {
 }
 
 interface GhComment { id: number, body?: string, user?: { type?: string } }
+interface GlNote { id: number, body?: string, system?: boolean, author?: { id?: number } }
 
-// Upsert the comment: update our previous bot comment (carrying the marker), else create one.
-// A fork PR's GITHUB_TOKEN is read-only, so writes 403 -> treated as skipped, not an error.
+type UpsertOutcome = 'created' | 'updated' | 'skipped'
+
+// Upsert the comment: update our previous comment (carrying the marker), else create one.
 export async function postPrComment(
   ctx: PrContext,
   input: PrCommentInput,
   policy: PrCommentPolicy = 'always',
   fetchImpl: typeof globalThis.fetch = globalThis.fetch,
-): Promise<'created' | 'updated' | 'skipped'> {
+): Promise<UpsertOutcome> {
   if (ctx.isShard)
     return 'skipped'
   // newlyFailing entries always have an unexpected head status, so counts.unexpected===0 covers them.
   if (policy === 'on-failure' && input.counts.unexpected === 0)
     return 'skipped'
 
+  const body = buildPrCommentBody(input)
+  const mark = marker(input.projectSlug, input.label)
+  return ctx.provider === 'gitlab'
+    ? upsertGitLabNote(ctx, body, mark, fetchImpl)
+    : upsertGitHubComment(ctx, body, mark, fetchImpl)
+}
+
+// A fork PR's GITHUB_TOKEN is read-only, so writes 403 -> treated as skipped, not an error.
+async function upsertGitHubComment(ctx: GitHubPrContext, body: string, mark: string, fetchImpl: typeof globalThis.fetch): Promise<UpsertOutcome> {
   const headers = {
     'authorization': `Bearer ${ctx.token}`,
     'accept': 'application/vnd.github+json',
@@ -157,8 +207,6 @@ export async function postPrComment(
     'content-type': 'application/json',
   }
   const base = `${ctx.apiUrl}/repos/${ctx.owner}/${ctx.repo}`
-  const body = buildPrCommentBody(input)
-  const mark = marker(input.projectSlug, input.label)
 
   // Page through comments; only our own bot comment carrying the marker is a valid upsert target
   // (a human comment quoting the marker must not be hijacked).
@@ -188,5 +236,39 @@ export async function postPrComment(
       return 'skipped'
     throw new Error(`github: ${target.outcome} comment failed (${res.status})`)
   }
+  return target.outcome
+}
+
+// GITLAB_TOKEN is set on purpose, so a rejected call is a misconfiguration worth surfacing (unlike
+// GitHub's read-only fork token): every failure throws.
+async function upsertGitLabNote(ctx: GitLabMrContext, body: string, mark: string, fetchImpl: typeof globalThis.fetch): Promise<UpsertOutcome> {
+  const headers = { 'private-token': ctx.token, 'content-type': 'application/json' }
+  const base = `${ctx.apiUrl}/projects/${encodeURIComponent(ctx.projectId)}/merge_requests/${ctx.mrIid}`
+
+  // The token may belong to a bot (project access token) or a person, so "our own note" is one
+  // written by the token's user; a note from anyone else quoting the marker must not be hijacked.
+  const meRes = await fetchImpl(`${ctx.apiUrl}/user`, { headers })
+  if (!meRes.ok)
+    throw new Error(`gitlab: token lookup failed (${meRes.status})`)
+  const me = (await meRes.json()) as { id?: number }
+
+  let existing: GlNote | undefined
+  for (let page = 1; ; page++) {
+    const listRes = await fetchImpl(`${base}/notes?per_page=100&page=${page}`, { headers })
+    if (!listRes.ok)
+      throw new Error(`gitlab: list notes failed (${listRes.status})`)
+    const batch = (await listRes.json()) as GlNote[]
+    existing = batch.find(n => !n.system && me.id != null && n.author?.id === me.id && !!n.body && n.body.trimEnd().endsWith(mark))
+    if (existing || batch.length < 100)
+      break
+  }
+
+  const target = existing
+    ? { url: `${base}/notes/${existing.id}`, method: 'PUT' as const, outcome: 'updated' as const }
+    : { url: `${base}/notes`, method: 'POST' as const, outcome: 'created' as const }
+
+  const res = await fetchImpl(target.url, { method: target.method, headers, body: JSON.stringify({ body }) })
+  if (!res.ok)
+    throw new Error(`gitlab: ${target.outcome} note failed (${res.status})`)
   return target.outcome
 }

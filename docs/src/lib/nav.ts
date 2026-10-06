@@ -21,7 +21,7 @@ export const NAV: NavGroup[] = [
     items: [
       { label: 'Playwright reporter', slug: 'guides/reporter' },
       { label: 'CLI upload', slug: 'guides/cli' },
-      { label: 'GitHub PR comments', slug: 'guides/pr-comments' },
+      { label: 'PR comments', slug: 'guides/pr-comments' },
       { label: 'Alerts', slug: 'guides/alerts' },
       { label: 'MCP for coding agents', slug: 'guides/mcp' },
       { label: 'Desktop app', slug: 'guides/desktop' },

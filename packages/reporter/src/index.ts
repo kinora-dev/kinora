@@ -16,7 +16,8 @@ export interface KinoraReporterOptions {
   ci?: CiMeta
   /**
    * Post/update a summary comment on the GitHub PR (uses the job's GITHUB_TOKEN; needs
-   * `permissions: pull-requests: write`). `label` distinguishes matrix legs sharing one PR.
+   * `permissions: pull-requests: write`) or the GitLab MR (needs a GITLAB_TOKEN CI variable with
+   * the `api` scope). `label` distinguishes matrix legs sharing one PR.
    */
   prComment?: boolean | { label?: string, policy?: 'always' | 'on-failure' }
   /**
@@ -149,7 +150,7 @@ export default class KinoraReporter implements Reporter {
     }
   }
 
-  // Best-effort GitHub PR comment from the CI job. Never throws (mirrors "upload never fails the run").
+  // Best-effort PR/MR comment from the CI job. Never throws (mirrors "upload never fails the run").
   private async maybePostPrComment(payload: IngestRun, res: IngestRunResult): Promise<void> {
     if (!this.options.prComment)
       return

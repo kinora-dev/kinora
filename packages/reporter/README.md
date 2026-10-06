@@ -52,7 +52,7 @@ Kinora uploads whatever Playwright attached, so `screenshot: 'only-on-failure'` 
 
 ## Documentation
 
-Full reporter options, GitHub PR comments, CI examples, and self-hosting are in the docs:
+Full reporter options, PR/MR comments, CI examples, and self-hosting are in the docs:
 
 **https://docs.kinora.dev/guides/reporter/**
 

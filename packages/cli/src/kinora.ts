@@ -32,6 +32,7 @@ Options:
   --ci-run-number <n>
   (In GitHub Actions and GitLab CI, git + ci metadata auto-detect from the env; flags override.)
   --pr-comment          Post/update a summary on the GitHub PR (needs GITHUB_TOKEN + pull-requests: write)
+                        or the GitLab MR (needs a GITLAB_TOKEN variable with the api scope)
   --pr-label <label>    Distinguish matrix legs that share one PR
   --pr-policy <policy>  always (default) | on-failure (skip the comment on green runs)
   --concurrency <n>     Parallel uploads for bulk import (default 6)
@@ -143,7 +144,7 @@ async function main(): Promise<void> {
 
   console.log(`uploaded ${res.tests} tests to ${values.project} (run ${res.runId})`)
 
-  // Best-effort GitHub PR comment (uses the job's GITHUB_TOKEN). Never fails the upload.
+  // Best-effort PR/MR comment (GitHub: the job's GITHUB_TOKEN; GitLab: GITLAB_TOKEN). Never fails the upload.
   if (values['pr-comment']) {
     try {
       const ctx = resolvePrContext(process.env, (p) => {
