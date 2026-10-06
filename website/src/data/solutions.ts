@@ -334,6 +334,61 @@ export const SOLUTIONS: Solution[] = [
     ],
   },
   {
+    slug: 'playwright-report-gitlab-ci',
+    eyebrow: 'GitLab CI',
+    h1: 'Playwright reports for GitLab CI',
+    title: 'Playwright test report for GitLab CI | kinora',
+    description:
+      'Publish Playwright results from GitLab CI: every pipeline kept with its commit and branch, a summary comment on the merge request, and traces you open in the browser.',
+    tldr:
+      'Add the reporter to your job and every GitLab pipeline lands in kinora with its commit, branch, and pipeline link. Merge requests get a summary comment, and the trace for any failure opens in the browser.',
+    intro:
+      'The job log tells you a test failed, and the test report on the merge request tells you which one. Neither shows the pass rate over the last month, which tests are flaky, or what the browser was doing when it broke. Publishing the HTML report as a job artifact gets you one report per pipeline that is gone when the artifact expires, and a trace you still have to download. kinora takes the results straight from the job: every run is kept with its commit and branch, the merge request gets a comment listing what newly failed, and the full Playwright trace opens inline.',
+    shot: 'project',
+    shotAlt: 'kinora project view listing CI runs with pass rate, flaky count, and commit SHA',
+    points: [
+      {
+        title: 'One line in the job',
+        body: 'Add @kinora/reporter to playwright.config and store KINORA_TOKEN as a masked CI/CD variable. No artifacts block, no Pages job, no change to your tests.',
+      },
+      {
+        title: 'Commit, branch, and pipeline linked',
+        body: 'The commit SHA, branch, and pipeline URL are picked up from the job environment. On a merge request pipeline the branch is the source branch and the base is the target, so every run in kinora points back at the pipeline that produced it.',
+      },
+      {
+        title: 'A comment on the merge request',
+        body: 'On a merge request pipeline, kinora posts pass/fail counts and the tests newly failing versus the target branch, then edits that same comment on every re-run. It posts from the job with a GITLAB_TOKEN variable you provide, so no credentials are stored in kinora.',
+      },
+      {
+        title: 'GitLab.com or self-managed',
+        body: 'The API address comes from the job environment, so a self-managed instance needs no extra configuration. Pair it with a self-hosted kinora and test data never leaves your network.',
+      },
+    ],
+    faqs: [
+      {
+        q: 'How do I publish a Playwright report from GitLab CI?',
+        a: 'Add @kinora/reporter to your playwright.config, store a kinora API token as a masked CI/CD variable named KINORA_TOKEN, and run your tests as usual. The reporter uploads results when the run ends; nothing else in .gitlab-ci.yml changes.',
+      },
+      {
+        q: 'Can kinora comment on the merge request?',
+        a: 'Yes. On merge request pipelines it posts a summary with pass/fail counts and the tests newly failing versus the target branch, and updates that same comment on re-runs. GitLab\'s job token can read merge request notes but not write them, so the job needs a GITLAB_TOKEN variable holding a project access token with the api scope.',
+      },
+      {
+        q: 'Does it work with a self-managed GitLab instance?',
+        a: 'Yes. The reporter reads the instance\'s API address and project from the job environment, so there is nothing to configure. Commit and pipeline links in the dashboard need the instance to be served over HTTPS.',
+      },
+      {
+        q: 'Does it work with parallel or matrix jobs?',
+        a: 'Yes. Merge shards with Playwright\'s merge-reports so the run uploads once as a single report. For matrix legs that share one merge request, give each leg its own PR comment label so they keep separate comments.',
+      },
+    ],
+    docs: [
+      { label: 'PR comments', href: DOCS.prComments, event: 'docs-sol-gl-pr' },
+      { label: 'Reporter', href: DOCS.reporter, event: 'docs-sol-gl-reporter' },
+      { label: 'CLI', href: DOCS.cli, event: 'docs-sol-gl-cli' },
+    ],
+  },
+  {
     slug: 'self-hosted-playwright-dashboard',
     eyebrow: 'Self-hosting',
     h1: 'A self-hosted Playwright dashboard',
