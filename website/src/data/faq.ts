@@ -41,8 +41,8 @@ export const HOME_FAQS: Faq[] = [
     docs: [{ label: 'REST API reference', href: DOCS.api, event: 'docs-faq-api' }],
   },
   {
-    q: 'Does kinora comment on GitHub pull requests?',
-    a: 'Yes. On a pull_request run, the reporter or CLI posts (and keeps updating) a summary comment on the PR: pass/fail counts, tests newly failing versus the base branch, and a link to the run. It uses the CI job\'s own GITHUB_TOKEN, so no credentials are stored in kinora and it works self-host and cloud alike.',
+    q: 'Does kinora comment on pull requests?',
+    a: 'Yes, on GitHub pull requests and GitLab merge requests. The reporter or CLI posts (and keeps updating) a summary comment: pass/fail counts, tests newly failing versus the base branch, and a link to the run. It posts from the CI job itself, with the job\'s own GITHUB_TOKEN on GitHub or a GITLAB_TOKEN CI variable on GitLab, so no credentials are stored in kinora and it works self-host and cloud alike.',
     docs: [{ label: 'PR comments guide', href: DOCS.prComments, event: 'docs-faq-pr-comments' }],
   },
   {

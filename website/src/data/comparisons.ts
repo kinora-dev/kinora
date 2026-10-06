@@ -35,7 +35,7 @@ const FEATURES = {
   flaky: { label: 'Flaky detection', kinora: true },
   history: { label: 'Cross-run history & trends', kinora: true },
   alerts: { label: 'Alerts (Slack / email / webhook)', kinora: true },
-  prComment: { label: 'GitHub PR comment on CI runs', kinora: true },
+  prComment: { label: 'PR comment on CI runs (GitHub, GitLab)', kinora: true },
   mcp: { label: 'MCP server for coding agents', kinora: true },
   desktop: { label: 'Desktop trace-viewer app', kinora: true },
   selfHost: { label: 'Self-hosting', kinora: true },

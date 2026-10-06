@@ -376,7 +376,7 @@ export const SOLUTIONS: Solution[] = [
       },
       {
         q: 'Do self-hosted runs lose any features?',
-        a: 'No, the opposite. Self-host unlocks everything: unlimited projects and retention, alerts, GitHub PR comments, the MCP server, and the desktop app all work the same as on cloud.',
+        a: 'No, the opposite. Self-host unlocks everything: unlimited projects and retention, alerts, PR comments on GitHub and GitLab, the MCP server, and the desktop app all work the same as on cloud.',
       },
     ],
     docs: [
