@@ -146,7 +146,7 @@ const SOURCES: ComparisonSource[] = [
       { feature: 'alerts', them: true },
       { feature: 'prComment', them: true },
       { label: 'Test orchestration / parallelization', kinora: false, them: true },
-      { label: 'Flaky quarantine', kinora: false, them: true },
+      { label: 'Flaky quarantine', kinora: 'Mutes alerts, with expiry', them: true },
       { feature: 'license', them: false },
       { feature: 'selfHost', them: false },
       { label: 'Free tier', kinora: '2,500 results / mo', them: false },
@@ -164,7 +164,7 @@ const SOURCES: ComparisonSource[] = [
     chooseThemLabel: 'Choose Currents when',
     chooseThem: [
       'You want managed test orchestration and parallelization in the same tool.',
-      'You want built-in flaky quarantine.',
+      'You want quarantined tests to stop failing the CI job.',
       'Cloud-only with no self-host is fine for you.',
     ],
     faqs: [
