@@ -1,7 +1,7 @@
 {
   "name": "@kinora/core",
   "type": "module",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Shared contracts (zod schemas), helpers, and ingest client for kinora, the Playwright report dashboard",
   "author": "Joris Gallot",
   "license": "MIT",
