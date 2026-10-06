@@ -37,6 +37,12 @@ describe('detectCiEnv', () => {
     expect(detectCiEnv({ ...ghEnv, GITHUB_BASE_REF: '' }).git?.baseBranch).toBeUndefined()
   })
 
+  it('uses the head branch instead of the merge ref on a GitHub pull_request', () => {
+    const { git } = detectCiEnv({ ...ghEnv, GITHUB_REF_NAME: '42/merge', GITHUB_HEAD_REF: 'feat/login', GITHUB_BASE_REF: 'main' })
+    expect(git).toMatchObject({ branch: 'feat/login', baseBranch: 'main' })
+    expect(detectCiEnv({ ...ghEnv, GITHUB_HEAD_REF: '' }).git?.branch).toBe('main')
+  })
+
   it('reads git + ci from a GitLab branch pipeline', () => {
     expect(detectCiEnv(glEnv)).toEqual({
       git: { sha: 'def456', branch: 'main', baseBranch: undefined, repoUrl: 'https://gitlab.com/acme/app' },

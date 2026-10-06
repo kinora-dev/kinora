@@ -36,7 +36,8 @@ function detectGitHub(env: Env): CiEnv {
     : undefined
   const git = gitOf({
     sha: env.GITHUB_SHA,
-    branch: env.GITHUB_REF_NAME,
+    // On pull_request events GITHUB_REF_NAME is the merge ref ("42/merge"); the head ref is the branch.
+    branch: env.GITHUB_HEAD_REF || env.GITHUB_REF_NAME,
     baseBranch: env.GITHUB_BASE_REF || undefined, // set on pull_request events
     repoUrl,
   })
