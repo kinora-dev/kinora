@@ -48,13 +48,14 @@ server with `KINORA_URL` - see [Self-hosting](/self-hosting/).
 | `project` | `{ slug: string, name?: string }` | required | Target project. `name` defaults to `slug`. |
 | `url` | `string` | env `KINORA_URL`, then cloud | kinora server base URL. Set for self-host. |
 | `token` | `string` | env `KINORA_TOKEN` | Project API token. Prefer the env var. |
-| `git` | `{ sha?, branch?, baseBranch?, repoUrl? }` | auto on GitHub Actions | Git metadata. `repoUrl` links a sha to its commit; `baseBranch` powers "regression vs base" in the PR comment. |
-| `ci` | `{ provider?, runUrl?, runNumber? }` | auto on GitHub Actions | CI metadata for the run. |
+| `git` | `{ sha?, branch?, baseBranch?, repoUrl? }` | auto on GitHub Actions / GitLab CI | Git metadata. `repoUrl` links a sha to its commit; `baseBranch` powers "regression vs base" in the PR comment. |
+| `ci` | `{ provider?, runUrl?, runNumber? }` | auto on GitHub Actions / GitLab CI | CI metadata for the run. |
 | `prComment` | `boolean \| { label?, policy? }` | off | Post/update a summary comment on the GitHub PR. See [GitHub PR comments](/guides/pr-comments/). |
 
-On GitHub Actions, `git` and `ci` are filled from the standard `GITHUB_*` env vars (including the
-repo URL, so shas link to their commit in the dashboard). Pass them explicitly on other CI
-providers.
+On GitHub Actions and GitLab CI, `git` and `ci` are filled from the standard `GITHUB_*` / `CI_*`
+env vars (including the repo URL, so shas link to their commit in the dashboard). On a GitLab merge
+request pipeline, the branch is the MR source branch and the base branch its target. Pass them
+explicitly on other CI providers.
 
 ## CI example (GitHub Actions)
 
@@ -62,6 +63,14 @@ providers.
 - run: npx playwright test
   env:
     KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
+```
+
+## CI example (GitLab CI)
+
+```yaml
+e2e:
+  script:
+    - npx playwright test # KINORA_TOKEN is a masked CI/CD variable
 ```
 
 ## Notes

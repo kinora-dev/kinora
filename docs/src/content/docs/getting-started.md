@@ -36,7 +36,7 @@ Set the token via env when you run tests:
 KINORA_TOKEN=<token> npx playwright test
 ```
 
-On GitHub Actions, git and CI metadata (branch, commit, PR) are filled in automatically. For all
+On GitHub Actions and GitLab CI, git and CI metadata (branch, commit, PR) are filled in automatically. For all
 reporter options and a full CI example, see the [reporter package](https://github.com/kinora-dev/kinora/tree/main/packages/reporter).
 
 ## 4. See your run

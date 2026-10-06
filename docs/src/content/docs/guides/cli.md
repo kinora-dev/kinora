@@ -54,7 +54,7 @@ npx @kinora/cli import ./reports --project web-app --token <project-token> --con
 --ci-provider <name>
 --ci-run-url <url>
 --ci-run-number <n>
---git-base-branch <b> PR base branch (or env GITHUB_BASE_REF); powers "regression vs base"
+--git-base-branch <b> PR base branch (auto-detected in CI); powers "regression vs base"
 --pr-comment          post/update a summary on the GitHub PR (see PR comments guide)
 --pr-label <label>    distinguish matrix legs that share one PR
 --pr-policy <policy>  always (default) | on-failure (skip the comment on green runs)
@@ -62,8 +62,9 @@ npx @kinora/cli import ./reports --project web-app --token <project-token> --con
 -h, --help
 ```
 
-On GitHub Actions, `git` and `ci` metadata (including the repo URL) auto-detect from the standard
-`GITHUB_*` env vars; the flags override them. Pass the flags explicitly on other CI providers.
+On GitHub Actions and GitLab CI, `git` and `ci` metadata (including the repo URL) auto-detect from
+the standard `GITHUB_*` / `CI_*` env vars; the flags override them. Pass the flags explicitly on
+other CI providers.
 
 ## CI example (GitHub Actions)
 
@@ -74,6 +75,17 @@ On GitHub Actions, `git` and `ci` metadata (including the repo URL) auto-detect 
   env:
     KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
     # git + ci metadata (sha, branch, repo URL, run link) auto-detect from GITHUB_*
+```
+
+## CI example (GitLab CI)
+
+```yaml
+e2e:
+  script:
+    - PLAYWRIGHT_JSON_OUTPUT_NAME=results.json npx playwright test --reporter=json
+  after_script:
+    # KINORA_TOKEN is a masked CI/CD variable; git + ci metadata auto-detect from CI_*
+    - npx @kinora/cli upload results.json --project web-app
 ```
 
 For posting a summary on the pull request, see [GitHub PR comments](/guides/pr-comments/).

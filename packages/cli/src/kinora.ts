@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { DEFAULT_KINORA_URL, IngestError, postPrComment, resolvePrContext } from '@kinora/core'
+import { DEFAULT_KINORA_URL, detectCiEnv, IngestError, postPrComment, resolvePrContext } from '@kinora/core'
 import { parseAttachmentKinds } from './args'
 import { importReports } from './import'
 import { uploadReport } from './upload'
@@ -30,7 +30,7 @@ Options:
   --ci-provider <name>
   --ci-run-url <url>
   --ci-run-number <n>
-  (In GitHub Actions, git + ci metadata auto-detect from the env; flags override.)
+  (In GitHub Actions and GitLab CI, git + ci metadata auto-detect from the env; flags override.)
   --pr-comment          Post/update a summary on the GitHub PR (needs GITHUB_TOKEN + pull-requests: write)
   --pr-label <label>    Distinguish matrix legs that share one PR
   --pr-policy <policy>  always (default) | on-failure (skip the comment on green runs)
@@ -117,21 +117,17 @@ async function main(): Promise<void> {
   if (!existsSync(reportFile))
     fail(`report not found: ${reportFile}`)
 
-  // git + ci: explicit flags override, else auto-detect from GitHub Actions env (like the reporter).
-  const ghRepoUrl = process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY
-    ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`
-    : undefined
-  const sha = values['git-sha'] ?? process.env.GITHUB_SHA
-  const branch = values['git-branch'] ?? process.env.GITHUB_REF_NAME
-  const baseBranch = values['git-base-branch'] ?? process.env.GITHUB_BASE_REF ?? undefined
-  const repoUrl = values['git-repo-url'] ?? ghRepoUrl
+  // git + ci: explicit flags override, else auto-detect from the CI env (like the reporter).
+  const detected = detectCiEnv(process.env)
+  const sha = values['git-sha'] ?? detected.git?.sha
+  const branch = values['git-branch'] ?? detected.git?.branch
+  const baseBranch = values['git-base-branch'] ?? detected.git?.baseBranch
+  const repoUrl = values['git-repo-url'] ?? detected.git?.repoUrl
   const git = sha || branch || repoUrl || baseBranch ? { sha, branch, baseBranch, repoUrl } : undefined
 
-  const ghActions = !!process.env.GITHUB_ACTIONS
-  const ciProvider = values['ci-provider'] ?? (ghActions ? 'github' : undefined)
-  const ciRunUrl = values['ci-run-url']
-    ?? (ghActions && ghRepoUrl && process.env.GITHUB_RUN_ID ? `${ghRepoUrl}/actions/runs/${process.env.GITHUB_RUN_ID}` : undefined)
-  const ciRunNumber = values['ci-run-number'] ?? (ghActions ? process.env.GITHUB_RUN_NUMBER : undefined)
+  const ciProvider = values['ci-provider'] ?? detected.ci?.provider
+  const ciRunUrl = values['ci-run-url'] ?? detected.ci?.runUrl
+  const ciRunNumber = values['ci-run-number'] ?? detected.ci?.runNumber
   const ci = ciProvider || ciRunUrl || ciRunNumber ? { provider: ciProvider, runUrl: ciRunUrl, runNumber: ciRunNumber } : undefined
 
   const raw: unknown = JSON.parse(await readFile(reportFile, 'utf8'))

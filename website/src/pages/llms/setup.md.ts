@@ -79,7 +79,7 @@ If the user self-hosts, also set \`KINORA_URL\` to their server (same places as 
 
 ### 5. CI
 
-In the workflow that runs the tests, pass the token via secrets. On GitHub Actions, git and CI metadata (sha, branch, repo URL, run link) auto-detect from the standard \`GITHUB_*\` vars; pass them explicitly on other providers.
+In the workflow that runs the tests, pass the token via secrets. On GitHub Actions and GitLab CI, git and CI metadata (sha, branch, repo URL, run link) auto-detect from the standard \`GITHUB_*\` / \`CI_*\` vars; pass them explicitly on other providers.
 
 \`\`\`yaml
 - run: npx playwright test

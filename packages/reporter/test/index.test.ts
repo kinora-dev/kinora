@@ -30,6 +30,8 @@ function fakeTest(over: { title?: string, outcome?: string, ok?: boolean, traceP
 
 const GH_VARS = ['GITHUB_ACTIONS', 'GITHUB_SHA', 'GITHUB_REF_NAME', 'GITHUB_SERVER_URL', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID', 'GITHUB_RUN_NUMBER', 'GITHUB_TOKEN', 'GITHUB_EVENT_NAME', 'GITHUB_EVENT_PATH', 'GITHUB_REF', 'GITHUB_BASE_REF', 'GITHUB_API_URL']
 
+const GL_VARS = ['GITLAB_CI', 'CI_COMMIT_SHA', 'CI_COMMIT_REF_NAME', 'CI_PROJECT_URL', 'CI_PIPELINE_URL', 'CI_PIPELINE_IID', 'CI_MERGE_REQUEST_SOURCE_BRANCH_NAME', 'CI_MERGE_REQUEST_TARGET_BRANCH_NAME']
+
 function fakeSuite(tests: TestCase[]): Suite {
   return { allTests: () => tests } as unknown as Suite
 }
@@ -40,7 +42,7 @@ function fakeResult(): FullResult {
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  for (const v of GH_VARS) delete process.env[v]
+  for (const v of [...GH_VARS, ...GL_VARS]) delete process.env[v]
 })
 
 describe('reporter onEnd', () => {
@@ -62,6 +64,27 @@ describe('reporter onEnd', () => {
     expect(payload.run.counts).toMatchObject({ total: 1, expected: 1 })
     expect(payload.run.playwrightVersion).toBe('1.60.0')
     expect(payload.project).toEqual({ slug: 'web-app', name: 'web-app' })
+  })
+
+  it('includes describe titles in the testKey, outermost first', async () => {
+    let body = ''
+    vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init: RequestInit) => {
+      body = init.body as string
+      return new Response(JSON.stringify({ projectId: 'p', runId: 'r', tests: 1 }), { status: 201 })
+    }))
+
+    const test = fakeTest()
+    const outer = { type: 'describe', title: 'checkout', parent: test.parent }
+    const inner = { type: 'describe', title: 'guest', parent: outer }
+    const nested = { ...test, parent: inner } as unknown as TestCase
+
+    const reporter = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' } })
+    reporter.onBegin({ version: '1.60.0' } as FullConfig, fakeSuite([nested]))
+    await reporter.onEnd(fakeResult())
+
+    const payload = JSON.parse(body)
+    expect(payload.tests[0].titlePath).toEqual(['a.spec.ts', 'checkout', 'guest', 'passes'])
+    expect(payload.tests[0].testKey).toBe(makeTestKey('a.spec.ts', ['a.spec.ts', 'checkout', 'guest', 'passes'], 'chromium'))
   })
 
   it('skips the upload entirely when no token is configured', async () => {
@@ -112,6 +135,30 @@ describe('reporter onEnd', () => {
     const payload = JSON.parse(body)
     expect(payload.run.git).toMatchObject({ sha: 'abc123', branch: 'main', repoUrl: 'https://github.com/kinora-dev/kinora' })
     expect(payload.run.ci).toMatchObject({ provider: 'github', runUrl: 'https://github.com/kinora-dev/kinora/actions/runs/42', runNumber: '7' })
+  })
+
+  it('attaches git + ci metadata detected from a GitLab merge request pipeline', async () => {
+    let body = ''
+    vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init: RequestInit) => {
+      body = init.body as string
+      return new Response(JSON.stringify({ projectId: 'p', runId: 'r', tests: 1 }), { status: 201 })
+    }))
+    process.env.GITLAB_CI = 'true'
+    process.env.CI_COMMIT_SHA = 'def456'
+    process.env.CI_COMMIT_REF_NAME = 'feat/login'
+    process.env.CI_MERGE_REQUEST_SOURCE_BRANCH_NAME = 'feat/login'
+    process.env.CI_MERGE_REQUEST_TARGET_BRANCH_NAME = 'main'
+    process.env.CI_PROJECT_URL = 'https://gitlab.com/kinora-dev/kinora'
+    process.env.CI_PIPELINE_URL = 'https://gitlab.com/kinora-dev/kinora/-/pipelines/901'
+    process.env.CI_PIPELINE_IID = '12'
+
+    const reporter = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' } })
+    reporter.onBegin({ version: '1.60.0' } as FullConfig, fakeSuite([fakeTest()]))
+    await reporter.onEnd(fakeResult())
+
+    const payload = JSON.parse(body)
+    expect(payload.run.git).toMatchObject({ sha: 'def456', branch: 'feat/login', baseBranch: 'main', repoUrl: 'https://gitlab.com/kinora-dev/kinora' })
+    expect(payload.run.ci).toMatchObject({ provider: 'gitlab', runUrl: 'https://gitlab.com/kinora-dev/kinora/-/pipelines/901', runNumber: '12' })
   })
 
   it('uploads a trace attachment after the run', async () => {

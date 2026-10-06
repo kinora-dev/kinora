@@ -3,7 +3,7 @@ import type { FullConfig, FullResult, Reporter, Suite, TestCase } from '@playwri
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, effectiveAttachments, IngestError, isUploadableAttachment, makeTestKey, postPrComment, resolvePrContext } from '@kinora/core'
+import { createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, detectCiEnv, effectiveAttachments, IngestError, isUploadableAttachment, makeTestKey, postPrComment, resolvePrContext } from '@kinora/core'
 
 export interface KinoraReporterOptions {
   /** kinora server base URL. Defaults to env KINORA_URL, then the hosted cloud. Set for self-host. */
@@ -83,27 +83,6 @@ function countsOf(tests: NormTest[]): Counts {
   return counts
 }
 
-function detectGit(): GitMeta | undefined {
-  const sha = process.env.GITHUB_SHA
-  const branch = process.env.GITHUB_REF_NAME
-  const baseBranch = process.env.GITHUB_BASE_REF || undefined // set on pull_request events
-  const { GITHUB_SERVER_URL, GITHUB_REPOSITORY } = process.env
-  const repoUrl = GITHUB_SERVER_URL && GITHUB_REPOSITORY ? `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}` : undefined
-  if (!sha && !branch && !repoUrl)
-    return undefined
-  return { sha, branch, baseBranch, repoUrl }
-}
-
-function detectCi(): CiMeta | undefined {
-  if (!process.env.GITHUB_ACTIONS)
-    return undefined
-  const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_NUMBER } = process.env
-  const runUrl = GITHUB_SERVER_URL && GITHUB_REPOSITORY && GITHUB_RUN_ID
-    ? `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`
-    : undefined
-  return { provider: 'github', runUrl, runNumber: GITHUB_RUN_NUMBER }
-}
-
 export default class KinoraReporter implements Reporter {
   private suite: Suite | undefined
   private config: FullConfig | undefined
@@ -124,6 +103,7 @@ export default class KinoraReporter implements Reporter {
     }
 
     const tests = (this.suite?.allTests() ?? []).map(toNormTest)
+    const detected = detectCiEnv(process.env)
     const payload: IngestRun = {
       project: { slug: this.options.project.slug, name: this.options.project.name ?? this.options.project.slug },
       run: {
@@ -131,8 +111,8 @@ export default class KinoraReporter implements Reporter {
         duration: result.duration,
         counts: countsOf(tests),
         playwrightVersion: this.config?.version,
-        git: this.options.git ?? detectGit(),
-        ci: this.options.ci ?? detectCi(),
+        git: this.options.git ?? detected.git,
+        ci: this.options.ci ?? detected.ci,
       },
       tests,
     }
