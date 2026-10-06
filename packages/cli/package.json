@@ -1,7 +1,7 @@
 {
   "name": "@kinora/cli",
   "type": "module",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Upload Playwright JSON reports to a kinora server",
   "author": "Joris Gallot",
   "license": "MIT",
