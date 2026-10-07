@@ -1,4 +1,5 @@
 import type { RunReport, TestHistory } from '../contracts/kinora'
+import { storiesOf } from './story'
 
 export type { TestHistory, TestPoint } from '../contracts/kinora'
 
@@ -49,6 +50,11 @@ export function buildTestHistories(reports: RunReport[]): TestHistory[] {
       }
       if (!h.codeOwners?.length && t.codeOwners?.length)
         h.codeOwners = t.codeOwners
+      // Latest run that mounted anything wins: a test can be pointed at other stories over time,
+      // and a run where it was skipped (or failed before mounting) records none.
+      const stories = storiesOf(t)
+      if (stories.length)
+        h.stories = stories
       h.points.push({
         runId: report.runId,
         startedAt: report.startedAt,

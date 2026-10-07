@@ -12,7 +12,7 @@ import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
 import { Sparkline } from '@kinora/ui/sparkline'
 import { StatBlock } from '@kinora/ui/stat-block'
-import { ArrowLeft, History, Settings } from '@lucide/vue'
+import { ArrowLeft, Blocks, History, Settings } from '@lucide/vue'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import RunHistoryTable from '@/components/project/RunHistoryTable.vue'
@@ -72,13 +72,22 @@ const health = computed(() => (latest.value ? runHealth(latest.value.counts) : '
             <HealthBadge :health="health" />
           </div>
           <div class="flex items-center justify-between gap-4">
-            <RouterLink
-              :to="{ name: 'tests', params: { projectId: project.id } }"
-              class="flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
-            >
-              <History class="size-3" />
-              Per-test history
-            </RouterLink>
+            <div class="flex items-center gap-4">
+              <RouterLink
+                :to="{ name: 'tests', params: { projectId: project.id } }"
+                class="flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
+              >
+                <History class="size-3" />
+                Per-test history
+              </RouterLink>
+              <RouterLink
+                :to="{ name: 'components', params: { projectId: project.id } }"
+                class="flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Blocks class="size-3" />
+                Components
+              </RouterLink>
+            </div>
             <RouterLink
               v-if="isAdmin"
               :to="{ name: 'project-settings', params: { projectId: project.id } }"

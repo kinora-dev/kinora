@@ -43,6 +43,20 @@ export const test = base.extend({
 })
 ```
 
+## The Components view
+
+Once a run with recorded stories is uploaded, the project's **Components** page (linked from the
+project page) groups them by component: `components/Button/Primary` is the `Primary` story of
+`Button`. Each story shows its latest status, a timeline over the last 20 runs, and the tests
+that mount it.
+
+- A story's status in a run is the worst status among its tests in that run.
+- Playwright accepts any unique suffix of a story id, so `Button/Primary` and
+  `components/Button/Primary` are shown as one story.
+- **A test that mounts several stories counts for each of them.** kinora knows which stories a
+  test mounted, not which one an assertion failed on, so a failure marks all of that test's
+  stories as failing. Keep one story per test when you want precise attribution.
+
 ## Notes
 
 - A test that mounts several stories records each of them once.

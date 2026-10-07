@@ -143,6 +143,8 @@ export const testHistorySchema = z.object({
   file: z.string(),
   projectName: z.string(),
   codeOwners: z.array(z.string()).optional(),
+  // Component stories the test mounted in its most recent run (see lib/story). Absent for non-component tests.
+  stories: z.array(z.string()).optional(),
   points: z.array(testPointSchema),
   runs: z.number(),
   passed: z.number(),

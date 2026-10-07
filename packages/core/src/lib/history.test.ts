@@ -119,3 +119,19 @@ describe('windowed flakiness', () => {
     expect([oldFlaky, newlyBroken].sort(byRecency)[0]).toBe(newlyBroken)
   })
 })
+
+describe('buildTestHistories stories', () => {
+  it('exposes the stories mounted in the latest run', () => {
+    const story = (id: string) => ({ type: 'kinora:story', description: id })
+    const r1 = makeReport('r1', '2026-01-01T00:00:00Z', [
+      makeTest({ testKey: 'K', status: 'expected', annotations: [story('Button/Old')] }),
+      makeTest({ testKey: 'E2E', status: 'expected' }),
+    ])
+    const r2 = makeReport('r2', '2026-01-02T00:00:00Z', [
+      makeTest({ testKey: 'K', status: 'expected', annotations: [story('Button/Primary'), story('Button/Primary')] }),
+    ])
+    const byKey = new Map(buildTestHistories([r2, r1]).map(h => [h.testKey, h]))
+    expect(byKey.get('K')?.stories).toEqual(['Button/Primary'])
+    expect(byKey.get('E2E')?.stories).toBeUndefined()
+  })
+})

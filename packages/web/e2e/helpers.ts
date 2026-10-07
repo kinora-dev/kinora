@@ -76,7 +76,7 @@ export function findTracedRun(page: Page): Promise<{ slug: string, runId: string
 }
 
 export function findAnnotatedRun(page: Page): Promise<{ slug: string, runId: string }> {
-  return findRun(page, t => t.annotations.length > 0)
+  return findRun(page, t => t.annotations.some(a => a.type === 'skip'))
 }
 
 export function findFailingRun(page: Page): Promise<{ slug: string, runId: string }> {

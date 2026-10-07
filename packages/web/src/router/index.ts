@@ -55,6 +55,12 @@ export const router = createRouter({
       props: true,
     },
     {
+      path: '/projects/:projectId/components',
+      name: 'components',
+      component: () => import('@/pages/ComponentsPage.vue'),
+      props: true,
+    },
+    {
       path: '/projects/:projectId/settings',
       name: 'project-settings',
       component: () => import('@/pages/ProjectSettingsPage.vue'),

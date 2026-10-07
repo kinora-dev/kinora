@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { countsByTagFrom, makeTestKey } from '@kinora/core'
+import { countsByTagFrom, makeTestKey, STORY_ANNOTATION } from '@kinora/core'
 import { and, eq } from 'drizzle-orm'
 import { db } from '../src/db'
 import { apikey, artifact, member, project, run, test, user as userTable } from '../src/db/schemas/index'
@@ -25,7 +25,10 @@ const ADMIN_NAME = 'Kinora Admin'
 const MATE_EMAIL = 'teammate@kinora.dev'
 const MATE_NAME = 'Acme QA'
 
-const PROJECTS = [
+// `stories` marks a component test: the story ids its `mount` calls would record.
+interface TestDef { file: string, title: string, stories?: string[] }
+
+const PROJECTS: { slug: string, name: string, tests: TestDef[] }[] = [
   {
     slug: 'web-app',
     name: 'Web App',
@@ -58,6 +61,20 @@ const PROJECTS = [
       { file: 'tests/pricing.spec.ts', title: 'toggles annual billing' },
     ],
   },
+  {
+    slug: 'design-system',
+    name: 'Design System',
+    tests: [
+      { file: 'tests/components/button.spec.ts', title: 'primary button submits', stories: ['components/Button/Primary'] },
+      { file: 'tests/components/button.spec.ts', title: 'disabled button ignores clicks', stories: ['components/Button/Disabled'] },
+      { file: 'tests/components/button.spec.ts', title: 'button states match screenshots', stories: ['components/Button/Primary', 'components/Button/Disabled', 'components/Button/Loading'] },
+      { file: 'tests/components/dialog.spec.ts', title: 'closes on escape', stories: ['components/Dialog/Default'] },
+      // Playwright accepts a unique suffix of the story id; the dashboard folds it into the full id.
+      { file: 'tests/components/dialog.spec.ts', title: 'traps focus', stories: ['Dialog/Default'] },
+      { file: 'tests/components/select.spec.ts', title: 'opens with the keyboard', stories: ['components/Select/Default'] },
+      { file: 'tests/components/select.spec.ts', title: 'filters options while typing', stories: ['components/Select/Searchable'] },
+    ],
+  },
 ]
 
 const DAY = 86_400_000
@@ -82,23 +99,27 @@ function coverStatuses(count: number): NormTest['status'][] {
   return Array.from({ length: count }, (_, i) => required[i] ?? 'expected')
 }
 
-function makeTest(def: { file: string, title: string }, status: NormTest['status']): NormTest {
+function makeTest(def: TestDef, status: NormTest['status']): NormTest {
   const titlePath = [def.file, def.title]
   const failed = status === 'unexpected'
+  const projectName = def.stories ? 'components' : 'chromium'
   return {
-    testKey: makeTestKey(def.file, titlePath, 'chromium'),
+    testKey: makeTestKey(def.file, titlePath, projectName),
     title: def.title,
     titlePath,
     file: def.file,
     line: 10 + Math.floor(Math.random() * 40),
     column: 3,
-    projectName: 'chromium',
+    projectName,
     status,
     ok: status !== 'unexpected',
     duration: status === 'skipped' ? 0 : 200 + Math.floor(Math.random() * 4000),
     retries: status === 'flaky' ? 1 : 0,
     tags: def.file.includes('checkout') ? ['@smoke'] : [],
-    annotations: status === 'skipped' ? [{ type: 'skip', description: 'flaky on CI' }] : [],
+    // A skipped test never reaches `mount`, so it records no story.
+    annotations: status === 'skipped'
+      ? [{ type: 'skip', description: 'flaky on CI' }]
+      : (def.stories ?? []).map(id => ({ type: STORY_ANNOTATION, description: id })),
     errors: failed
       ? [{ message: `expect(received).toBe(expected)\n\nExpected: 200\nReceived: 500`, stack: `at ${def.file}:23:18` }]
       : [],

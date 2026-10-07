@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { STORY_ANNOTATION } from '@kinora/core'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../src/db'
@@ -190,6 +191,19 @@ describe('dashboard reads', () => {
     await ingest(await createApiKey(a.id))
 
     await expect((await caller(a)).dashboard.run({ projectId: 'web-app', runId: 'nope' })).rejects.toThrow(/not found/i)
+  })
+
+  it('projectHistory exposes the component stories a test mounted', async () => {
+    const a = await createUser('a@test.dev')
+    const payload = runPayload('web-app')
+    payload.tests[0].annotations = [
+      { type: STORY_ANNOTATION, description: 'components/Button/Primary' },
+      { type: STORY_ANNOTATION, description: 'components/Button/Disabled' },
+    ]
+    await ingest(await createApiKey(a.id), payload)
+
+    const h = await (await caller(a)).dashboard.projectHistory({ projectId: 'web-app' })
+    expect(h.histories[0].stories).toEqual(['components/Button/Primary', 'components/Button/Disabled'])
   })
 
   it('projectHistory returns per-test histories across the project runs', async () => {
