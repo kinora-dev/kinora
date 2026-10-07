@@ -50,6 +50,26 @@ reporter: [['@kinora/reporter', {
 Kinora uploads whatever Playwright attached, so `screenshot: 'only-on-failure'` and
 `video: 'retain-on-failure'` keep deciding what exists in the first place.
 
+## Component tests
+
+Playwright's built-in component testing (the `mount` fixture, Playwright >=1.63) reports like any
+other test. To let kinora know which story each test mounted, import `test` from
+`@kinora/reporter/ct` instead of `@playwright/test`:
+
+```ts
+import { expect, test } from '@kinora/reporter/ct'
+
+test('disabled button is disabled', async ({ mount }) => {
+  const component = await mount('components/Button/Disabled')
+  await expect(component.getByRole('button')).toBeDisabled()
+})
+```
+
+Each mounted story id is recorded on the test as a `kinora:story` annotation. Already extending
+`test` with your own fixtures? Extend this one instead: `test.extend({ ... })`.
+
+More in the [component testing guide](https://docs.kinora.dev/guides/component-testing/).
+
 ## Documentation
 
 Full reporter options, PR/MR comments, CI examples, and self-hosting are in the docs:

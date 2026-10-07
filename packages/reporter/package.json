@@ -20,7 +20,8 @@
     "kinora"
   ],
   "exports": {
-    ".": "./dist/index.mjs"
+    ".": "./dist/index.mjs",
+    "./ct": "./dist/ct.mjs"
   },
   "main": "./dist/index.mjs",
   "files": [
