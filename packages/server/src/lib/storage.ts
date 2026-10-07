@@ -11,6 +11,9 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { artifactSignature } from './artifact-url'
 import { env, s3 } from './env'
 
+const TRANSIENT_STORAGE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+const TRANSIENT_STORAGE_NAMES = new Set(['SlowDown', 'RequestTimeout', 'TimeoutError', 'InternalError', 'ServiceUnavailable'])
+
 // Trace.zip can be large; the upload path streams it through so it's never fully buffered in RAM.
 export type StorageBody = Buffer | Uint8Array | Readable
 
@@ -20,6 +23,17 @@ export interface Storage {
   put: (key: string, body: StorageBody) => Promise<void>
   url: (key: string) => Promise<string>
   delete: (key: string) => Promise<void>
+}
+
+export function isTransientStorageError(err: unknown): boolean {
+  if (!err || typeof err !== 'object')
+    return false
+  const e = err as { name?: unknown, $metadata?: { httpStatusCode?: unknown }, $retryable?: unknown }
+  return (
+    (typeof e.$metadata?.httpStatusCode === 'number' && TRANSIENT_STORAGE_STATUSES.has(e.$metadata.httpStatusCode))
+    || (typeof e.name === 'string' && TRANSIENT_STORAGE_NAMES.has(e.name))
+    || !!e.$retryable
+  )
 }
 
 function localStorage(): Storage {
@@ -64,6 +78,9 @@ export function s3Storage(config: S3Config): Storage {
     credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
     // Most S3-compatible providers (MinIO, Hetzner) need path-style URLs.
     forcePathStyle: true,
+    // Give S3-compatible throttling / gateway blips a better chance to heal server-side.
+    maxAttempts: 5,
+    retryMode: 'standard',
   })
   return {
     async put(key, body) {

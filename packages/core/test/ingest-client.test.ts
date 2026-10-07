@@ -111,6 +111,23 @@ describe('createIngestClient.uploadArtifact', () => {
     expect((err as IngestError).message).toBe('too big')
   })
 
+  it('retries transient artifact upload responses', async () => {
+    let calls = 0
+    const client = createIngestClient({
+      baseUrl: 'http://test',
+      token: 't',
+      fetch: async () => {
+        calls++
+        if (calls === 1)
+          return new Response(JSON.stringify({ error: 'Artifact storage temporarily unavailable' }), { status: 503 })
+        return new Response(JSON.stringify({ url: 'http://test/a.zip' }), { status: 201 })
+      },
+    })
+
+    await expect(client.uploadArtifact({ runId: 'r', testKey: 'k', name: 'trace', contentType: 'application/zip', body: new Uint8Array([1]) })).resolves.toEqual({ url: 'http://test/a.zip' })
+    expect(calls).toBe(2)
+  })
+
   it('accepts a Blob body', async () => {
     const client = clientWith(new Response(JSON.stringify({ url: 'http://test/a.zip' }), { status: 201 }))
     await expect(

@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { resolve, sep } from 'node:path'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../src/app'
 import { db } from '../src/db'
 import { artifactSignature, verifyArtifactSignature } from '../src/lib/artifact-url'
@@ -191,6 +191,28 @@ describe('artifact upload - access + linking', () => {
 
     const res = await postArtifact(run.id, apiKey, { body: JSON.stringify({ not: 'multipart' }) })
     expect(res.status).toBe(400)
+  })
+
+  it('returns 503 without recording an artifact when object storage throttles', async () => {
+    const user = await createUser()
+    const apiKey = await createApiKey(user.id)
+    await ingest(apiKey)
+    const run = (await db.query.run.findMany())[0]
+    const spy = vi.spyOn(storage, 'put').mockImplementationOnce(async (_key, body) => {
+      if (body && typeof body === 'object' && 'resume' in body && typeof body.resume === 'function')
+        body.resume()
+      throw Object.assign(new Error('UnknownError'), { name: 'SlowDown', $metadata: { httpStatusCode: 503 } })
+    })
+
+    try {
+      const res = await postArtifact(run.id, apiKey)
+      expect(res.status).toBe(503)
+      expect(await res.json()).toEqual({ error: 'Artifact storage temporarily unavailable' })
+      expect(await db.query.artifact.findMany()).toHaveLength(0)
+    }
+    finally {
+      spy.mockRestore()
+    }
   })
 })
 

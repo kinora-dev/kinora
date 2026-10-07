@@ -55,6 +55,9 @@ export interface UploadArtifactInput {
   body: Uint8Array | Blob
 }
 
+const RETRYABLE_ARTIFACT_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+const ARTIFACT_UPLOAD_MAX_ATTEMPTS = 3
+
 export class IngestError extends Error {
   readonly status: number
   constructor(status: number, message: string) {
@@ -77,6 +80,20 @@ export async function toIngestError(res: Response, fallback: string): Promise<In
     // non-JSON body: keep the raw text / fallback
   }
   return new IngestError(res.status, message)
+}
+
+function isRetryableArtifactError(err: unknown): boolean {
+  if (err instanceof IngestError)
+    return RETRYABLE_ARTIFACT_STATUSES.has(err.status)
+  return err instanceof TypeError
+}
+
+function artifactRetryDelay(attempt: number): number {
+  return 100 * 2 ** attempt + Math.floor(Math.random() * 50)
+}
+
+async function wait(ms: number): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, ms))
 }
 
 export function createIngestClient(opts: IngestClientOptions) {
@@ -109,19 +126,30 @@ export function createIngestClient(opts: IngestClientOptions) {
     async uploadArtifact(input: UploadArtifactInput): Promise<UploadArtifactResult> {
       // Cast the typed-array generic so this compiles under both node and DOM libs.
       const blob = input.body instanceof Blob ? input.body : new Blob([input.body as Uint8Array<ArrayBuffer>], { type: input.contentType })
-      const form = new FormData()
-      form.set('file', blob, input.name)
-      form.set('testKey', input.testKey)
-      form.set('name', input.name)
-      // No content-type header: fetch sets the multipart boundary.
-      const res = await doFetch(`${base}/api/v1/runs/${encodeURIComponent(input.runId)}/artifacts`, {
-        method: 'POST',
-        headers: { authorization: auth },
-        body: form,
-      })
-      if (!res.ok)
-        throw await toIngestError(res, `kinora artifact upload failed (${res.status})`)
-      return uploadArtifactResultSchema.parse(await res.json())
+      const url = `${base}/api/v1/runs/${encodeURIComponent(input.runId)}/artifacts`
+      for (let attempt = 0; attempt < ARTIFACT_UPLOAD_MAX_ATTEMPTS; attempt++) {
+        try {
+          const form = new FormData()
+          form.set('file', blob, input.name)
+          form.set('testKey', input.testKey)
+          form.set('name', input.name)
+          // No content-type header: fetch sets the multipart boundary.
+          const res = await doFetch(url, {
+            method: 'POST',
+            headers: { authorization: auth },
+            body: form,
+          })
+          if (!res.ok)
+            throw await toIngestError(res, `kinora artifact upload failed (${res.status})`)
+          return uploadArtifactResultSchema.parse(await res.json())
+        }
+        catch (err) {
+          if (attempt === ARTIFACT_UPLOAD_MAX_ATTEMPTS - 1 || !isRetryableArtifactError(err))
+            throw err
+          await wait(artifactRetryDelay(attempt))
+        }
+      }
+      throw new IngestError(0, 'kinora artifact upload failed')
     },
   }
 }

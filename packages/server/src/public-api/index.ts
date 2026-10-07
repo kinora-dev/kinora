@@ -18,7 +18,7 @@ import { auth } from '../lib/auth'
 import { env } from '../lib/env'
 import { logger } from '../lib/logger'
 import { sendMail } from '../lib/mailer'
-import { storage } from '../lib/storage'
+import { isTransientStorageError, storage } from '../lib/storage'
 import { computeRegression } from '../reports/regression'
 import { registerReadRoutes } from './read'
 
@@ -327,7 +327,17 @@ publicApi.post('/runs/:runId/artifacts', async (c) => {
   if (full)
     return c.json(full, 402)
 
-  const uploaded = await streamArtifact(c, r.projectId, runId)
+  let uploaded: Awaited<ReturnType<typeof streamArtifact>>
+  try {
+    uploaded = await streamArtifact(c, r.projectId, runId)
+  }
+  catch (err) {
+    if (isTransientStorageError(err)) {
+      logger.warn({ err, projectId: r.projectId, runId }, 'artifact storage temporarily unavailable')
+      return c.json({ error: 'Artifact storage temporarily unavailable' }, 503)
+    }
+    throw err
+  }
   if (!uploaded)
     return c.json({ error: 'file is required' }, 400)
   if ('tooLarge' in uploaded)
