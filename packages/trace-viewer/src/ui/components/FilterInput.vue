@@ -15,7 +15,7 @@ const model = defineModel<string>({ default: '' })
       v-model="model"
       v-bind="$attrs"
       :placeholder="placeholder"
-      class="w-full min-w-0 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
+      class="h-full w-full min-w-0 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
     >
     <button
       v-if="model"

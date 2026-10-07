@@ -89,11 +89,11 @@ const countLabel = computed(() => {
       </div>
     </div>
 
-    <div class="flex h-12 shrink-0 items-center gap-2 border-b border-border px-2">
-      <FilterInput v-model="filter" placeholder="Filter actions" class="min-w-0 flex-1" />
+    <div class="flex h-12 shrink-0 items-stretch border-b border-border">
+      <FilterInput v-model="filter" placeholder="Filter actions" class="min-w-0 flex-1 rounded-none bg-transparent px-3 py-0" />
       <DropdownMenu>
         <DropdownMenuTrigger
-          class="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          class="flex w-11 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground data-[state=open]:bg-muted/50 data-[state=open]:text-foreground"
           aria-label="Filter actions"
           title="Filter actions"
         >
