@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { Check, CircleAlert, Copy, FileSearch } from '@lucide/vue'
 import { computed, ref, watchEffect } from 'vue'
+import { stripAnsi } from '../lib/ansi'
 import { useTraceStore } from '../store'
 
 const store = useTraceStore()
-
-// Playwright error messages carry ANSI colour codes (ESC[..m); strip them for plain display.
-const ANSI_RE = new RegExp(`${String.fromCharCode(0x1B)}\\[[0-9;]*m`, 'g')
 
 const errors = computed(() => {
   const m = store.model.value
@@ -14,7 +12,7 @@ const errors = computed(() => {
     return []
   return m.errorDescriptors.map((e, i) => ({
     key: `${i}-${e.message}`,
-    message: e.message.replace(ANSI_RE, ''),
+    message: stripAnsi(e.message),
     where: e.action ? `${e.action.class}.${e.action.method}` : undefined,
     actionId: e.action?.callId,
     stack: e.stack ?? e.action?.stack ?? [],

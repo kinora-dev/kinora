@@ -62,11 +62,11 @@ describe('callSummary', () => {
 
   it('surfaces errors and results', () => {
     const summary = callSummary(action({
-      error: { message: 'boom' } as any,
+      error: { message: `Error: ${String.fromCharCode(0x1B)}[31mboom${String.fromCharCode(0x1B)}[22m` } as any,
       result: { ok: true },
     }))
     expect(summary.status).toBe('error')
-    expect(summary.error).toBe('boom')
+    expect(summary.error).toBe('Error: boom')
     expect(summary.result).toContain('"ok": true')
   })
 })
