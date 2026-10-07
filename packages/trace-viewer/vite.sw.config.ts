@@ -10,6 +10,7 @@ const alias = {
 }
 
 export default defineConfig({
+  publicDir: false,
   resolve: { alias },
   build: {
     outDir: 'public',
