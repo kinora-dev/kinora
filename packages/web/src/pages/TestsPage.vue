@@ -206,7 +206,7 @@ function setPage(p: number) {
             variant="outline"
             size="sm"
             class="font-mono text-xs"
-            :class="unstableOnly && !quarantinedOnly ? 'border-flaky/50 text-flaky' : ''"
+            :class="unstableOnly && !quarantinedOnly ? 'border-flaky/50 text-flaky hover:text-flaky' : ''"
             @click="showUnstableTests"
           >
             Unstable only
@@ -215,7 +215,7 @@ function setPage(p: number) {
             variant="outline"
             size="sm"
             class="font-mono text-xs"
-            :class="quarantinedOnly ? 'border-flaky/50 text-flaky' : ''"
+            :class="quarantinedOnly ? 'border-flaky/50 text-flaky hover:text-flaky' : ''"
             @click="showQuarantinedTests"
           >
             Quarantined <span class="ml-1 tabular-nums text-muted-foreground">{{ quarantinedCount }}</span>

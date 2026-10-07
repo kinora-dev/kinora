@@ -125,7 +125,7 @@ const rows = computed<ComponentHealth[]>(() => {
               variant="outline"
               size="sm"
               class="font-mono text-xs"
-              :class="unstableOnly ? 'border-flaky/50 text-flaky' : ''"
+              :class="unstableOnly ? 'border-flaky/50 text-flaky hover:text-flaky' : ''"
               @click="unstableOnly = true"
             >
               Failing or flaky
