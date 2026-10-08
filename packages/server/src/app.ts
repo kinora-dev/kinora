@@ -55,7 +55,7 @@ app.get('/healthcheck', async (c) => {
 app.use('/api/auth/*', blockAuthWritesInDemo)
 app.on(['POST', 'GET'], '/api/auth/*', c => auth.handler(c.req.raw))
 
-app.use('/trpc/*', rateLimit({ windowMs: 60_000, limit: 300 }))
+app.use('/trpc/*', rateLimit({ windowMs: 60_000, limit: env.TRPC_RATE_LIMIT }))
 app.use('/trpc/*', trpcServer({ router: appRouter, createContext }))
 
 // Access log first in the chain so rate-limit (429) / body-limit (413) rejections are logged too.

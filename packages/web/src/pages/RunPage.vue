@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { PwTestStatus } from '@kinora/core'
-import { formatDuration, formatPct, passRate, runHealth, stripAnsi } from '@kinora/core'
+import { formatDuration, formatPct, passRate, runHealth, storiesOf, STORY_ANNOTATION, stripAnsi } from '@kinora/core'
 import { Button } from '@kinora/ui/button'
 import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
@@ -14,6 +14,7 @@ import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
 import ErrorState from '@/components/app/ErrorState.vue'
 import SearchInput from '@/components/app/SearchInput.vue'
 import FilterCombobox from '@/components/FilterCombobox.vue'
+import StoryBadge from '@/components/viz/StoryBadge.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
 import { useDemo, useManifest, useRun } from '@/composables/queries'
 import { useQuarantine } from '@/composables/useQuarantine'
@@ -111,6 +112,7 @@ const filtered = computed(() => {
 })
 
 type Attachment = NonNullable<typeof report.value>['tests'][number]['attachments'][number]
+type Annotation = NonNullable<typeof report.value>['tests'][number]['annotations'][number]
 
 // Playwright embeds screenshots and videos inside trace.zip, so a badge opens them in the
 // viewer's attachments tab; their own `path` is a CI-runner path the server never received.
@@ -122,6 +124,11 @@ function attachmentBadges(attachments: Attachment[]): Attachment[] {
 // which is where a traced run keeps its screenshots and video.
 function attachmentHref(a: Attachment, attachments: Attachment[]): string | undefined {
   return a.url ?? traceViewerHref(attachments, 'attachments')
+}
+
+// Story annotations get their own linked badge (StoryBadge), so they're left out of the raw list.
+function otherAnnotations(t: { annotations: Annotation[] }): Annotation[] {
+  return t.annotations.filter(a => a.type !== STORY_ANNOTATION)
 }
 
 const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground'
@@ -274,8 +281,9 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
                   :key="owner"
                   class="rounded border border-signal/30 bg-signal/10 px-1.5 py-0.5 font-mono text-[10px] text-signal"
                 >{{ owner }}</span>
+                <StoryBadge v-for="id in storiesOf(t)" :key="id" :project-id="projectId" :story-id="id" />
                 <span
-                  v-for="(a, i) in t.annotations"
+                  v-for="(a, i) in otherAnnotations(t)"
                   :key="`${a.type}-${i}`"
                   :title="a.description"
                   class="inline-flex max-w-xs items-center gap-1 truncate rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"

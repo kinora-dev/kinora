@@ -11,6 +11,11 @@ export function storiesOf(test: Pick<NormTest, 'annotations'>): string[] {
   return [...new Set(ids)]
 }
 
+// Short label for a story: its component and story name, e.g. `Button / Primary`.
+export function storyLabel(id: string): string {
+  return id.split('/').slice(-2).join(' / ')
+}
+
 export interface StoryHealth {
   /** Full story id, e.g. `components/Button/Primary`. */
   id: string

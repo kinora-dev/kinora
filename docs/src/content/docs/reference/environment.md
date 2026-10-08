@@ -24,6 +24,7 @@ its Polar variables, stops the server from booting.
 | `KINORA_CLOUD` | no | `false` | Cloud mode (enables Polar billing). `false` = self-host, every feature unlimited. |
 | `KINORA_DEMO` | no | `false` | Public read-only demo: auto-session as the seeded demo user, no mutations/ingest. |
 | `INGEST_RATE_LIMIT` | no | `600` | Ingest requests per minute per client IP (DoS backstop). Raise for pathological suites. |
+| `TRPC_RATE_LIMIT` | no | `300` | Dashboard requests per minute per client IP. Raise it when many users share one IP (office NAT). |
 
 ## Cookies
 

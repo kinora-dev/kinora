@@ -1,6 +1,6 @@
 import type { TestHistory, TestPoint } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
-import { buildComponents, storiesOf, STORY_ANNOTATION } from './story'
+import { buildComponents, storiesOf, STORY_ANNOTATION, storyLabel } from './story'
 
 function point(runId: string, status: TestPoint['status']): TestPoint {
   return { runId, startedAt: `2026-01-0${runId.slice(1)}T00:00:00Z`, status, duration: 100, retries: status === 'flaky' ? 1 : 0 }
@@ -43,6 +43,14 @@ describe('storiesOf', () => {
         { type: STORY_ANNOTATION },
       ],
     })).toEqual(['Button/Primary', 'Button/Disabled'])
+  })
+})
+
+describe('storyLabel', () => {
+  it('keeps the component and the story name', () => {
+    expect(storyLabel('components/Button/Primary')).toBe('Button / Primary')
+    expect(storyLabel('Button/Primary')).toBe('Button / Primary')
+    expect(storyLabel('Primary')).toBe('Primary')
   })
 })
 

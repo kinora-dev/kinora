@@ -44,3 +44,29 @@ test('components page shares the unstable filter with the tests page', async ({ 
   await expect(page).toHaveURL(/unstable=true/)
   await expect(page.getByText('Failing now')).toBeVisible()
 })
+
+test('a story badge on a run links to that story on the components page', async ({ page }) => {
+  await page.goto('/projects/design-system')
+  await page.getByRole('row').nth(1).click()
+  await expect(page).toHaveURL(/\/projects\/design-system\/runs\//)
+
+  // Shown as a badge, not as the raw `kinora:story` annotation. Which tests carry one varies
+  // (seeded statuses are random and a skipped test mounts nothing), so follow the first badge.
+  const badge = page.getByRole('link', { name: /^\w+ \/ \w+$/ }).first()
+  const [component, story] = ((await badge.textContent()) ?? '').trim().split(' / ')
+  await expect(page.getByText('kinora:story')).toHaveCount(0)
+  await badge.click()
+
+  await expect(page).toHaveURL(/\/projects\/design-system\/components\?q=/)
+  const region = page.getByRole('region', { name: component })
+  await expect(region.getByText(story, { exact: true })).toBeVisible()
+  await expect(page.locator('section').filter({ has: page.getByRole('heading', { level: 2 }) })).toHaveCount(1)
+})
+
+test('the test history page links to the stories the test mounts', async ({ page }) => {
+  await page.goto('/projects/design-system/components?q=Loading')
+  await page.getByRole('link', { name: /button states match screenshots/ }).click()
+
+  for (const story of ['Button / Primary', 'Button / Disabled', 'Button / Loading'])
+    await expect(page.getByRole('link', { name: story })).toBeVisible()
+})

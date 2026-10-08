@@ -23,8 +23,10 @@ export default defineConfig({
   webServer: [
     {
       // Inline env so it reliably reaches the spawned process. .env file (dev) / job env (CI) fills the rest.
+      // TRPC_RATE_LIMIT: every worker shares one IP, and the suite outgrew the default 300 req/min
+      // (a throttled `user.me` reads as "signed out" and bounces the test to /login).
       // Dummy OAuth creds so the login page renders the social buttons (they're hidden when a provider is unconfigured).
-      command: `PORT=${SERVER_PORT} BASE_URL=${serverUrl} WEB_ORIGIN=${baseURL} POSTGRES_DB=kinora_e2e KINORA_CLOUD=false GOOGLE_CLIENT_ID=e2e GOOGLE_CLIENT_SECRET=e2e GITHUB_CLIENT_ID=e2e GITHUB_CLIENT_SECRET=e2e pnpm --filter @kinora/server start`,
+      command: `PORT=${SERVER_PORT} BASE_URL=${serverUrl} WEB_ORIGIN=${baseURL} POSTGRES_DB=kinora_e2e KINORA_CLOUD=false TRPC_RATE_LIMIT=100000 GOOGLE_CLIENT_ID=e2e GOOGLE_CLIENT_SECRET=e2e GITHUB_CLIENT_ID=e2e GITHUB_CLIENT_SECRET=e2e pnpm --filter @kinora/server start`,
       url: `${serverUrl}/healthcheck`,
       reuseExistingServer: false,
       timeout: 120_000,

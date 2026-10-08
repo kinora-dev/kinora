@@ -12,6 +12,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
 import ErrorState from '@/components/app/ErrorState.vue'
 import StatusTimeline from '@/components/viz/StatusTimeline.vue'
+import StoryBadge from '@/components/viz/StoryBadge.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
 import { useDemo, useProjectHistory } from '@/composables/queries'
 import { useQuarantine } from '@/composables/useQuarantine'
@@ -110,10 +111,11 @@ function toggleQuarantine() {
             <div class="mt-0.5 font-mono text-[11px] text-muted-foreground">
               {{ history.file }} · {{ history.projectName }}
             </div>
-            <div v-if="history.codeOwners?.length" class="mt-2 flex flex-wrap gap-1.5">
+            <div v-if="history.codeOwners?.length || history.stories?.length" class="mt-2 flex flex-wrap gap-1.5">
               <Badge v-for="owner in history.codeOwners" :key="owner" class="border-signal/30 bg-signal/10 text-[10px] text-signal">
                 {{ owner }}
               </Badge>
+              <StoryBadge v-for="id in history.stories" :key="id" :project-id="projectId" :story-id="id" />
             </div>
           </div>
           <div class="flex shrink-0 items-center gap-2">

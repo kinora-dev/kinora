@@ -21,6 +21,7 @@ export const TEST_ENV: Record<keyof Env, string> = {
   KINORA_CLOUD: 'false',
   KINORA_DEMO: 'false',
   INGEST_RATE_LIMIT: '600',
+  TRPC_RATE_LIMIT: '300',
   KINORA_RETENTION_DAYS: '0',
   KINORA_KEEP_LAST_RUNS: '0',
   KINORA_ARTIFACT_RETENTION_DAYS: '0',
