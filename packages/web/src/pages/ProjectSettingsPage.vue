@@ -88,7 +88,7 @@ async function onDelete(): Promise<void> {
       :to="{ name: 'project', params: { projectId } }"
       class="flex w-fit items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground"
     >
-      <ArrowLeft class="size-3.5" /> {{ project?.name ?? 'project' }}
+      <ArrowLeft class="size-3.5" /> {{ project?.name ?? 'Project' }}
     </RouterLink>
 
     <div>
