@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight } from '@lucide/vue'
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
-import { useCompareRuns } from '@/composables/queries'
+import { useCompareRuns, useManifest } from '@/composables/queries'
 import { testLabel } from '@/lib/test-display'
 
 const props = defineProps<{ projectId: string }>()
@@ -18,6 +18,10 @@ const baseId = computed(() => String(route.query.base ?? ''))
 const headId = computed(() => String(route.query.head ?? ''))
 
 const { state: cmp, isLoading, error } = useCompareRuns(props.projectId, baseId.value, headId.value)
+const { state: manifest } = useManifest()
+const projectName = computed(
+  () => manifest.value?.projects.find(p => p.id === props.projectId)?.name ?? props.projectId,
+)
 
 // Groups shown, in priority order. `unchanged` is hidden.
 const GROUPS: { key: TestChange, label: string, tone: string }[] = [
@@ -58,7 +62,7 @@ function shortId(id: string): string {
       :to="{ name: 'project', params: { projectId } }"
       class="flex w-fit items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground"
     >
-      <ArrowLeft class="size-3.5" /> {{ projectId }}
+      <ArrowLeft class="size-3.5" /> {{ projectName }}
     </RouterLink>
 
     <div v-if="error" class="rounded-lg border border-fail/30 bg-fail/5 px-5 py-4 font-mono text-sm text-fail">

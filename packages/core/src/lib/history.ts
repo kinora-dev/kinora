@@ -10,7 +10,7 @@ export const RECENT_WINDOW = 5
 // filter all cover the same last N points, so the numbers match the bars.
 export const HEALTH_WINDOW = 20
 
-export interface WindowStats { failRate: number, flakyRate: number, unstable: boolean }
+export interface WindowStats { executed: number, passRate: number, failRate: number, flakyRate: number, unstable: boolean }
 
 // Health of a timeline over its last `window` points. Unstable = failed or flaked at least once.
 export function windowStats(points: Pick<TestPoint, 'status'>[], window = HEALTH_WINDOW): WindowStats {
@@ -19,6 +19,9 @@ export function windowStats(points: Pick<TestPoint, 'status'>[], window = HEALTH
   const fails = pts.filter(p => p.status === 'unexpected').length
   const flakies = pts.filter(p => p.status === 'flaky').length
   return {
+    executed,
+    // Flaky runs passed eventually, so they count as passing (same as a run's pass rate).
+    passRate: executed ? (executed - fails) / executed : 1,
     failRate: executed ? fails / executed : 0,
     flakyRate: executed ? flakies / executed : 0,
     unstable: fails > 0 || flakies > 0,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ProjectEntry } from '@kinora/core'
-import { formatDuration, formatPct, latestRun, recentPassRate, runHealth, trend } from '@kinora/core'
+import { formatDuration, formatPct, HEALTH_WINDOW, latestRun, recentPassRate, runHealth, trend } from '@kinora/core'
 import { Card } from '@kinora/ui/card'
 import { HealthBadge } from '@kinora/ui/health-badge'
 import { RunStrip } from '@kinora/ui/run-strip'
@@ -11,13 +11,11 @@ import { RouterLink, useRouter } from 'vue-router'
 
 const props = defineProps<{ project: ProjectEntry }>()
 
-const RECENT_RUNS = 20
-
 const router = useRouter()
 
 const latest = computed(() => latestRun(props.project))
 const health = computed(() => (latest.value ? runHealth(latest.value.counts) : 'empty'))
-const rate = computed(() => recentPassRate(props.project.runs, RECENT_RUNS))
+const rate = computed(() => recentPassRate(props.project.runs, HEALTH_WINDOW))
 const series = computed(() => trend(props.project).map(t => t.passRate))
 
 const rel = computed(() => {
@@ -56,7 +54,7 @@ const rel = computed(() => {
     <div class="flex items-end justify-between gap-4 px-5">
       <div class="flex flex-col gap-1">
         <span class="font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-          Pass rate <span class="text-muted-foreground/60">· last {{ RECENT_RUNS }}</span>
+          Pass rate <span class="text-muted-foreground/60">· last {{ HEALTH_WINDOW }}</span>
         </span>
         <span class="font-mono text-3xl font-semibold tabular-nums leading-none">
           {{ formatPct(rate) }}
@@ -71,7 +69,7 @@ const rel = computed(() => {
     <div class="px-5 pt-4">
       <RunStrip
         :runs="project.runs"
-        :limit="RECENT_RUNS"
+        :limit="HEALTH_WINDOW"
         @select="r => router.push({ name: 'run', params: { projectId: r.projectId, runId: r.runId } })"
       />
     </div>

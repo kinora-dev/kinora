@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatPct, stripAnsi } from '@kinora/core'
+import { formatPct, HEALTH_WINDOW, stripAnsi, windowStats } from '@kinora/core'
 import { Badge } from '@kinora/ui/badge'
 import { Button } from '@kinora/ui/button'
 import { Separator } from '@kinora/ui/separator'
@@ -33,6 +33,7 @@ const testKey = computed(() => {
 const project = computed(() => state.value.project)
 const history = computed(() => state.value.histories.find(h => h.testKey === testKey.value))
 const quarantine = computed(() => quarantines.value.find(q => q.testKey === testKey.value))
+const recent = computed(() => windowStats(history.value?.points ?? []))
 
 // Clusters this test shares with at least one other test: "the same error hits N others".
 const relatedClusters = computed(() =>
@@ -191,7 +192,22 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
           </Button>
         </div>
 
+        <!-- Same window and rates as this test's row on the Tests page. -->
         <div class="flex flex-col gap-3 rounded-lg border border-border/70 bg-card/80 px-6 py-5">
+          <span class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Last {{ HEALTH_WINDOW }} runs</span>
+          <div class="flex flex-wrap items-center gap-x-10 gap-y-4">
+            <StatBlock label="Runs" :value="Math.min(history.runs, HEALTH_WINDOW)" />
+            <Separator orientation="vertical" class="h-10" />
+            <StatBlock label="Pass rate" :value="formatPct(recent.passRate)" />
+            <Separator orientation="vertical" class="h-10" />
+            <StatBlock label="Flaky rate" :value="formatPct(recent.flakyRate)" :tone="recent.flakyRate ? 'flaky' : 'default'" />
+            <Separator orientation="vertical" class="h-10" />
+            <StatBlock label="Fail rate" :value="formatPct(recent.failRate)" :tone="recent.failRate ? 'fail' : 'default'" />
+          </div>
+        </div>
+
+        <!-- Identical to the block above until the test has more runs than the window. -->
+        <div v-if="history.runs > HEALTH_WINDOW" class="flex flex-col gap-3 rounded-lg border border-border/70 bg-card/80 px-6 py-5">
           <span class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">All-time</span>
           <div class="flex flex-wrap items-center gap-x-10 gap-y-4">
             <StatBlock label="Runs" :value="history.runs" />

@@ -140,15 +140,16 @@ describe('windowStats', () => {
   const points = (...statuses: NormTest['status'][]) => statuses.map(status => ({ status }))
 
   it('computes rates over executed points, ignoring skipped', () => {
-    expect(windowStats(points('expected', 'unexpected', 'flaky', 'skipped', 'expected'))).toEqual({ failRate: 0.25, flakyRate: 0.25, unstable: true })
+    expect(windowStats(points('expected', 'unexpected', 'flaky', 'skipped', 'expected'))).toEqual({ executed: 4, passRate: 0.75, failRate: 0.25, flakyRate: 0.25, unstable: true })
   })
 
   it('only reads the last `window` points', () => {
-    expect(windowStats(points('unexpected', 'flaky', 'expected', 'expected'), 2)).toEqual({ failRate: 0, flakyRate: 0, unstable: false })
+    expect(windowStats(points('unexpected', 'flaky', 'expected', 'expected'), 2)).toEqual({ executed: 2, passRate: 1, failRate: 0, flakyRate: 0, unstable: false })
   })
 
   it('is stable when nothing ran', () => {
-    expect(windowStats(points('skipped'))).toEqual({ failRate: 0, flakyRate: 0, unstable: false })
-    expect(windowStats([])).toEqual({ failRate: 0, flakyRate: 0, unstable: false })
+    const idle = { executed: 0, passRate: 1, failRate: 0, flakyRate: 0, unstable: false }
+    expect(windowStats(points('skipped'))).toEqual(idle)
+    expect(windowStats([])).toEqual(idle)
   })
 })

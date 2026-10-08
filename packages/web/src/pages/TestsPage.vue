@@ -59,7 +59,7 @@ const WINDOW = HEALTH_WINDOW
 
 const statsByKey = computed(() => new Map(histories.value.map(h => [h.testKey, windowStats(h.points)])))
 function stats(h: TestHistory): WindowStats {
-  return statsByKey.value.get(h.testKey) ?? { failRate: 0, flakyRate: 0, unstable: false }
+  return statsByKey.value.get(h.testKey) ?? windowStats([])
 }
 
 const unstableCount = computed(() => histories.value.filter(h => stats(h).unstable).length)

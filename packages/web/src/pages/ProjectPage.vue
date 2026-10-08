@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   formatPct,
+  HEALTH_WINDOW,
   latestRun,
   recentPassRate,
   runHealth,
@@ -21,8 +22,6 @@ import { useOrg } from '@/composables/useOrg'
 
 const props = defineProps<{ projectId: string }>()
 
-const RECENT_RUNS = 20
-
 const { isAdmin } = useOrg()
 const { state: manifest, isLoading, error } = useManifest()
 
@@ -31,7 +30,7 @@ const project = computed(() =>
 )
 const runs = computed(() => (project.value ? sortedRuns(project.value) : []))
 const latest = computed(() => (project.value ? latestRun(project.value) : undefined))
-const rate = computed(() => recentPassRate(runs.value, RECENT_RUNS))
+const rate = computed(() => recentPassRate(runs.value, HEALTH_WINDOW))
 const series = computed(() => (project.value ? trend(project.value).map(t => t.passRate) : []))
 const health = computed(() => (latest.value ? runHealth(latest.value.counts) : 'empty'))
 </script>
@@ -101,7 +100,7 @@ const health = computed(() => (latest.value ? runHealth(latest.value.counts) : '
 
         <div class="flex flex-wrap items-center gap-x-10 gap-y-4 rounded-lg border border-border/70 bg-card/80 px-6 py-5">
           <StatBlock
-            :label="`Pass rate · last ${RECENT_RUNS}`"
+            :label="`Pass rate · last ${HEALTH_WINDOW}`"
             :value="latest ? formatPct(rate) : '-'"
           />
           <Separator orientation="vertical" class="h-10" />
