@@ -1,10 +1,14 @@
 ---
-import { House, Search } from '@lucide/astro'
+import { ArrowLeft, BookOpen, Search } from '@lucide/astro'
 import DocsSearch from '../components/DocsSearch.astro'
 import GithubIcon from '../components/GithubIcon.astro'
 import Wordmark from '../components/Wordmark.astro'
 import BaseLayout from '../layouts/BaseLayout.astro'
+import { hrefFor, NAV } from '../lib/nav'
 import { SITE } from '../lib/site'
+
+const SUGGESTED = ['getting-started', 'guides/reporter', 'guides/cli', 'self-hosting', 'reference/api']
+const suggestions = NAV.flatMap(g => g.items).filter(it => SUGGESTED.includes(it.slug))
 ---
 
 <BaseLayout
@@ -12,48 +16,114 @@ import { SITE } from '../lib/site'
   description="The page you are looking for does not exist."
   robots="noindex,follow"
 >
-  <main class="relative grid min-h-screen place-items-center overflow-hidden px-5 py-12">
-    <div class="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_top,color-mix(in_oklch,var(--signal)_18%,transparent),transparent_60%)]" aria-hidden="true"></div>
+  <div class="flex min-h-screen flex-col">
+    <header class="border-b border-border/80 bg-background/85 backdrop-blur-md">
+      <div class="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-5 sm:px-8">
+        <a href="/" class="flex shrink-0 items-center gap-2.5" aria-label="kinora docs home">
+          <Wordmark size="sm" />
+          <span class="hidden font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground sm:inline">
+            docs
+          </span>
+        </a>
 
-    <section class="relative w-full max-w-2xl rounded-2xl border border-border bg-card/70 p-8 text-center shadow-2xl shadow-black/5 backdrop-blur sm:p-12">
-      <a href="/" class="mx-auto inline-flex items-center gap-2.5" aria-label="kinora docs home">
-        <Wordmark />
-        <span class="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">docs</span>
-      </a>
+        <div class="ml-auto flex shrink-0 items-center gap-1">
+          <a
+            href={SITE.repo}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="kinora on GitHub"
+          >
+            <GithubIcon class="size-4" />
+          </a>
+          <a
+            href={SITE.home}
+            class="inline-flex h-9 items-center rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            kinora.dev
+          </a>
+        </div>
+      </div>
+    </header>
 
-      <p class="mt-10 font-mono text-xs font-medium uppercase tracking-[0.24em] text-signal">404</p>
-      <h1 class="mt-3 text-balance text-4xl font-semibold tracking-tight sm:text-5xl">Page not found</h1>
-      <p class="mx-auto mt-4 max-w-md text-base leading-relaxed text-muted-foreground">
-        This docs page does not exist or may have moved. Head back to the docs home, or search for what you need.
+    <main class="flex flex-1 flex-col items-center justify-center px-5 py-16 text-center">
+      <span class="font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        Page not found
+      </span>
+
+      <h1 class="relative mt-6 select-none font-mono text-[7rem] font-bold leading-none tracking-tighter text-foreground/85 sm:text-[9rem]">
+        404
+        <span class="pointer-events-none absolute inset-0 text-muted-foreground/15 blur-[2px]" aria-hidden="true">404</span>
+      </h1>
+
+      <h2 class="mt-4 text-xl font-semibold tracking-tight">This page never reported in</h2>
+      <p class="mt-1.5 max-w-md text-sm text-muted-foreground">
+        No docs page lives at this address. It may have moved, or the link was mistyped.
       </p>
 
-      <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+      <div class="mt-7 w-full max-w-md overflow-hidden rounded-lg border border-border bg-card/40 text-left">
+        <div class="border-b border-border/80 px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          assertion failed
+        </div>
+        <pre class="overflow-x-auto px-4 py-3 font-mono text-xs leading-relaxed text-muted-foreground"><span class="text-fail">✕</span> expect(page).toResolve()
+<span class="text-muted-foreground/60">  received:</span> <span id="not-found-path" class="text-foreground">unknown path</span>
+<span class="text-muted-foreground/60">  reason: </span> no matching docs page</pre>
+      </div>
+
+      <div class="mt-8 flex flex-wrap items-center justify-center gap-2.5">
         <a
           href="/"
-          class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-primary px-3 font-mono text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          <House class="size-4" aria-hidden="true" />
-          Go to docs home
+          <BookOpen class="size-3.5" aria-hidden="true" />
+          Back to docs
         </a>
         <button
           id="docs-search-open"
           type="button"
-          class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:border-signal/50 hover:bg-muted/50"
+          class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border px-3 font-mono text-xs font-medium text-foreground transition-colors hover:border-signal/50 hover:bg-muted/50"
         >
-          <Search class="size-4" aria-hidden="true" />
+          <Search class="size-3.5" aria-hidden="true" />
           Search docs
+          <kbd class="ml-1 rounded border border-border px-1 py-px text-[10px] text-muted-foreground">⌘K</kbd>
+        </button>
+        <button
+          id="not-found-back"
+          type="button"
+          class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 font-mono text-xs font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <ArrowLeft class="size-3.5" aria-hidden="true" />
+          Go back
         </button>
       </div>
 
-      <div class="mt-10 flex justify-center gap-5 text-sm text-muted-foreground">
-        <a href={SITE.home} class="transition-colors hover:text-foreground">kinora.dev</a>
-        <a href={SITE.repo} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 transition-colors hover:text-foreground">
-          <GithubIcon class="size-4" />
-          GitHub
-        </a>
-      </div>
-    </section>
-  </main>
+      <nav aria-label="Suggested pages" class="mt-10 flex max-w-md flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+        {suggestions.map(item => (
+          <a
+            href={hrefFor(item.slug)}
+            class="underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground"
+          >
+            {item.label}
+          </a>
+        ))}
+      </nav>
+    </main>
+  </div>
 
   <DocsSearch />
+
+  <script is:inline>
+    // The page is static, so the requested path is only known in the browser.
+    const pathEl = document.getElementById('not-found-path')
+    if (pathEl)
+      pathEl.textContent = location.pathname + location.search
+
+    // history.back() is a no-op on a fresh tab; fall back to the docs home.
+    document.getElementById('not-found-back')?.addEventListener('click', () => {
+      if (history.length > 1)
+        history.back()
+      else
+        location.href = '/'
+    })
+  </script>
 </BaseLayout>
