@@ -47,8 +47,8 @@ const columns: ColumnDef<RunSummary>[] = [
 const headerCols = [
   { id: 'run', label: 'Run', right: false },
   { id: 'health', label: 'Health', right: false },
-  { id: 'pass', label: 'Pass', right: true },
-  { id: 'fail', label: 'Fail', right: true },
+  { id: 'pass', label: 'Pass rate', right: true },
+  { id: 'fail', label: 'Failed', right: true },
   { id: 'flaky', label: 'Flaky', right: true },
   { id: 'duration', label: 'Duration', right: true },
   { id: 'sha', label: 'SHA', right: true },

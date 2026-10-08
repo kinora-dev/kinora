@@ -223,7 +223,7 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
               All <span class="ml-1.5 tabular-nums text-muted-foreground">{{ tabCounts.all }}</span>
             </TabsTrigger>
             <TabsTrigger value="unexpected" class="data-[state=active]:text-fail">
-              Failing <span class="ml-1.5 tabular-nums text-muted-foreground">{{ tabCounts.unexpected }}</span>
+              Failed <span class="ml-1.5 tabular-nums text-muted-foreground">{{ tabCounts.unexpected }}</span>
             </TabsTrigger>
             <TabsTrigger value="flaky" class="data-[state=active]:text-flaky">
               Flaky <span class="ml-1.5 tabular-nums text-muted-foreground">{{ tabCounts.flaky }}</span>
