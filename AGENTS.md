@@ -109,6 +109,8 @@ Binary artifacts (trace.zip) go through the `Storage` interface in `src/lib/stor
 
 `@kinora/ui` is the shared shadcn-vue design system (Reka UI + Tailwind), consumed by both `web` and `trace-viewer`. Its `exports` map exposes component groups via `./*`.
 
+`@kinora/ui` has Playwright **component tests** (`pnpm --filter @kinora/ui test:e2e`, part of `pnpm test:e2e`; no server or database needed). A story is a named export of a `*.story.ts` file next to its component, with the id `<file name>/<export>` (`Button/Primary`). The gallery page (`packages/ui/playwright/gallery/`, served by `pnpm --filter @kinora/ui gallery`) exposes `window.mount` / `window.unmount` for Playwright's `mount` fixture. Tests live in `packages/ui/tests/components/` and import `test` from `tests/fixtures.ts` (kinora's `@kinora/reporter/ct`, read from source), which records the mounted stories for the dashboard's Components page. The nightly workflow uploads this suite to the `kinora-ui` project.
+
 ### Trace viewer
 
 `packages/trace-viewer` is the Playwright trace replay engine **vendored from microsoft/playwright (Apache-2.0)** under `src/core/` and `src/sw/`, wrapped by kinora's own Vue UI in `src/ui/`

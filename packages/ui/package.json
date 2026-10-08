@@ -15,7 +15,9 @@
     "./*": "./src/components/ui/*/index.ts"
   },
   "scripts": {
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "gallery": "vite --config vite.gallery.config.ts",
+    "test:e2e": "playwright test"
   },
   "peerDependencies": {
     "vue": "^3.5.34"
@@ -37,8 +39,14 @@
     "vue-sonner": "^2.0.9"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.5.1",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "tailwindcss": "^4.3.3",
+    "tw-animate-css": "^1.4.0",
     "typescript": "~6.0.3",
+    "vite": "^8.3.0",
     "vue": "^3.5.42",
     "vue-tsc": "^3.3.11"
   }

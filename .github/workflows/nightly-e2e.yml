@@ -83,3 +83,5 @@ jobs:
           npx --yes @kinora/cli@latest upload "$RUNNER_TEMP/web.json" --project kinora-web-e2e --name "Kinora Web E2E"
           PLAYWRIGHT_JSON_OUTPUT_NAME="$RUNNER_TEMP/viewer.json" pnpm --filter @kinora/trace-viewer exec playwright test --reporter=json || true
           npx --yes @kinora/cli@latest upload "$RUNNER_TEMP/viewer.json" --project kinora-viewer-e2e --name "Kinora Trace Viewer E2E"
+          PLAYWRIGHT_JSON_OUTPUT_NAME="$RUNNER_TEMP/ui.json" pnpm --filter @kinora/ui exec playwright test --reporter=json || true
+          npx --yes @kinora/cli@latest upload "$RUNNER_TEMP/ui.json" --project kinora-ui --name "Kinora UI Components"

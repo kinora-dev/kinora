@@ -153,7 +153,7 @@ const rows = computed<ComponentHealth[]>(() => {
               <h2 class="text-sm font-semibold">
                 {{ c.name || 'Other' }}
               </h2>
-              <span v-if="c.path" class="font-mono text-[11px] text-muted-foreground">{{ c.path }}</span>
+              <span v-if="c.path && c.path !== c.name" class="font-mono text-[11px] text-muted-foreground">{{ c.path }}</span>
               <span class="ml-auto font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                 {{ c.stories.length }} {{ c.stories.length === 1 ? 'story' : 'stories' }}
               </span>

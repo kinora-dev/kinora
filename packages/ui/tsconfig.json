@@ -10,5 +10,5 @@
     },
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.vue"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "playwright/**/*.ts", "tests/**/*.ts", "*.config.ts"]
 }

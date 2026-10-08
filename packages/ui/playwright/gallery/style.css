@@ -1,0 +1,4 @@
+/* Same entry stylesheet as the apps, so stories render with the real tokens. */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '../../src/theme.css';

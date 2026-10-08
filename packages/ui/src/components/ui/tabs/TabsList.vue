@@ -5,7 +5,9 @@ import { reactiveOmit } from '@vueuse/core'
 import { TabsList } from 'reka-ui'
 import { cn } from '../../../lib/utils'
 
-const props = defineProps<TabsListProps & { class?: HTMLAttributes['class'] }>()
+// Vue casts an absent boolean prop to `false`, which would override Reka's own default
+// when forwarded: keyboard navigation loops from the last tab back to the first.
+const props = withDefaults(defineProps<TabsListProps & { class?: HTMLAttributes['class'] }>(), { loop: true })
 
 const delegatedProps = reactiveOmit(props, 'class')
 </script>
