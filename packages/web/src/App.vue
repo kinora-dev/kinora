@@ -4,6 +4,7 @@ import { useTitle } from '@vueuse/core'
 import { computed } from 'vue'
 import { RouterView } from 'vue-router'
 import AppHeader from '@/components/app/AppHeader.vue'
+import BootError from '@/components/app/BootError.vue'
 import DemoBanner from '@/components/app/DemoBanner.vue'
 import LoadingScreen from '@/components/app/LoadingScreen.vue'
 import { useDemo } from '@/composables/queries'
@@ -13,6 +14,7 @@ import '@kinora/ui/theme'
 import 'vue-sonner/style.css'
 
 const ready = session.ready
+const bootError = session.bootError
 
 const isDemo = useDemo()
 useTitle(computed(() => (isDemo.value ? 'kinora · demo' : 'kinora')))
@@ -21,6 +23,7 @@ useTitle(computed(() => (isDemo.value ? 'kinora · demo' : 'kinora')))
 <template>
   <Transition name="boot" mode="out-in">
     <LoadingScreen v-if="!ready" />
+    <BootError v-else-if="bootError" :error="bootError" />
     <!-- Single element root so the boot transition can animate it; RouterView
          must not sit directly inside <Transition>. -->
     <div v-else>

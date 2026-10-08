@@ -39,4 +39,26 @@ describe('session', () => {
     expect(meQuery).toHaveBeenCalledTimes(1)
     expect(session.user.value?.id).toBe('u3')
   })
+
+  it('ensure records a boot error when the session cannot be resolved', async () => {
+    // `ensure` caches its promise for the module's lifetime, so boot a fresh copy.
+    vi.resetModules()
+    const { session: fresh } = await import('@/lib/session')
+    const failure = new Error('network')
+    meQuery.mockRejectedValue(failure)
+
+    await fresh.ensure()
+    expect(fresh.user.value).toBeNull()
+    expect(fresh.bootError.value).toBe(failure)
+  })
+
+  it('ensure leaves no boot error for a guest', async () => {
+    vi.resetModules()
+    const { session: fresh } = await import('@/lib/session')
+    meQuery.mockResolvedValue(null)
+
+    await fresh.ensure()
+    expect(fresh.user.value).toBeNull()
+    expect(fresh.bootError.value).toBeNull()
+  })
 })

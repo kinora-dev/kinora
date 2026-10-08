@@ -82,6 +82,10 @@ export const router = createRouter({
 // away from the public auth pages.
 router.beforeEach(async (to) => {
   await session.ensure()
+  // Session state unknown: App renders the boot error instead of any route, so don't treat the
+  // user as a guest and bounce them to /login (they'd lose their URL for nothing).
+  if (session.bootError.value)
+    return
   const authed = !!session.user.value
   // Invite acceptance handles both guest and authed states itself.
   if (to.meta.invite)

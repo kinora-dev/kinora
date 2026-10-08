@@ -17,6 +17,16 @@ describe('describeError', () => {
     })
   })
 
+  it('recognizes the rate limiter by its HTTP status', () => {
+    const error = new TRPCClientError('Unable to transform response from server', { meta: { response: { status: 429 } } })
+    expect(describeError(error)).toMatchObject({
+      kind: 'rate-limited',
+      title: 'Too many requests. Try again in a moment.',
+      detail: 'HTTP 429',
+      retryable: true,
+    })
+  })
+
   it('treats missing and forbidden alike, and not worth retrying', () => {
     for (const code of ['NOT_FOUND', 'FORBIDDEN']) {
       expect(describeError(trpcError('Project not found', code))).toMatchObject({
@@ -48,6 +58,7 @@ describe('reportQueryError', () => {
 
     reportQueryError(trpcError('Failed to fetch'))
     reportQueryError(trpcError('Project not found', 'NOT_FOUND'))
+    reportQueryError(new TRPCClientError('Unable to transform response from server', { meta: { response: { status: 429 } } }))
     expect(reportError).not.toHaveBeenCalled()
 
     const unexpected = trpcError('boom', 'INTERNAL_SERVER_ERROR')

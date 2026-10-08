@@ -6,6 +6,9 @@ export type SessionUser = Awaited<ReturnType<typeof trpc.user.me.query>>
 
 const user = shallowRef<SessionUser>(null)
 const ready = ref(false)
+// Set when the boot `user.me` call failed, i.e. we could not tell whether anyone is signed in
+// (server unreachable, rate limited). Distinct from a guest, for whom the call succeeds with null.
+const bootError = shallowRef<unknown>(null)
 let booting: Promise<void> | undefined
 
 async function ensure(): Promise<void> {
@@ -16,8 +19,9 @@ async function ensure(): Promise<void> {
       try {
         user.value = await trpc.user.me.query()
       }
-      catch {
+      catch (error) {
         user.value = null
+        bootError.value = error
       }
       finally {
         setTimeout(() => {
@@ -42,4 +46,4 @@ async function refresh(): Promise<void> {
   }
 }
 
-export const session = { user, ready, ensure, setUser, refresh }
+export const session = { user, ready, bootError, ensure, setUser, refresh }
