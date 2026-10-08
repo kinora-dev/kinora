@@ -28,7 +28,7 @@ function fakeTest(over: { title?: string, outcome?: string, ok?: boolean, traceP
   } as unknown as TestCase
 }
 
-const GH_VARS = ['GITHUB_ACTIONS', 'GITHUB_SHA', 'GITHUB_REF_NAME', 'GITHUB_SERVER_URL', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID', 'GITHUB_RUN_NUMBER', 'GITHUB_TOKEN', 'GITHUB_EVENT_NAME', 'GITHUB_EVENT_PATH', 'GITHUB_REF', 'GITHUB_BASE_REF', 'GITHUB_API_URL']
+const GH_VARS = ['GITHUB_ACTIONS', 'GITHUB_SHA', 'GITHUB_REF_NAME', 'GITHUB_HEAD_REF', 'GITHUB_SERVER_URL', 'GITHUB_REPOSITORY', 'GITHUB_RUN_ID', 'GITHUB_RUN_NUMBER', 'GITHUB_TOKEN', 'GITHUB_EVENT_NAME', 'GITHUB_EVENT_PATH', 'GITHUB_REF', 'GITHUB_BASE_REF', 'GITHUB_API_URL']
 
 const GL_VARS = ['GITLAB_CI', 'CI_COMMIT_SHA', 'CI_COMMIT_REF_NAME', 'CI_PROJECT_URL', 'CI_PIPELINE_URL', 'CI_PIPELINE_IID', 'CI_MERGE_REQUEST_SOURCE_BRANCH_NAME', 'CI_MERGE_REQUEST_TARGET_BRANCH_NAME']
 
@@ -123,6 +123,8 @@ describe('reporter onEnd', () => {
     process.env.GITHUB_ACTIONS = 'true'
     process.env.GITHUB_SHA = 'abc123'
     process.env.GITHUB_REF_NAME = 'main'
+    // Empty on push events; a real pull_request CI run sets it to the PR branch, which would win over GITHUB_REF_NAME.
+    process.env.GITHUB_HEAD_REF = ''
     process.env.GITHUB_SERVER_URL = 'https://github.com'
     process.env.GITHUB_REPOSITORY = 'kinora-dev/kinora'
     process.env.GITHUB_RUN_ID = '42'
