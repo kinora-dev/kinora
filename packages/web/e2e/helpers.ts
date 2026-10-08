@@ -14,9 +14,10 @@ export const DEMO = { email: 'demo@kinora.dev', password: 'password123' }
 // Owns the "Acme QA" workspace; demo is a member of it (set up by the seed).
 export const TEAMMATE = { email: 'teammate@kinora.dev', password: 'password123' }
 
-const SERVER_URL = process.env.E2E_SERVER_URL
-if (!SERVER_URL)
+const serverUrl = process.env.E2E_SERVER_URL
+if (!serverUrl)
   throw new Error('E2E_SERVER_URL must be set (configured by playwright.config.ts)')
+export const SERVER_URL = serverUrl
 
 export async function login(page: Page, creds = DEMO): Promise<void> {
   await page.goto('/login')
@@ -55,6 +56,16 @@ async function query<T>(page: Page, path: string, input: unknown): Promise<T | u
   const res = await page.request.get(url)
   const json = await res.json() as [{ result?: { data?: T } }]
   return json[0]?.result?.data
+}
+
+// Mint an ingest token for the logged-in user's active workspace (plaintext is returned once).
+export async function createApiToken(page: Page): Promise<string> {
+  const res = await page.request.post(`${SERVER_URL}/trpc/tokens.create?batch=1`, { data: { 0: { name: `e2e-${Date.now()}` } } })
+  const json = await res.json() as [{ result?: { data?: Outputs['tokens']['create'] } }]
+  const key = json[0]?.result?.data?.key
+  if (!key)
+    throw new Error(`token.create failed: ${JSON.stringify(json)}`)
+  return key
 }
 
 // Find a run whose report has a test matching `pred` (which seeded tests get

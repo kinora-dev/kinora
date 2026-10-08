@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Smallest gallery that honors Playwright's contract: window.mount / window.unmount.
+      const stories = {
+        'components/Button/Primary': '<button>Submit</button>',
+        'components/Button/Disabled': '<button disabled>Submit</button>',
+        'components/Badge/Default': '<span role="status">New</span>',
+      }
+      window.mount = async ({ story }) => {
+        const id = Object.keys(stories).find(key => key.endsWith(story))
+        if (!id)
+          throw new Error(`Unknown story ${story}`)
+        document.getElementById('root').innerHTML = stories[id]
+      }
+      window.unmount = async () => {
+        document.getElementById('root').innerHTML = ''
+      }
+    </script>
+  </body>
+</html>
