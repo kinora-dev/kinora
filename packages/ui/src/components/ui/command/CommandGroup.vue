@@ -2,7 +2,7 @@
 import type { ListboxGroupProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
 import { reactiveOmit } from '@vueuse/core'
-import { ListboxGroup, ListboxGroupLabel, useId } from 'reka-ui'
+import { ListboxGroup, ListboxGroupLabel, useForwardProps, useId } from 'reka-ui'
 import { computed, onMounted, onUnmounted } from 'vue'
 import { provideCommandGroupContext, useCommand } from '.'
 import { cn } from '../../../lib/utils'
@@ -13,6 +13,7 @@ const props = defineProps<ListboxGroupProps & {
 }>()
 
 const delegatedProps = reactiveOmit(props, 'class')
+const forwardedProps = useForwardProps(delegatedProps)
 
 const { allGroups, filterState } = useCommand()
 const id = useId()
@@ -31,7 +32,7 @@ onUnmounted(() => {
 
 <template>
   <ListboxGroup
-    v-bind="delegatedProps"
+    v-bind="forwardedProps"
     :id="id"
     data-slot="command-group"
     :class="cn('text-foreground overflow-hidden p-1', props.class)"

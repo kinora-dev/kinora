@@ -3,7 +3,7 @@ import type { PrimitiveProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
 import type { BadgeVariants } from '.'
 import { reactiveOmit } from '@vueuse/core'
-import { Primitive } from 'reka-ui'
+import { Primitive, useForwardProps } from 'reka-ui'
 import { badgeVariants } from '.'
 import { cn } from '../../../lib/utils'
 
@@ -13,13 +13,14 @@ const props = defineProps<PrimitiveProps & {
 }>()
 
 const delegatedProps = reactiveOmit(props, 'class')
+const forwardedProps = useForwardProps(delegatedProps)
 </script>
 
 <template>
   <Primitive
     data-slot="badge"
     :class="cn(badgeVariants({ variant }), props.class)"
-    v-bind="delegatedProps"
+    v-bind="forwardedProps"
   >
     <slot />
   </Primitive>
