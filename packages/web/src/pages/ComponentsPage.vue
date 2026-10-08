@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ComponentHealth, StoryHealth } from '@kinora/core'
-import { buildComponents } from '@kinora/core'
+import { buildComponents, HEALTH_WINDOW, windowStats } from '@kinora/core'
+import { Badge } from '@kinora/ui/badge'
 import { Button } from '@kinora/ui/button'
 import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
@@ -13,22 +14,24 @@ import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
 import SearchInput from '@/components/app/SearchInput.vue'
 import StatusTimeline from '@/components/viz/StatusTimeline.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
-import { useProjectHistory } from '@/composables/queries'
+import { useProjectHistory, useQuarantines } from '@/composables/queries'
 import { testLabel } from '@/lib/test-display'
 
 const props = defineProps<{ projectId: string }>()
 const { state, isLoading, error } = useProjectHistory(props.projectId)
+const { state: quarantines } = useQuarantines(props.projectId)
+const quarantined = computed(() => new Set(quarantines.value.map(q => q.testKey)))
 
 const DOCS_URL = 'https://docs.kinora.dev/guides/component-testing/'
 
-// Same window as the Tests page timelines, so a story's bars line up with its tests'.
-const WINDOW = 20
+// Same window and same "unstable" rule as the Tests page, so a story and its tests agree.
+const WINDOW = HEALTH_WINDOW
 
 const project = computed(() => state.value.project)
 const components = computed(() => buildComponents(state.value.histories))
 const stories = computed(() => components.value.flatMap(c => c.stories))
+const unstableIds = computed(() => new Set(stories.value.filter(s => windowStats(s.points).unstable).map(s => s.id)))
 const failingCount = computed(() => stories.value.filter(s => s.lastStatus === 'unexpected').length)
-const flakyCount = computed(() => stories.value.filter(s => s.lastStatus === 'flaky').length)
 
 const search = useRouteQuery('q', '')
 const unstableOnly = useRouteQuery<string, boolean>('unstable', 'false', {
@@ -39,7 +42,7 @@ const unstableOnly = useRouteQuery<string, boolean>('unstable', 'false', {
 })
 
 function isUnstable(s: StoryHealth): boolean {
-  return s.lastStatus === 'unexpected' || s.lastStatus === 'flaky'
+  return unstableIds.value.has(s.id)
 }
 
 // Filters apply per story; a component stays as long as one of its stories does.
@@ -90,9 +93,9 @@ const rows = computed<ComponentHealth[]>(() => {
           <Separator orientation="vertical" class="h-10" />
           <StatBlock label="Stories" :value="stories.length" />
           <Separator orientation="vertical" class="h-10" />
-          <StatBlock label="Failing" :value="failingCount" :tone="failingCount ? 'fail' : 'pass'" />
+          <StatBlock label="Unstable" :value="unstableIds.size" :tone="unstableIds.size ? 'flaky' : 'pass'" />
           <Separator orientation="vertical" class="h-10" />
-          <StatBlock label="Flaky" :value="flakyCount" :tone="flakyCount ? 'flaky' : 'default'" />
+          <StatBlock label="Failing now" :value="failingCount" :tone="failingCount ? 'fail' : 'default'" />
         </div>
       </div>
 
@@ -128,7 +131,7 @@ const rows = computed<ComponentHealth[]>(() => {
               :class="unstableOnly ? 'border-flaky/50 text-flaky hover:text-flaky' : ''"
               @click="unstableOnly = true"
             >
-              Failing or flaky
+              Unstable only
             </Button>
           </div>
           <SearchInput v-model="search" placeholder="Filter by component or story..." />
@@ -174,13 +177,16 @@ const rows = computed<ComponentHealth[]>(() => {
               >
                 <TestStatusBadge :status="t.lastStatus" />
                 <span class="truncate">{{ testLabel(t) }} · {{ t.file }}</span>
+                <Badge v-if="quarantined.has(t.testKey)" class="border-flaky/30 bg-flaky/10 text-[10px] text-flaky">
+                  Quarantined
+                </Badge>
                 <ChevronRight class="size-3 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5" />
               </RouterLink>
             </div>
           </section>
 
           <div v-if="!rows.length" class="py-12 text-center font-mono text-sm text-muted-foreground">
-            {{ unstableOnly && !search ? 'No failing or flaky stories. All green.' : 'No stories match this filter.' }}
+            {{ unstableOnly && !search ? 'No unstable stories. All green.' : 'No stories match this filter.' }}
           </div>
         </div>
       </template>

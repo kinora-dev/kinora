@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { TestHistory } from '@kinora/core'
-import { formatPct, RECENT_WINDOW } from '@kinora/core'
+import type { TestHistory, WindowStats } from '@kinora/core'
+import { formatPct, HEALTH_WINDOW, RECENT_WINDOW, windowStats } from '@kinora/core'
 import { Badge } from '@kinora/ui/badge'
 import { Button } from '@kinora/ui/button'
 import {
@@ -55,21 +55,9 @@ const quarantinedOnly = useRouteQuery<string, boolean>('quarantined', 'false', {
 
 // Everything on this page reads the same window as the timeline: the last WINDOW runs. Rates, the
 // "unstable" count/filter and the sort all derive from it, so the numbers match the bars.
-const WINDOW = 20
+const WINDOW = HEALTH_WINDOW
 
-interface WindowStats { failRate: number, flakyRate: number, unstable: boolean }
-function windowStats(h: TestHistory): WindowStats {
-  const pts = h.points.slice(-WINDOW)
-  const executed = pts.filter(p => p.status !== 'skipped').length
-  const fails = pts.filter(p => p.status === 'unexpected').length
-  const flakies = pts.filter(p => p.status === 'flaky').length
-  return {
-    failRate: executed ? fails / executed : 0,
-    flakyRate: executed ? flakies / executed : 0,
-    unstable: fails > 0 || flakies > 0,
-  }
-}
-const statsByKey = computed(() => new Map(histories.value.map(h => [h.testKey, windowStats(h)])))
+const statsByKey = computed(() => new Map(histories.value.map(h => [h.testKey, windowStats(h.points)])))
 function stats(h: TestHistory): WindowStats {
   return statsByKey.value.get(h.testKey) ?? { failRate: 0, flakyRate: 0, unstable: false }
 }

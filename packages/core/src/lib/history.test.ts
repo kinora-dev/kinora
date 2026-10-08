@@ -1,7 +1,7 @@
 import type { NormTest, RunReport } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
 import { SCHEMA_VERSION } from '../contracts/kinora'
-import { buildTestHistories, byInstability, byRecency, isUnstable } from './history'
+import { buildTestHistories, byInstability, byRecency, isUnstable, windowStats } from './history'
 
 function makeTest(over: Partial<NormTest> & { testKey: string, status: NormTest['status'] }): NormTest {
   return {
@@ -133,5 +133,22 @@ describe('buildTestHistories stories', () => {
     const byKey = new Map(buildTestHistories([r2, r1]).map(h => [h.testKey, h]))
     expect(byKey.get('K')?.stories).toEqual(['Button/Primary'])
     expect(byKey.get('E2E')?.stories).toBeUndefined()
+  })
+})
+
+describe('windowStats', () => {
+  const points = (...statuses: NormTest['status'][]) => statuses.map(status => ({ status }))
+
+  it('computes rates over executed points, ignoring skipped', () => {
+    expect(windowStats(points('expected', 'unexpected', 'flaky', 'skipped', 'expected'))).toEqual({ failRate: 0.25, flakyRate: 0.25, unstable: true })
+  })
+
+  it('only reads the last `window` points', () => {
+    expect(windowStats(points('unexpected', 'flaky', 'expected', 'expected'), 2)).toEqual({ failRate: 0, flakyRate: 0, unstable: false })
+  })
+
+  it('is stable when nothing ran', () => {
+    expect(windowStats(points('skipped'))).toEqual({ failRate: 0, flakyRate: 0, unstable: false })
+    expect(windowStats([])).toEqual({ failRate: 0, flakyRate: 0, unstable: false })
   })
 })

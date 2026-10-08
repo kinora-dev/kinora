@@ -1,10 +1,29 @@
-import type { RunReport, TestHistory } from '../contracts/kinora'
+import type { RunReport, TestHistory, TestPoint } from '../contracts/kinora'
 import { storiesOf } from './story'
 
 export type { TestHistory, TestPoint } from '../contracts/kinora'
 
 // Sliding window for "recent" flaky/fail rates and the newly-flaky/broken signals.
 export const RECENT_WINDOW = 5
+
+// Runs the dashboard list views (Tests, Components) read: their timelines, rates and "unstable"
+// filter all cover the same last N points, so the numbers match the bars.
+export const HEALTH_WINDOW = 20
+
+export interface WindowStats { failRate: number, flakyRate: number, unstable: boolean }
+
+// Health of a timeline over its last `window` points. Unstable = failed or flaked at least once.
+export function windowStats(points: Pick<TestPoint, 'status'>[], window = HEALTH_WINDOW): WindowStats {
+  const pts = points.slice(-window)
+  const executed = pts.filter(p => p.status !== 'skipped').length
+  const fails = pts.filter(p => p.status === 'unexpected').length
+  const flakies = pts.filter(p => p.status === 'flaky').length
+  return {
+    failRate: executed ? fails / executed : 0,
+    flakyRate: executed ? flakies / executed : 0,
+    unstable: fails > 0 || flakies > 0,
+  }
+}
 
 // A test is interesting if it has ever failed or flaked.
 export function isUnstable(h: TestHistory): boolean {

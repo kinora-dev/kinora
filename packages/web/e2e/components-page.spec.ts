@@ -36,3 +36,11 @@ test('components page explains itself on a project without stories', async ({ pa
   await expect(page.getByText('No component stories recorded yet.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Component testing guide' })).toBeVisible()
 })
+
+test('components page shares the unstable filter with the tests page', async ({ page }) => {
+  await page.goto('/projects/design-system/components')
+
+  await page.getByRole('button', { name: 'Unstable only' }).click()
+  await expect(page).toHaveURL(/unstable=true/)
+  await expect(page.getByText('Failing now')).toBeVisible()
+})
