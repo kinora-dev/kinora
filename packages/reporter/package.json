@@ -1,7 +1,7 @@
 {
   "name": "@kinora/reporter",
   "type": "module",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Playwright reporter that uploads test results to a kinora server",
   "author": "Joris Gallot",
   "license": "MIT",
