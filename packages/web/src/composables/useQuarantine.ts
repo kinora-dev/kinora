@@ -51,5 +51,5 @@ export function useQuarantine(projectId: string) {
     })
   }
 
-  return { quarantines, byKey, isQuarantined, savingKey, save, toggle }
+  return { quarantines, byKey, isQuarantined, savingKey, save, toggle, reload }
 }

@@ -7,6 +7,7 @@ import { StatBlock } from '@kinora/ui/stat-block'
 import { ArrowLeft, ArrowRight } from '@lucide/vue'
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import ErrorState from '@/components/app/ErrorState.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
 import { useCompareRuns, useManifest } from '@/composables/queries'
 import { formatDateTime } from '@/lib/format'
@@ -18,8 +19,13 @@ const route = useRoute()
 const baseId = computed(() => String(route.query.base ?? ''))
 const headId = computed(() => String(route.query.head ?? ''))
 
-const { state: cmp, isLoading, error } = useCompareRuns(props.projectId, baseId.value, headId.value)
-const { state: manifest } = useManifest()
+const { state: cmp, isLoading, error, execute: reloadCompare } = useCompareRuns(props.projectId, baseId.value, headId.value)
+const { state: manifest, execute: reloadManifest } = useManifest()
+// The manifest only feeds the project name, but it fails with the same outage: reload both.
+function retry() {
+  void reloadCompare()
+  void reloadManifest()
+}
 const projectName = computed(
   () => manifest.value?.projects.find(p => p.id === props.projectId)?.name ?? props.projectId,
 )
@@ -65,9 +71,7 @@ function shortId(id: string): string {
       <ArrowLeft class="size-3.5" /> {{ projectName }}
     </RouterLink>
 
-    <div v-if="error" class="rounded-lg border border-fail/30 bg-fail/5 px-5 py-4 font-mono text-sm text-fail">
-      {{ String(error) }}
-    </div>
+    <ErrorState v-if="error" :error="error" @retry="retry()" />
     <template v-else-if="isLoading || !cmp">
       <Skeleton class="h-24 rounded-xl" />
       <Skeleton class="h-80 rounded-xl" />

@@ -16,6 +16,7 @@ import { StatBlock } from '@kinora/ui/stat-block'
 import { ArrowLeft, Blocks, History, Settings } from '@lucide/vue'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import ErrorState from '@/components/app/ErrorState.vue'
 import RunHistoryTable from '@/components/project/RunHistoryTable.vue'
 import { useManifest } from '@/composables/queries'
 import { useOrg } from '@/composables/useOrg'
@@ -23,7 +24,7 @@ import { useOrg } from '@/composables/useOrg'
 const props = defineProps<{ projectId: string }>()
 
 const { isAdmin } = useOrg()
-const { state: manifest, isLoading, error } = useManifest()
+const { state: manifest, isLoading, error, execute: retry } = useManifest()
 
 const project = computed(() =>
   manifest.value?.projects.find(p => p.id === props.projectId),
@@ -44,9 +45,7 @@ const health = computed(() => (latest.value ? runHealth(latest.value.counts) : '
       <ArrowLeft class="size-3.5" /> overview
     </RouterLink>
 
-    <div v-if="error" class="rounded-lg border border-fail/30 bg-fail/5 px-5 py-4 font-mono text-sm text-fail">
-      {{ String(error) }}
-    </div>
+    <ErrorState v-if="error" :error="error" @retry="retry()" />
     <template v-else-if="isLoading">
       <Skeleton class="h-28 rounded-xl" />
       <Skeleton class="h-96 rounded-xl" />

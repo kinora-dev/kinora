@@ -19,6 +19,7 @@ import { useRouteQuery } from '@vueuse/router'
 import { computed, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
+import ErrorState from '@/components/app/ErrorState.vue'
 import SearchInput from '@/components/app/SearchInput.vue'
 import FailureCausesCard from '@/components/project/FailureCausesCard.vue'
 import StatusTimeline from '@/components/viz/StatusTimeline.vue'
@@ -28,8 +29,13 @@ import { useQuarantine } from '@/composables/useQuarantine'
 import { testLabel } from '@/lib/test-display'
 
 const props = defineProps<{ projectId: string }>()
-const { state, isLoading, error } = useProjectHistory(props.projectId)
-const { byKey: quarantineByKey, isQuarantined } = useQuarantine(props.projectId)
+const { state, isLoading, error, execute: reloadHistory } = useProjectHistory(props.projectId)
+const { byKey: quarantineByKey, isQuarantined, reload: reloadQuarantines } = useQuarantine(props.projectId)
+// Quarantines fail with the same outage as the history, so a retry reloads both.
+function retry() {
+  void reloadHistory()
+  void reloadQuarantines()
+}
 
 const project = computed(() => state.value.project)
 const histories = computed(() => state.value.histories)
@@ -138,9 +144,7 @@ function setPage(p: number) {
       <ArrowLeft class="size-3.5" /> {{ project?.name ?? projectId }}
     </RouterLink>
 
-    <div v-if="error" class="rounded-lg border border-fail/30 bg-fail/5 px-5 py-4 font-mono text-sm text-fail">
-      {{ String(error) }}
-    </div>
+    <ErrorState v-if="error" :error="error" @retry="retry()" />
     <template v-else-if="isLoading">
       <Skeleton class="h-24 rounded-xl" />
       <Skeleton class="h-96 rounded-xl" />

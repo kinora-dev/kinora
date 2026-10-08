@@ -11,6 +11,7 @@ import { useRouteQuery } from '@vueuse/router'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
+import ErrorState from '@/components/app/ErrorState.vue'
 import SearchInput from '@/components/app/SearchInput.vue'
 import FilterCombobox from '@/components/FilterCombobox.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
@@ -24,9 +25,15 @@ import { httpsUrl } from '@/lib/url'
 const props = defineProps<{ projectId: string, runId: string }>()
 
 const isDemo = useDemo()
-const { state: report, isLoading, error } = useRun(props.projectId, props.runId)
-const { state: manifest } = useManifest()
-const { isQuarantined, savingKey: savingQuarantineKey, toggle: toggleQuarantine } = useQuarantine(props.projectId)
+const { state: report, isLoading, error, execute: reloadRun } = useRun(props.projectId, props.runId)
+const { state: manifest, execute: reloadManifest } = useManifest()
+const { isQuarantined, savingKey: savingQuarantineKey, toggle: toggleQuarantine, reload: reloadQuarantines } = useQuarantine(props.projectId)
+// The side queries fail with the same outage as the run, so a retry reloads them too.
+function retry() {
+  void reloadRun()
+  void reloadManifest()
+  void reloadQuarantines()
+}
 
 const projectName = computed(
   () => manifest.value?.projects.find(p => p.id === props.projectId)?.name ?? props.projectId,
@@ -129,9 +136,7 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
       <ArrowLeft class="size-3.5" /> {{ projectName }}
     </RouterLink>
 
-    <div v-if="error" class="rounded-lg border border-fail/30 bg-fail/5 px-5 py-4 font-mono text-sm text-fail">
-      {{ String(error) }}
-    </div>
+    <ErrorState v-if="error" :error="error" @retry="retry()" />
     <template v-else-if="isLoading || !report">
       <Skeleton class="h-28 rounded-xl" />
       <Skeleton class="h-96 rounded-xl" />

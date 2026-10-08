@@ -14,12 +14,13 @@ import { Skeleton } from '@kinora/ui/skeleton'
 import { StatBlock } from '@kinora/ui/stat-block'
 import { useRouteQuery } from '@vueuse/router'
 import { computed } from 'vue'
+import ErrorState from '@/components/app/ErrorState.vue'
 import FilterCombobox from '@/components/FilterCombobox.vue'
 import OverviewEmpty from '@/components/project/OverviewEmpty.vue'
 import ProjectCard from '@/components/project/ProjectCard.vue'
 import { useManifest } from '@/composables/queries'
 
-const { state: manifest, isLoading, error } = useManifest()
+const { state: manifest, isLoading, error, execute: retry } = useManifest()
 
 const projects = computed(() => manifest.value?.projects ?? [])
 const branches = computed(() => collectBranches(projects.value))
@@ -129,12 +130,7 @@ const stats = computed(() => {
     </div>
 
     <!-- Error -->
-    <div
-      v-if="error"
-      class="rounded-lg border border-fail/30 bg-fail/5 px-5 py-4 font-mono text-sm text-fail"
-    >
-      {{ String(error) }}
-    </div>
+    <ErrorState v-if="error" :error="error" @retry="retry()" />
 
     <!-- Loading -->
     <div v-else-if="isLoading" class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
