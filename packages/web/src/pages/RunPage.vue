@@ -8,17 +8,17 @@ import { StatBlock } from '@kinora/ui/stat-block'
 import { Tabs, TabsList, TabsTrigger } from '@kinora/ui/tabs'
 import { ArrowLeft, ExternalLink, Film, GitBranch, GitCompareArrows, Paperclip } from '@lucide/vue'
 import { useRouteQuery } from '@vueuse/router'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import { toast } from 'vue-sonner'
 import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
 import SearchInput from '@/components/app/SearchInput.vue'
 import FilterCombobox from '@/components/FilterCombobox.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
-import { useDemo, useManifest, useQuarantines, useRun } from '@/composables/queries'
+import { useDemo, useManifest, useRun } from '@/composables/queries'
+import { useQuarantine } from '@/composables/useQuarantine'
+import { formatDateTimeLong } from '@/lib/format'
 import { testLabel } from '@/lib/test-display'
 import { isTraceAttachment, traceViewerHref } from '@/lib/trace'
-import { trpc } from '@/lib/trpc'
 import { httpsUrl } from '@/lib/url'
 
 const props = defineProps<{ projectId: string, runId: string }>()
@@ -26,35 +26,7 @@ const props = defineProps<{ projectId: string, runId: string }>()
 const isDemo = useDemo()
 const { state: report, isLoading, error } = useRun(props.projectId, props.runId)
 const { state: manifest } = useManifest()
-const { state: quarantines, execute: reloadQuarantines } = useQuarantines(props.projectId)
-const savingQuarantineKey = ref<string | null>(null)
-const quarantineByKey = computed(() => new Map(quarantines.value.map(q => [q.testKey, q])))
-function isQuarantined(testKey: string): boolean {
-  return quarantineByKey.value.has(testKey)
-}
-
-async function toggleQuarantine(testKey: string) {
-  if (savingQuarantineKey.value)
-    return
-  savingQuarantineKey.value = testKey
-  try {
-    if (isQuarantined(testKey)) {
-      await trpc.dashboard.unquarantine.mutate({ projectId: props.projectId, testKey })
-      toast.success('Test removed from quarantine')
-    }
-    else {
-      await trpc.dashboard.quarantine.mutate({ projectId: props.projectId, testKey })
-      toast.success('Test quarantined')
-    }
-    await reloadQuarantines()
-  }
-  catch (err) {
-    toast.error(err instanceof Error ? err.message : 'Could not update quarantine')
-  }
-  finally {
-    savingQuarantineKey.value = null
-  }
-}
+const { isQuarantined, savingKey: savingQuarantineKey, toggle: toggleQuarantine } = useQuarantine(props.projectId)
 
 const projectName = computed(
   () => manifest.value?.projects.find(p => p.id === props.projectId)?.name ?? props.projectId,
@@ -146,14 +118,6 @@ function attachmentHref(a: Attachment, attachments: Attachment[]): string | unde
 }
 
 const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground'
-
-const dateFmt = new Intl.DateTimeFormat(undefined, {
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-})
 </script>
 
 <template>
@@ -179,7 +143,7 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
         <div class="flex items-start justify-between gap-4">
           <div>
             <h1 class="text-xl font-semibold tracking-tight">
-              {{ dateFmt.format(new Date(report.startedAt)) }}
+              {{ formatDateTimeLong(report.startedAt) }}
             </h1>
             <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
               <span v-if="report.meta.git?.branch" class="flex items-center gap-1">

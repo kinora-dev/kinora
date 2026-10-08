@@ -9,6 +9,7 @@ import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
 import { useCompareRuns, useManifest } from '@/composables/queries'
+import { formatDateTime } from '@/lib/format'
 import { testLabel } from '@/lib/test-display'
 
 const props = defineProps<{ projectId: string }>()
@@ -50,7 +51,6 @@ function fmtDelta(ms: number): string {
   return `${ms > 0 ? '+' : '-'}${formatDuration(Math.abs(ms))}`
 }
 
-const dateFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 function shortId(id: string): string {
   return id.slice(0, 8)
 }
@@ -81,9 +81,9 @@ function shortId(id: string): string {
             Run comparison
           </h1>
           <div class="mt-1 flex items-center gap-2 font-mono text-xs text-muted-foreground">
-            <span>{{ shortId(cmp.base.runId) }} · {{ dateFmt.format(new Date(cmp.base.startedAt)) }}</span>
+            <span>{{ shortId(cmp.base.runId) }} · {{ formatDateTime(cmp.base.startedAt) }}</span>
             <ArrowRight class="size-3" />
-            <span>{{ shortId(cmp.head.runId) }} · {{ dateFmt.format(new Date(cmp.head.startedAt)) }}</span>
+            <span>{{ shortId(cmp.head.runId) }} · {{ formatDateTime(cmp.head.startedAt) }}</span>
           </div>
         </div>
 

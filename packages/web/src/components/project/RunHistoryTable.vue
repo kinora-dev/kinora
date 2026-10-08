@@ -25,6 +25,7 @@ import { getCoreRowModel, getPaginationRowModel, getSortedRowModel, useVueTable 
 import { useRouteQuery } from '@vueuse/router'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { formatDateTime } from '@/lib/format'
 
 const props = defineProps<{ runs: RunSummary[], projectId: string }>()
 
@@ -91,13 +92,6 @@ const table = useVueTable({
 function sortDir(id: string) {
   return table.getColumn(id)?.getIsSorted()
 }
-
-const dateFmt = new Intl.DateTimeFormat(undefined, {
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-})
 </script>
 
 <template>
@@ -134,7 +128,7 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
           @click="router.push({ name: 'run', params: { projectId, runId: row.original.runId } })"
         >
           <TableCell class="font-mono text-xs">
-            {{ dateFmt.format(new Date(row.original.startedAt)) }}
+            {{ formatDateTime(row.original.startedAt) }}
           </TableCell>
           <TableCell><HealthBadge :health="runHealth(row.original.counts)" /></TableCell>
           <TableCell class="text-right font-mono text-xs tabular-nums">

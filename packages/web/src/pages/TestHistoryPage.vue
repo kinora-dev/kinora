@@ -9,20 +9,20 @@ import { Textarea } from '@kinora/ui/textarea'
 import { ArrowLeft } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { toast } from 'vue-sonner'
 import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
 import StatusTimeline from '@/components/viz/StatusTimeline.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
-import { useDemo, useProjectHistory, useQuarantines } from '@/composables/queries'
+import { useDemo, useProjectHistory } from '@/composables/queries'
+import { useQuarantine } from '@/composables/useQuarantine'
+import { formatDateTimeLong } from '@/lib/format'
 import { testLabel } from '@/lib/test-display'
-import { trpc } from '@/lib/trpc'
 
 const props = defineProps<{ projectId: string }>()
 const route = useRoute()
 const isDemo = useDemo()
 const { state, isLoading, error } = useProjectHistory(props.projectId)
-const { state: quarantines, execute: reloadQuarantines } = useQuarantines(props.projectId)
-const savingQuarantine = ref(false)
+const { byKey: quarantineByKey, savingKey, save, toggle } = useQuarantine(props.projectId)
+const savingQuarantine = computed(() => savingKey.value !== null)
 const quarantineReason = ref('')
 
 const testKey = computed(() => {
@@ -32,7 +32,7 @@ const testKey = computed(() => {
 
 const project = computed(() => state.value.project)
 const history = computed(() => state.value.histories.find(h => h.testKey === testKey.value))
-const quarantine = computed(() => quarantines.value.find(q => q.testKey === testKey.value))
+const quarantine = computed(() => quarantineByKey.value.get(testKey.value))
 const recent = computed(() => windowStats(history.value?.points ?? []))
 
 // Clusters this test shares with at least one other test: "the same error hits N others".
@@ -61,55 +61,15 @@ watch(quarantine, (q) => {
   quarantineReason.value = q?.reason ?? ''
 }, { immediate: true })
 
-async function saveQuarantine(reason?: string) {
-  if (!history.value || savingQuarantine.value)
-    return
-
-  savingQuarantine.value = true
-  try {
-    await trpc.dashboard.quarantine.mutate({ projectId: props.projectId, testKey: history.value.testKey, reason: reason?.trim() || undefined })
-    toast.success(quarantine.value ? 'Quarantine updated' : 'Test quarantined')
-    await reloadQuarantines()
-  }
-  catch (err) {
-    toast.error(err instanceof Error ? err.message : 'Could not update quarantine')
-  }
-  finally {
-    savingQuarantine.value = false
-  }
+function saveQuarantine(reason?: string) {
+  if (history.value)
+    void save(history.value.testKey, reason)
 }
 
-async function toggleQuarantine() {
-  if (!history.value || savingQuarantine.value)
-    return
-
-  savingQuarantine.value = true
-  try {
-    if (quarantine.value) {
-      await trpc.dashboard.unquarantine.mutate({ projectId: props.projectId, testKey: history.value.testKey })
-      toast.success('Test removed from quarantine')
-    }
-    else {
-      await trpc.dashboard.quarantine.mutate({ projectId: props.projectId, testKey: history.value.testKey, reason: quarantineReason.value.trim() || undefined })
-      toast.success('Test quarantined')
-    }
-    await reloadQuarantines()
-  }
-  catch (err) {
-    toast.error(err instanceof Error ? err.message : 'Could not update quarantine')
-  }
-  finally {
-    savingQuarantine.value = false
-  }
+function toggleQuarantine() {
+  if (history.value)
+    void toggle(history.value.testKey, quarantineReason.value)
 }
-
-const dateFmt = new Intl.DateTimeFormat(undefined, {
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-})
 </script>
 
 <template>
@@ -172,7 +132,7 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
 
         <div v-if="quarantine" class="flex flex-col gap-3 rounded-lg border border-flaky/30 bg-flaky/5 px-4 py-3">
           <div class="font-mono text-xs text-flaky">
-            Quarantined since {{ dateFmt.format(new Date(quarantine.createdAt)) }}
+            Quarantined since {{ formatDateTimeLong(quarantine.createdAt) }}
           </div>
           <Textarea
             v-model="quarantineReason"
@@ -267,7 +227,7 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
           <div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-2">
               <TestStatusBadge :status="p.status" />
-              <span class="font-mono text-xs text-muted-foreground">{{ dateFmt.format(new Date(p.startedAt)) }}</span>
+              <span class="font-mono text-xs text-muted-foreground">{{ formatDateTimeLong(p.startedAt) }}</span>
             </div>
             <span v-if="p.retries" class="font-mono text-[11px] text-flaky">{{ p.retries }} retry</span>
           </div>

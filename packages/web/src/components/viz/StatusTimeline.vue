@@ -10,6 +10,7 @@ import {
 import { useResizeObserver } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { formatDateTime } from '@/lib/format'
 
 // `slots`: render a fixed number of equal cells (recent on the right, empty slots padding the left)
 // so every row lines up. Omit it for the full adaptive timeline (detail view).
@@ -17,13 +18,6 @@ const props = withDefaults(
   defineProps<{ points: TestPoint[], projectId: string, height?: number, link?: boolean, q?: string, slots?: number }>(),
   { height: 20, link: true },
 )
-
-const dateFmt = new Intl.DateTimeFormat(undefined, {
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-})
 
 // Adaptive mode only: render the most recent points that fit the column (cells are min 3px + 3px gap),
 // hard-capped at MAX_CELLS so a long history never mounts hundreds of cells/tooltips. This only bounds
@@ -41,7 +35,7 @@ const cells = computed(() => {
   return props.points.slice(-limit).map(p => ({
     point: p,
     meta: pwStatusMeta[p.status],
-    date: dateFmt.format(new Date(p.startedAt)),
+    date: formatDateTime(p.startedAt),
   }))
 })
 

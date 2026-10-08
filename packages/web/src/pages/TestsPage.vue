@@ -23,21 +23,18 @@ import SearchInput from '@/components/app/SearchInput.vue'
 import FailureCausesCard from '@/components/project/FailureCausesCard.vue'
 import StatusTimeline from '@/components/viz/StatusTimeline.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
-import { useProjectHistory, useQuarantines } from '@/composables/queries'
+import { useProjectHistory } from '@/composables/queries'
+import { useQuarantine } from '@/composables/useQuarantine'
 import { testLabel } from '@/lib/test-display'
 
 const props = defineProps<{ projectId: string }>()
 const { state, isLoading, error } = useProjectHistory(props.projectId)
-const { state: quarantines } = useQuarantines(props.projectId)
+const { byKey: quarantineByKey, isQuarantined } = useQuarantine(props.projectId)
 
 const project = computed(() => state.value.project)
 const histories = computed(() => state.value.histories)
 const clusters = computed(() => state.value.clusters)
-const quarantineByKey = computed(() => new Map(quarantines.value.map(q => [q.testKey, q])))
 const quarantinedCount = computed(() => quarantineByKey.value.size)
-function isQuarantined(testKey: string): boolean {
-  return quarantineByKey.value.has(testKey)
-}
 
 const search = useRouteQuery('q', '')
 const unstableOnly = useRouteQuery<string, boolean>('unstable', 'true', {

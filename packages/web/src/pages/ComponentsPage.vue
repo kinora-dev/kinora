@@ -14,13 +14,13 @@ import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
 import SearchInput from '@/components/app/SearchInput.vue'
 import StatusTimeline from '@/components/viz/StatusTimeline.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
-import { useProjectHistory, useQuarantines } from '@/composables/queries'
+import { useProjectHistory } from '@/composables/queries'
+import { useQuarantine } from '@/composables/useQuarantine'
 import { testLabel } from '@/lib/test-display'
 
 const props = defineProps<{ projectId: string }>()
 const { state, isLoading, error } = useProjectHistory(props.projectId)
-const { state: quarantines } = useQuarantines(props.projectId)
-const quarantined = computed(() => new Set(quarantines.value.map(q => q.testKey)))
+const { isQuarantined } = useQuarantine(props.projectId)
 
 const DOCS_URL = 'https://docs.kinora.dev/guides/component-testing/'
 
@@ -177,7 +177,7 @@ const rows = computed<ComponentHealth[]>(() => {
               >
                 <TestStatusBadge :status="t.lastStatus" />
                 <span class="truncate">{{ testLabel(t) }} · {{ t.file }}</span>
-                <Badge v-if="quarantined.has(t.testKey)" class="border-flaky/30 bg-flaky/10 text-[10px] text-flaky">
+                <Badge v-if="isQuarantined(t.testKey)" class="border-flaky/30 bg-flaky/10 text-[10px] text-flaky">
                   Quarantined
                 </Badge>
                 <ChevronRight class="size-3 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5" />

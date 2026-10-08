@@ -133,7 +133,7 @@ const stats = computed(() => {
       v-if="error"
       class="rounded-lg border border-fail/30 bg-fail/5 px-5 py-4 font-mono text-sm text-fail"
     >
-      Failed to load manifest: {{ String(error) }}
+      {{ String(error) }}
     </div>
 
     <!-- Loading -->
