@@ -14,6 +14,7 @@ import SlackAlertsCard from '@/components/project/SlackAlertsCard.vue'
 import { useDemo, useManifest } from '@/composables/queries'
 import { useOrg } from '@/composables/useOrg'
 import { useProjectAdmin } from '@/composables/useProjectAdmin'
+import { reportQueryError } from '@/lib/errors'
 import { trpc } from '@/lib/trpc'
 
 const props = defineProps<{ projectId: string }>()
@@ -42,7 +43,7 @@ const { savingGeneral, savingCodeowners, deleting, saveGeneral, saveCodeowners, 
 const { state: codeownersSettings, execute: refreshCodeowners } = useAsyncState(
   () => trpc.project.codeowners.query({ projectId: props.projectId }),
   { source: 'manual' as const, text: '' },
-  { immediate: true },
+  { immediate: true, onError: reportQueryError },
 )
 
 const labelClass = 'font-mono text-[11px] tracking-wider text-muted-foreground uppercase'

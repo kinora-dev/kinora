@@ -37,3 +37,12 @@ export function describeError(error: unknown): ErrorInfo {
   const detail = error instanceof Error ? error.message : String(error)
   return { kind, title: TITLES[kind], detail, retryable: kind !== 'not-found' }
 }
+
+// `onError` for page queries (useAsyncState). VueUse's default is `globalThis.reportError`, which
+// raises every failed query as an uncaught window error, on top of the ErrorState the page shows.
+// That is noise for failures we expect: an unreachable server (including requests cut short by
+// navigating away) and missing or forbidden pages.
+export function reportQueryError(error: unknown): void {
+  if (describeError(error).kind === 'unknown')
+    globalThis.reportError?.(error)
+}

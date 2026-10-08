@@ -1,6 +1,7 @@
 import { useAsyncState } from '@vueuse/core'
 import { ref } from 'vue'
 import { toast } from 'vue-sonner'
+import { reportQueryError } from '@/lib/errors'
 import { trpc } from '@/lib/trpc'
 
 type Policy = 'always' | 'on-failure' | 'on-regression'
@@ -9,7 +10,7 @@ export function useAlerts(projectId: string) {
   const { state: config, isLoading, execute: refresh } = useAsyncState(
     () => trpc.alerts.get.query({ projectId }),
     null,
-    { immediate: true, resetOnExecute: false },
+    { immediate: true, resetOnExecute: false, onError: reportQueryError },
   )
 
   const saving = ref(false)

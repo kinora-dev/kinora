@@ -1,6 +1,7 @@
 import { useAsyncState } from '@vueuse/core'
 import { ref } from 'vue'
 import { toast } from 'vue-sonner'
+import { reportQueryError } from '@/lib/errors'
 import { trpc } from '@/lib/trpc'
 
 type Policy = 'always' | 'on-failure' | 'on-regression'
@@ -10,7 +11,7 @@ export function useAlertChannels(projectId: string) {
   const { state: channels, isLoading, execute: refresh } = useAsyncState(
     () => trpc.alerts.channels.query({ projectId }),
     [],
-    { immediate: true, resetOnExecute: false },
+    { immediate: true, resetOnExecute: false, onError: reportQueryError },
   )
 
   const adding = ref(false)

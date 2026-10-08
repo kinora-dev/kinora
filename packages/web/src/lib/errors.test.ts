@@ -1,6 +1,6 @@
 import { TRPCClientError } from '@trpc/client'
-import { describe, expect, it } from 'vitest'
-import { describeError } from './errors'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describeError, reportQueryError } from './errors'
 
 function trpcError(message: string, code?: string): TRPCClientError<never> {
   const result = code ? { result: { error: { message, code: -32000, data: { code } } } } : undefined
@@ -34,5 +34,24 @@ describe('describeError', () => {
   it('handles non-tRPC errors and non-errors', () => {
     expect(describeError(new Error('nope'))).toMatchObject({ kind: 'unknown', detail: 'nope' })
     expect(describeError('plain')).toMatchObject({ kind: 'unknown', detail: 'plain' })
+  })
+})
+
+describe('reportQueryError', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('reports unexpected failures only', () => {
+    const reportError = vi.fn()
+    vi.stubGlobal('reportError', reportError)
+
+    reportQueryError(trpcError('Failed to fetch'))
+    reportQueryError(trpcError('Project not found', 'NOT_FOUND'))
+    expect(reportError).not.toHaveBeenCalled()
+
+    const unexpected = trpcError('boom', 'INTERNAL_SERVER_ERROR')
+    reportQueryError(unexpected)
+    expect(reportError).toHaveBeenCalledExactlyOnceWith(unexpected)
   })
 })

@@ -3,13 +3,14 @@ import { ref } from 'vue'
 import { toast } from 'vue-sonner'
 import { track } from '@/lib/analytics'
 import { authClient } from '@/lib/auth'
+import { reportQueryError } from '@/lib/errors'
 import { trpc } from '@/lib/trpc'
 
 export function useBilling() {
   const { state: summary, isLoading, execute: refresh } = useAsyncState(
     () => trpc.billing.summary.query(),
     null,
-    { immediate: true, resetOnExecute: false },
+    { immediate: true, resetOnExecute: false, onError: reportQueryError },
   )
 
   // Which billing action is mid-flight, so the buttons can disable + show progress.

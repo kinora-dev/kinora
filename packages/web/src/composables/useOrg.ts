@@ -17,23 +17,32 @@ let loaded = false
 
 async function load(): Promise<void> {
   loading.value = true
-  const [full, list] = await Promise.all([
-    authClient.organization.getFullOrganization(),
-    authClient.organization.list(),
-  ])
-  org.value = full.data
-  orgs.value = list.data ?? []
+  try {
+    const [full, list] = await Promise.all([
+      authClient.organization.getFullOrganization(),
+      authClient.organization.list(),
+    ])
+    org.value = full.data
+    orgs.value = list.data ?? []
 
-  // Session has orgs but none active (e.g. fresh sign-up, where the membership lands
-  // after the session is created): activate one and persist it on the session.
-  const first = orgs.value[0]
-  if (!org.value && first) {
-    await authClient.organization.setActive({ organizationId: first.id })
-    org.value = (await authClient.organization.getFullOrganization()).data
+    // Session has orgs but none active (e.g. fresh sign-up, where the membership lands
+    // after the session is created): activate one and persist it on the session.
+    const first = orgs.value[0]
+    if (!org.value && first) {
+      await authClient.organization.setActive({ organizationId: first.id })
+      org.value = (await authClient.organization.getFullOrganization()).data
+    }
+
+    loaded = true
   }
-
-  loaded = true
-  loading.value = false
+  catch {
+    // Unreachable server, or the request was cut short by navigating away. Keep what we have:
+    // `loaded` stays false so the next mount retries, and the page shows its own error state.
+  }
+  finally {
+    // Always released, or one failed load would block every later one.
+    loading.value = false
+  }
 }
 
 // Clear the shared cache on sign-out so the next login reloads fresh (avoids a stale switcher).
