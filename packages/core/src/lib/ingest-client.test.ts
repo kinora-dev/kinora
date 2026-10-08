@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { attachmentKind, isUploadableAttachment } from './ingest-client'
+import { attachmentKind, DEFAULT_UPLOAD_ATTACHMENTS, isUploadableAttachment } from './ingest-client'
 
 const trace = { name: 'trace', contentType: 'application/zip', path: '/r/trace.zip' }
 const video = { name: 'video', contentType: 'video/webm', path: '/r/video.webm' }
 const shot = { name: 'screenshot', contentType: 'image/png', path: '/r/s.png' }
+const diff = { name: 'button-diff.png', contentType: 'image/png', path: '/r/button-diff.png' }
 
 describe('attachmentKind', () => {
   it('classifies the kinds kinora can host', () => {
     expect(attachmentKind(trace)).toBe('trace')
     expect(attachmentKind(video)).toBe('video')
     expect(attachmentKind(shot)).toBe('screenshot')
+    expect(attachmentKind(diff)).toBe('snapshot')
   })
 
   it('treats a zip path as a trace whatever its name', () => {
@@ -26,10 +28,19 @@ describe('attachmentKind', () => {
 })
 
 describe('isUploadableAttachment', () => {
-  it('uploads traces only by default', () => {
-    expect(isUploadableAttachment(trace, ['trace'])).toBe(true)
-    expect(isUploadableAttachment(video, ['trace'])).toBe(false)
-    expect(isUploadableAttachment(shot, ['trace'])).toBe(false)
+  it('uploads traces and failed-snapshot images by default', () => {
+    expect(isUploadableAttachment(trace, DEFAULT_UPLOAD_ATTACHMENTS)).toBe(true)
+    expect(isUploadableAttachment(diff, DEFAULT_UPLOAD_ATTACHMENTS)).toBe(true)
+    expect(isUploadableAttachment(video, DEFAULT_UPLOAD_ATTACHMENTS)).toBe(false)
+    expect(isUploadableAttachment(shot, DEFAULT_UPLOAD_ATTACHMENTS)).toBe(false)
+  })
+
+  it('can opt out of snapshot images', () => {
+    expect(isUploadableAttachment(diff, ['trace'])).toBe(false)
+  })
+
+  it('covers snapshot images when every screenshot is asked for', () => {
+    expect(isUploadableAttachment(diff, ['screenshot'])).toBe(true)
   })
 
   it('uploads media once opted in', () => {

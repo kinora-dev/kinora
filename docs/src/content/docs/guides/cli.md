@@ -59,8 +59,8 @@ npx @kinora/cli import ./reports --project web-app --token <project-token> --con
 --pr-label <label>    distinguish matrix legs that share one PR
 --pr-policy <policy>  always (default) | on-failure (skip the comment on green runs)
 --upload-attachments <kinds>
-                      comma-separated: trace (default), video, screenshot. Add screenshot to
-                      get screenshot comparisons on failed toHaveScreenshot assertions
+                      comma-separated: trace, snapshot (both default), video, screenshot.
+                      snapshot = images of a failed screenshot assertion (comparison view)
 --concurrency <n>     parallel uploads for bulk import (default: 6)
 -h, --help
 ```

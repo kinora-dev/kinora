@@ -30,6 +30,11 @@ const SNAPSHOT_PARTS = ['expected', 'actual', 'diff', 'previous'] as const
 type SnapshotPart = typeof SNAPSHOT_PARTS[number]
 const SNAPSHOT_NAME = new RegExp(`^(.+)-(${SNAPSHOT_PARTS.join('|')})(\\.\\w+)?$`)
 
+// One of the images of a failed screenshot assertion (see above), told apart by its name.
+export function isSnapshotImage(a: { name: string, contentType: string }): boolean {
+  return a.contentType.startsWith('image/') && SNAPSHOT_NAME.test(a.name)
+}
+
 export type ScreenshotComparison<A> = { name: string } & Partial<Record<SnapshotPart, A>>
 
 // Split a test's attachments into its screenshot comparisons and everything else. A comparison
@@ -40,7 +45,7 @@ export function splitScreenshotComparisons<A extends { name: string, contentType
   const groups: ScreenshotComparison<A>[] = []
   const members = new Map<A, ScreenshotComparison<A>>()
   for (const a of attachments) {
-    const match = a.contentType.startsWith('image/') ? SNAPSHOT_NAME.exec(a.name) : null
+    const match = isSnapshotImage(a) ? SNAPSHOT_NAME.exec(a.name) : null
     if (!match)
       continue
     const name = `${match[1]}${match[3] ?? ''}`

@@ -37,7 +37,8 @@ Options:
   --pr-policy <policy>  always (default) | on-failure (skip the comment on green runs)
   --concurrency <n>     Parallel uploads for bulk import (default 6)
   --upload-attachments <kinds>
-                        Comma-separated: trace (default), video, screenshot.
+                        Comma-separated: trace, snapshot (both default), video, screenshot.
+                        snapshot = images of a failed screenshot assertion.
                         Add video/screenshot when your suite runs without traces
                         (with tracing on they already ride inside the trace.zip).
   -h, --help`

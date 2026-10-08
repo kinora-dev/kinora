@@ -82,8 +82,9 @@ async function findRun(page: Page, pred: (test: RunReport['tests'][number]) => b
   throw new Error('no matching run found - reseed with `pnpm --filter @kinora/server db:seed`')
 }
 
+// A hosted trace specifically: runs can also host images (failed screenshot assertions).
 export function findTracedRun(page: Page): Promise<{ slug: string, runId: string }> {
-  return findRun(page, t => t.attachments.some(a => a.url))
+  return findRun(page, t => t.attachments.some(a => a.url && a.name === 'trace'))
 }
 
 export function findAnnotatedRun(page: Page): Promise<{ slug: string, runId: string }> {

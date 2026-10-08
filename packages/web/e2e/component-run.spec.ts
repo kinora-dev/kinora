@@ -21,6 +21,7 @@ test('a real component run shows up on the components page', async ({ page }) =>
   const outputDir = await mkdtemp(join(tmpdir(), 'kinora-ct-'))
 
   try {
+    // The run holds a failing visual test on purpose, so Playwright exits non-zero.
     const { stdout } = await run(process.execPath, [PLAYWRIGHT_CLI, 'test', '-c', CONFIG], {
       env: {
         ...process.env,
@@ -29,8 +30,9 @@ test('a real component run shows up on the components page', async ({ page }) =>
         CT_PROJECT_SLUG: slug,
         CT_OUTPUT_DIR: outputDir,
       },
-    })
-    expect(stdout).toContain('[kinora] uploaded 2 tests')
+    }).catch((error: { stdout: string }) => error)
+    // 3 artifacts = the expected / actual / diff images, uploaded by default (tracing is off).
+    expect(stdout).toContain('[kinora] uploaded 3 tests + 3 artifacts')
   }
   finally {
     await rm(outputDir, { recursive: true, force: true })
@@ -49,4 +51,13 @@ test('a real component run shows up on the components page', async ({ page }) =>
   await expect(badge.getByText('1 story')).toBeVisible()
   await expect(badge.getByRole('link', { name: /badge shows its label/ })).toHaveCount(1)
   await expect(badge.getByText('Flaky').first()).toBeVisible()
+
+  // The failed screenshot assertion reaches the run page as a comparison of the real images.
+  await page.goto(`/projects/${slug}`)
+  await page.getByRole('row').nth(1).click()
+  const comparison = page.getByRole('figure', { name: 'Screenshot swatch.png' })
+  await expect(comparison.getByRole('button', { name: 'Diff' })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => comparison.getByRole('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(120)
+  await comparison.getByRole('button', { name: 'Side by side' }).click()
+  await expect(comparison.getByRole('img')).toHaveCount(2)
 })

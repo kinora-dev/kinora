@@ -19,8 +19,9 @@ npx @kinora/cli upload results.json --project web-app --token <project-token>
 
 Create a project API token in the kinora dashboard (Settings → Workspace). Auth can also come from the environment (`KINORA_TOKEN`, `KINORA_URL`). Self-hosting? Point at your server with `--url` / `KINORA_URL`.
 
-Only traces are uploaded by default. Running without tracing? Upload the videos and screenshots
-on their own with `--upload-attachments trace,video,screenshot`.
+Traces are uploaded by default, along with the expected / actual / diff images of a failed
+screenshot assertion. Running without tracing? Upload the videos and screenshots on their own
+with `--upload-attachments trace,video,screenshot`.
 
 Bulk-import a backlog of historical reports with `kinora import <dir>`.
 

@@ -1,6 +1,6 @@
 import type { AttachmentKind } from '@kinora/core'
 
-const ATTACHMENT_KINDS: AttachmentKind[] = ['trace', 'video', 'screenshot']
+const ATTACHMENT_KINDS: AttachmentKind[] = ['trace', 'video', 'screenshot', 'snapshot']
 
 // Throws instead of exiting so the bin owns the usage output; undefined = flag absent (keep the default).
 export function parseAttachmentKinds(raw: string | undefined): AttachmentKind[] | undefined {

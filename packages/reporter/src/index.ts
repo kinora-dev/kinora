@@ -21,7 +21,8 @@ export interface KinoraReporterOptions {
    */
   prComment?: boolean | { label?: string, policy?: 'always' | 'on-failure' }
   /**
-   * Which attachment kinds to upload. Defaults to `['trace']`. Add `'video'` / `'screenshot'`
+   * Which attachment kinds to upload. Defaults to `['trace', 'snapshot']` (`snapshot` = the images
+   * of a failed screenshot assertion, shown as a comparison). Add `'video'` / `'screenshot'`
    * to host them on their own, which is what you want when `trace` is off (with tracing on,
    * Playwright already embeds them in the trace.zip).
    */

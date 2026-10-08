@@ -37,8 +37,9 @@ Create an API token in the kinora dashboard (Settings → Workspace). Self-hosti
 
 ## Videos and screenshots without tracing
 
-Traces are uploaded by default, and Playwright already embeds a test's screenshots and video
-inside its trace.zip. If you run without tracing, upload them on their own:
+Traces are uploaded by default, along with the expected / actual / diff images of a failed
+`toHaveScreenshot`, which kinora shows as a comparison. Playwright already embeds a test's other
+screenshots and its video inside the trace.zip. If you run without tracing, upload them on their own:
 
 ```ts
 reporter: [['@kinora/reporter', {

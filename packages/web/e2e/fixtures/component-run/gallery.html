@@ -8,6 +8,8 @@
         'components/Button/Primary': '<button>Submit</button>',
         'components/Button/Disabled': '<button disabled>Submit</button>',
         'components/Badge/Default': '<span role="status">New</span>',
+        // Fixed size and no text, so its screenshot is the same on every platform.
+        'components/Swatch/Default': '<div style="width:120px;height:40px;background:rgb(79,70,229)"></div>',
       }
       window.mount = async ({ story }) => {
         const id = Object.keys(stories).find(key => key.endsWith(story))

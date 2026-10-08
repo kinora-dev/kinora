@@ -1,6 +1,7 @@
 import type { IngestRun, IngestRunResult, UploadArtifactResult } from '../contracts/ingest'
 import type { CiMeta, GitMeta } from '../contracts/kinora'
 import { ingestRunResultSchema, uploadArtifactResultSchema } from '../contracts/ingest'
+import { isSnapshotImage } from './attachments'
 import { ingestPlaywrightReport } from './normalize'
 
 // Hosted ingest endpoint. Reporter/CLI fall back to this when no url is given; self-host overrides.
@@ -154,9 +155,12 @@ export function createIngestClient(opts: IngestClientOptions) {
   }
 }
 
-export type AttachmentKind = 'trace' | 'video' | 'screenshot'
+// `snapshot` = the expected / actual / diff images of a failed screenshot assertion. They only
+// exist on a failure and feed the dashboard's comparison view, hence uploaded by default.
+// `screenshot` = any image, snapshots included.
+export type AttachmentKind = 'trace' | 'video' | 'screenshot' | 'snapshot'
 
-export const DEFAULT_UPLOAD_ATTACHMENTS: AttachmentKind[] = ['trace']
+export const DEFAULT_UPLOAD_ATTACHMENTS: AttachmentKind[] = ['trace', 'snapshot']
 
 // Trace-like attachments worth uploading (the viewer's flagship input).
 export function isTraceAttachment(a: { name: string, contentType: string, path?: string }): boolean {
@@ -172,11 +176,14 @@ export function attachmentKind(a: { name: string, contentType: string, path?: st
   if (a.contentType.startsWith('video/'))
     return 'video'
   if (a.contentType.startsWith('image/'))
-    return 'screenshot'
+    return isSnapshotImage(a) ? 'snapshot' : 'screenshot'
   return null
 }
 
 export function isUploadableAttachment(a: { name: string, contentType: string, path?: string }, kinds: readonly AttachmentKind[]): boolean {
   const kind = attachmentKind(a)
-  return kind !== null && kinds.includes(kind)
+  if (kind === null)
+    return false
+  // Asking for every screenshot covers the snapshot images too.
+  return kinds.includes(kind) || (kind === 'snapshot' && kinds.includes('screenshot'))
 }
