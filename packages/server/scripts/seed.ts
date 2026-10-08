@@ -12,6 +12,7 @@ import { auth } from '../src/lib/auth'
 import { env } from '../src/lib/env'
 import { logger } from '../src/lib/logger'
 import { storage } from '../src/lib/storage'
+import { seedScreenshotComparison } from './seed-images'
 
 const EMAIL = 'demo@kinora.dev'
 const PASSWORD = 'password123'
@@ -26,7 +27,8 @@ const MATE_EMAIL = 'teammate@kinora.dev'
 const MATE_NAME = 'Acme QA'
 
 // `stories` marks a component test: the story ids its `mount` calls would record.
-interface TestDef { file: string, title: string, stories?: string[] }
+// `snapshot` marks a visual test: its latest run fails `toHaveScreenshot` on that snapshot name.
+interface TestDef { file: string, title: string, stories?: string[], snapshot?: string }
 
 const PROJECTS: { slug: string, name: string, tests: TestDef[] }[] = [
   {
@@ -67,7 +69,7 @@ const PROJECTS: { slug: string, name: string, tests: TestDef[] }[] = [
     tests: [
       { file: 'tests/components/button.spec.ts', title: 'primary button submits', stories: ['components/Button/Primary'] },
       { file: 'tests/components/button.spec.ts', title: 'disabled button ignores clicks', stories: ['components/Button/Disabled'] },
-      { file: 'tests/components/button.spec.ts', title: 'button states match screenshots', stories: ['components/Button/Primary', 'components/Button/Disabled', 'components/Button/Loading'] },
+      { file: 'tests/components/button.spec.ts', title: 'button states match screenshots', stories: ['components/Button/Primary', 'components/Button/Disabled', 'components/Button/Loading'], snapshot: 'button-primary' },
       { file: 'tests/components/dialog.spec.ts', title: 'closes on escape', stories: ['components/Dialog/Default'] },
       // Playwright accepts a unique suffix of the story id; the dashboard folds it into the full id.
       { file: 'tests/components/dialog.spec.ts', title: 'traps focus', stories: ['Dialog/Default'] },
@@ -99,7 +101,7 @@ function coverStatuses(count: number): NormTest['status'][] {
   return Array.from({ length: count }, (_, i) => required[i] ?? 'expected')
 }
 
-function makeTest(def: TestDef, status: NormTest['status']): NormTest {
+function makeTest(def: TestDef, status: NormTest['status'], visualFailure = false): NormTest {
   const titlePath = [def.file, def.title]
   const failed = status === 'unexpected'
   const projectName = def.stories ? 'components' : 'chromium'
@@ -120,9 +122,11 @@ function makeTest(def: TestDef, status: NormTest['status']): NormTest {
     annotations: status === 'skipped'
       ? [{ type: 'skip', description: 'flaky on CI' }]
       : (def.stories ?? []).map(id => ({ type: STORY_ANNOTATION, description: id })),
-    errors: failed
-      ? [{ message: `expect(received).toBe(expected)\n\nExpected: 200\nReceived: 500`, stack: `at ${def.file}:23:18` }]
-      : [],
+    errors: !failed
+      ? []
+      : visualFailure
+        ? [{ message: `expect(locator).toHaveScreenshot(expected) failed\n\n  1440 pixels (ratio 0.04 of all image pixels) are different.\n\n  Snapshot: ${def.snapshot}.png`, stack: `at ${def.file}:23:18` }]
+        : [{ message: `expect(received).toBe(expected)\n\nExpected: 200\nReceived: 500`, stack: `at ${def.file}:23:18` }],
     attachments: [],
   }
 }
@@ -178,7 +182,9 @@ async function seedProjects(orgId: string, defs: typeof PROJECTS, failTrace: Buf
       const startedAt = new Date(Date.now() - i * DAY - Math.floor(Math.random() * 6 * 3_600_000))
       const guaranteed = pi === 0 && i === RUNS_PER_PROJECT - 1
       const statuses = guaranteed ? coverStatuses(pdef.tests.length) : pdef.tests.map(() => pickStatus())
-      const tests = pdef.tests.map((d, idx) => makeTest(d, statuses[idx]))
+      // The latest run of a visual test always fails its screenshot, so the comparison view has data.
+      const isVisualFailure = (d: TestDef) => i === 0 && !!d.snapshot
+      const tests = pdef.tests.map((d, idx) => makeTest(d, isVisualFailure(d) ? 'unexpected' : statuses[idx], isVisualFailure(d)))
       const runId = randomUUID()
 
       await db.insert(run).values({
@@ -195,11 +201,21 @@ async function seedProjects(orgId: string, defs: typeof PROJECTS, failTrace: Buf
 
       // Attach a trace to the tests a user would actually inspect (failed / flaky).
       const traced: { id: string, storageKey: string, buf: Buffer }[] = []
-      const testRows = tests.map((t) => {
+      const shots: { id: string, name: string, storageKey: string, buf: Buffer }[] = []
+      const testRows = tests.map((t, idx) => {
         const id = randomUUID()
         const hasTrace = t.status === 'unexpected' || t.status === 'flaky'
         if (hasTrace)
           traced.push({ id, storageKey: `${projectId}/${runId}/${randomUUID()}-trace.zip`, buf: t.status === 'unexpected' ? failTrace : passTrace })
+        const def = pdef.tests[idx]
+        if (isVisualFailure(def)) {
+          // Same three attachments, with the same names, as a failed `toHaveScreenshot`.
+          for (const [part, buf] of Object.entries(seedScreenshotComparison())) {
+            const name = `${def.snapshot}-${part}.png`
+            shots.push({ id, name, storageKey: `${projectId}/${runId}/${randomUUID()}-${name}`, buf })
+          }
+        }
+        const images = shots.filter(s => s.id === id).map(s => ({ name: s.name, contentType: 'image/png', hasBody: true }))
         return {
           id,
           runId,
@@ -219,7 +235,7 @@ async function seedProjects(orgId: string, defs: typeof PROJECTS, failTrace: Buf
           annotations: t.annotations,
           errors: t.errors,
           attachments: hasTrace
-            ? [{ name: 'trace', contentType: 'application/zip', hasBody: true }]
+            ? [{ name: 'trace', contentType: 'application/zip', hasBody: true }, ...images]
             : t.attachments,
         }
       })
@@ -227,6 +243,21 @@ async function seedProjects(orgId: string, defs: typeof PROJECTS, failTrace: Buf
 
       for (const tr of traced)
         await storage.put(tr.storageKey, tr.buf)
+      for (const shot of shots)
+        await storage.put(shot.storageKey, shot.buf)
+
+      if (shots.length) {
+        await db.insert(artifact).values(shots.map(shot => ({
+          id: randomUUID(),
+          projectId,
+          runId,
+          testId: shot.id,
+          name: shot.name,
+          contentType: 'image/png',
+          storageKey: shot.storageKey,
+          size: shot.buf.length,
+        })))
+      }
 
       if (traced.length) {
         await db.insert(artifact).values(traced.map(tr => ({

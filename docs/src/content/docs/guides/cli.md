@@ -58,6 +58,9 @@ npx @kinora/cli import ./reports --project web-app --token <project-token> --con
 --pr-comment          post/update a summary on the GitHub PR or GitLab MR (see PR comments guide)
 --pr-label <label>    distinguish matrix legs that share one PR
 --pr-policy <policy>  always (default) | on-failure (skip the comment on green runs)
+--upload-attachments <kinds>
+                      comma-separated: trace (default), video, screenshot. Add screenshot to
+                      get screenshot comparisons on failed toHaveScreenshot assertions
 --concurrency <n>     parallel uploads for bulk import (default: 6)
 -h, --help
 ```

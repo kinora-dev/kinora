@@ -51,11 +51,28 @@ server with `KINORA_URL` - see [Self-hosting](/self-hosting/).
 | `git` | `{ sha?, branch?, baseBranch?, repoUrl? }` | auto on GitHub Actions / GitLab CI | Git metadata. `repoUrl` links a sha to its commit; `baseBranch` powers "regression vs base" in the PR comment. |
 | `ci` | `{ provider?, runUrl?, runNumber? }` | auto on GitHub Actions / GitLab CI | CI metadata for the run. |
 | `prComment` | `boolean \| { label?, policy? }` | off | Post/update a summary comment on the GitHub PR or GitLab MR. See [PR comments](/guides/pr-comments/). |
+| `uploadAttachments` | `('trace' \| 'video' \| 'screenshot')[]` | `['trace']` | Which attachment kinds to upload. Add `'screenshot'` for [screenshot comparisons](#screenshot-comparisons), or `'video'` / `'screenshot'` when you run without traces. |
 
 On GitHub Actions and GitLab CI, `git` and `ci` are filled from the standard `GITHUB_*` / `CI_*`
 env vars (including the repo URL, so shas link to their commit in the dashboard). On a GitLab merge
 request pipeline, the branch is the MR source branch and the base branch its target. Pass them
 explicitly on other CI providers.
+
+## Screenshot comparisons
+
+When `toHaveScreenshot` fails, Playwright attaches the expected, actual and diff images. Upload
+them and the run page shows them as a comparison (diff, actual, expected, side by side) right under
+the failing test:
+
+```ts
+reporter: [['@kinora/reporter', {
+  project: { slug: 'web-app' },
+  uploadAttachments: ['trace', 'screenshot'],
+}]]
+```
+
+Playwright only attaches these images on a failed assertion, so passing runs upload nothing extra.
+`'screenshot'` also uploads any other image attached to a test, such as failure screenshots.
 
 ## CI example (GitHub Actions)
 

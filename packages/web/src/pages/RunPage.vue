@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { PwTestStatus } from '@kinora/core'
-import { formatDuration, formatPct, passRate, runHealth, storiesOf, STORY_ANNOTATION, stripAnsi } from '@kinora/core'
+import type { PwTestStatus, ScreenshotComparison } from '@kinora/core'
+import { formatDuration, formatPct, passRate, runHealth, splitScreenshotComparisons, storiesOf, STORY_ANNOTATION, stripAnsi } from '@kinora/core'
 import { Button } from '@kinora/ui/button'
 import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
@@ -14,6 +14,7 @@ import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
 import ErrorState from '@/components/app/ErrorState.vue'
 import SearchInput from '@/components/app/SearchInput.vue'
 import FilterCombobox from '@/components/FilterCombobox.vue'
+import ScreenshotDiff from '@/components/viz/ScreenshotDiff.vue'
 import StoryBadge from '@/components/viz/StoryBadge.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
 import { useDemo, useManifest, useRun } from '@/composables/queries'
@@ -114,10 +115,18 @@ const filtered = computed(() => {
 type Attachment = NonNullable<typeof report.value>['tests'][number]['attachments'][number]
 type Annotation = NonNullable<typeof report.value>['tests'][number]['annotations'][number]
 
+// Failed screenshot assertions whose images were uploaded: shown inline as a comparison.
+// Without the upload there is nothing to display, and their images stay plain badges.
+function screenshotDiffs(attachments: Attachment[]): ScreenshotComparison<Attachment>[] {
+  return splitScreenshotComparisons(attachments).comparisons.filter(c => c.actual?.url)
+}
+
 // Playwright embeds screenshots and videos inside trace.zip, so a badge opens them in the
 // viewer's attachments tab; their own `path` is a CI-runner path the server never received.
 function attachmentBadges(attachments: Attachment[]): Attachment[] {
-  return traceViewerHref(attachments) ? attachments.filter(a => !isTraceAttachment(a)) : attachments
+  const inline = new Set(screenshotDiffs(attachments).flatMap(c => [c.expected, c.actual, c.diff, c.previous]))
+  const badges = attachments.filter(a => !inline.has(a))
+  return traceViewerHref(attachments) ? badges.filter(a => !isTraceAttachment(a)) : badges
 }
 
 // An uploaded attachment links straight to its file; otherwise fall back to the trace viewer,
@@ -325,6 +334,9 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
           <!-- Error + attachments -->
           <div v-if="t.errors.length" class="mt-3 overflow-x-auto rounded-md bg-fail/5 p-3">
             <pre class="font-mono text-[11px] leading-relaxed text-fail">{{ stripAnsi(t.errors[0].message) }}</pre>
+          </div>
+          <div v-if="screenshotDiffs(t.attachments).length" class="mt-3 flex flex-col gap-3">
+            <ScreenshotDiff v-for="(c, i) in screenshotDiffs(t.attachments)" :key="`${c.name}-${i}`" :comparison="c" />
           </div>
           <div v-if="t.attachments.length" class="mt-2 flex flex-wrap items-center gap-1.5">
             <a
