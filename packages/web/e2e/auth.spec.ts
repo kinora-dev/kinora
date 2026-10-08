@@ -75,3 +75,14 @@ test('signs out back to login', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login$/)
 })
+
+test('a session that ends mid-use sends the user back to login', async ({ page }) => {
+  await login(page)
+
+  // Same as the session expiring or being revoked: the next API call comes back 401.
+  await page.context().clearCookies()
+  await page.getByRole('link', { name: 'Web App' }).click()
+
+  await expect(page).toHaveURL(/\/login/)
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
+})
