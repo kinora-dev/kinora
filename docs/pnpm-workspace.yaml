@@ -2,7 +2,3 @@
 allowBuilds:
   esbuild: true
   sharp: true
-
-# @tailwindcss/vite 4.3.x breaks on the rolldown-based vite 8; pin to the vite 7 the website uses.
-overrides:
-  vite: 7.3.5
