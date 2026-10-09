@@ -41,4 +41,15 @@ describe('reka wrappers', () => {
       .map(file => relative(ROOT, file))
     expect(offenders, 'bind the result of useForwardProps(...) instead of the raw props').toEqual([])
   })
+
+  // The opposite mistake: declaring Reka's props and then dropping them, so whatever the caller
+  // passes is ignored (SelectLabel did this). Button is the one wrapper that hands its two
+  // Primitive props over by name instead.
+  it('do forward the props they declare', () => {
+    const BY_HAND = ['button/Button.vue']
+    const silent = wrappers
+      .filter(file => !readFileSync(file, 'utf8').includes('useForwardProps'))
+      .map(file => relative(ROOT, file))
+    expect(silent, 'forward the declared props with useForwardProps(...)').toEqual(BY_HAND)
+  })
 })
