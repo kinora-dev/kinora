@@ -14,7 +14,9 @@ export default defineConfig({
   retries: ci ? 2 : 0,
   reporter: ci ? [['github'], ['html', { open: 'never' }]] : 'list',
   webServer: {
-    command: 'pnpm gallery',
+    // --force: rebuild Vite's dependency cache up front. A stale cache makes Vite discover new
+    // dependencies while the first tests run and reload the page, which drops `window.mount`.
+    command: 'pnpm gallery --force',
     url: gallery,
     reuseExistingServer: !ci,
     timeout: 120_000,
