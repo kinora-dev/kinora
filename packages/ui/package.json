@@ -18,7 +18,9 @@
     "typecheck": "vue-tsc --noEmit",
     "gallery": "vite --config vite.gallery.config.ts",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test && node scripts/visual.mjs",
+    "test:visual": "node scripts/visual.mjs",
+    "test:visual:update": "node scripts/visual.mjs --update-snapshots"
   },
   "peerDependencies": {
     "vue": "^3.5.34"

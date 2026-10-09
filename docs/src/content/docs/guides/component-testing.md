@@ -197,6 +197,44 @@ test('emits a click per press', async ({ mount }) => {
   story name, so `Button/Primary` reads better than a full source path. The gallery decides the
   id, as in the example above.
 
+## Visual tests
+
+`toHaveScreenshot` works on a mounted story like on any locator, and a failure shows up in kinora
+as a [screenshot comparison](/guides/reporter/#screenshot-comparisons):
+
+```ts
+test('primary button', async ({ mount }) => {
+  await expect(await mount('Button/Primary')).toHaveScreenshot('button-primary.png')
+})
+```
+
+The catch is the reference images. A browser on macOS does not draw text exactly like the same
+browser on Linux, so images generated on a laptop fail in CI, and the other way round. The fix is
+to always render them with the same browser: the one in Playwright's official Docker image.
+
+Only the browser needs to be in the container. Start a Playwright server in it and point your
+usual test command at it:
+
+```bash
+docker run --rm --ipc=host -p 3000:3000 --add-host=host.docker.internal:host-gateway \
+  mcr.microsoft.com/playwright:v1.63.0-noble \
+  npx -y playwright@1.63.0 run-server --port 3000 --host 0.0.0.0
+
+PW_TEST_CONNECT_WS_ENDPOINT=ws://127.0.0.1:3000/ npx playwright test
+```
+
+Three details make it work:
+
+- **The image tag and the `playwright@` version must match your installed `@playwright/test`.**
+- **The browser is in the container, your gallery is on the host.** Use
+  `http://host.docker.internal:<port>/` as `baseURL`, and let the dev server listen on all
+  interfaces and accept that host name (Vite: `server.host` and `server.allowedHosts`).
+- **Drop the platform from the snapshot path**, since one image now serves every OS:
+  `snapshotPathTemplate: '{testDir}/__screenshots__/{arg}{ext}'`.
+
+kinora wraps these steps in a script for its own design system:
+[`packages/ui/scripts/visual.mjs`](https://github.com/kinora-dev/kinora/blob/main/packages/ui/scripts/visual.mjs).
+
 ## Notes
 
 - A test that mounts several stories records each of them once.
