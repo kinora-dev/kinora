@@ -18,7 +18,15 @@ function vueFiles(dir: string): string[] {
 // or `undefined`. `useForwardProps` only forwards what was actually passed, so Reka's defaults hold.
 // Nothing else flags this: no type error, no warning, and the component still renders.
 const TYPED_ON_REKA = /import type \{[^}]*Props\b[^}]*\} from 'reka-ui'/
-const DIRECT_BIND = /v-bind="(?:props|\$props|delegatedProps)"/
+
+// The raw props object, or any copy of it made with reactiveOmit, whatever it is named.
+function rawPropsNames(source: string): string[] {
+  return ['props', '$props', ...[...source.matchAll(/const (\w+) = reactiveOmit\(/g)].map(match => match[1])]
+}
+
+function bindsRawProps(source: string): boolean {
+  return rawPropsNames(source).some(name => source.includes(`v-bind="${name}"`) || source.includes(`...${name},`) || source.includes(`...${name} }`))
+}
 
 describe('reka wrappers', () => {
   const wrappers = vueFiles(ROOT).filter(file => TYPED_ON_REKA.test(readFileSync(file, 'utf8')))
@@ -29,7 +37,7 @@ describe('reka wrappers', () => {
 
   it('forward their props through useForwardProps, never directly', () => {
     const offenders = wrappers
-      .filter(file => DIRECT_BIND.test(readFileSync(file, 'utf8')))
+      .filter(file => bindsRawProps(readFileSync(file, 'utf8')))
       .map(file => relative(ROOT, file))
     expect(offenders, 'bind the result of useForwardProps(...) instead of the raw props').toEqual([])
   })
