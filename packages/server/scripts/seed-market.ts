@@ -1,9 +1,8 @@
 import type { Counts, NormTest } from '@kinora/core'
 import type { Buffer } from 'node:buffer'
+import type { LoadedDemoTrace } from './demo-traces'
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 import { countsByTagFrom, makeTestKey } from '@kinora/core'
 import { eq } from 'drizzle-orm'
 import { db } from '../src/db'
@@ -13,6 +12,7 @@ import { auth } from '../src/lib/auth'
 import { env } from '../src/lib/env'
 import { logger } from '../src/lib/logger'
 import { storage } from '../src/lib/storage'
+import { loadDemoTraces } from './demo-traces'
 
 // Curated, DETERMINISTIC marketing data: same output every reseed so screenshots
 // stay reproducible. Separate account from the dev demo seed (scripts/seed.ts).
@@ -190,34 +190,46 @@ function annotationsFor(profile: Profile, status: Status): NormTest['annotations
   return []
 }
 
-// A spread of realistic Playwright failures so the run/test/trace views aren't all
-// the same assertion. Picked deterministically per test title (stable across reseeds).
-const ERROR_POOL = [
-  `Error: expect(received).toBe(expected)\n\nExpected: 200\nReceived: 502`,
-  `TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'Pay now' })\n  - locator resolved to <button disabled>Pay now</button>`,
-  `Error: expect(locator).toBeVisible() failed\n\nLocator: getByText('Order confirmed')\nExpected: visible\nReceived: <element(s) not found>`,
-  `Error: expect(response).toBeOK() failed\n\n  → GET /api/orders/42\n  ← 500 Internal Server Error`,
-  `Error: expect(received).toHaveText(expected)\n\nExpected: "Welcome back"\nReceived: "Session expired"`,
-  `Error: page.goto: net::ERR_CONNECTION_REFUSED\nNavigating to "http://localhost:3000/checkout"`,
-]
+const isOwn = (trace: LoadedDemoTrace, def: TestDef): boolean => trace.file === def.file && trace.title === def.title
 
-function errorsFor(def: TestDef, status: Status): NormTest['errors'] {
-  if (status !== 'unexpected')
-    return []
+// Real traces from the demo suite (demo-traces/suite): a failed test opens a failing trace,
+// a flaky one the passing trace of its retry. Tests of the suite get their own; the others
+// borrow one from their project (else any), picked by title so reseeds stay identical.
+function traceFor(traces: LoadedDemoTrace[], pdef: ProjectDef, def: TestDef, status: Status): LoadedDemoTrace | undefined {
+  const wanted = status === 'unexpected' ? 'failed' : status === 'flaky' ? 'passed' : null
+  if (!wanted)
+    return undefined
+  const pool = traces.filter(t => t.status === wanted)
+  const own = pool.find(t => isOwn(t, def))
+  if (own)
+    return own
+  const sameProject = pool.filter(t => pdef.tests.some(d => d.file === t.file))
+  const from = sameProject.length ? sameProject : pool
   const h = [...def.title].reduce((a, c) => a + c.charCodeAt(0), 0)
-  return [{ message: ERROR_POOL[h % ERROR_POOL.length], stack: `at ${def.file}:${34 + (h % 20)}:${7 + (h % 12)}` }]
+  return from[h % from.length]
 }
 
-function makeTest(def: TestDef, i: number, line: number): NormTest {
+// The failure shown on the dashboard is the one recorded in the trace it opens.
+function errorsFor(def: TestDef, line: number, trace: LoadedDemoTrace | undefined): NormTest['errors'] {
+  if (!trace?.error)
+    return []
+  return [{ message: trace.error.message, stack: isOwn(trace, def) ? trace.error.stack : `at ${def.file}:${line + 4}:5` }]
+}
+
+function makeTest(traces: LoadedDemoTrace[], pdef: ProjectDef, def: TestDef, i: number, fallbackLine: number): { test: NormTest, trace?: LoadedDemoTrace } {
   const status = statusAt(def.profile, i)
   const titlePath = [def.file, def.title]
-  return {
+  // A test of the demo suite keeps its real location, so the card matches the trace header.
+  const at = traces.find(t => isOwn(t, def))
+  const line = at?.line ?? fallbackLine
+  const trace = traceFor(traces, pdef, def, status)
+  const norm: NormTest = {
     testKey: makeTestKey(def.file, titlePath, 'chromium'),
     title: def.title,
     titlePath,
     file: def.file,
     line,
-    column: 3,
+    column: at?.column ?? 3,
     projectName: 'chromium',
     status,
     ok: status !== 'unexpected',
@@ -225,9 +237,10 @@ function makeTest(def: TestDef, i: number, line: number): NormTest {
     retries: status === 'flaky' ? 1 : 0,
     tags: def.tags ?? [],
     annotations: annotationsFor(def.profile, status),
-    errors: errorsFor(def, status),
+    errors: errorsFor(def, line, trace),
     attachments: [],
   }
+  return { test: norm, trace }
 }
 
 function countsOf(tests: NormTest[]): Counts {
@@ -253,11 +266,6 @@ async function ownedOrgId(userId: string): Promise<string> {
   return m.organizationId
 }
 
-// Failed -> real failing trace (carries error-context for the viewer's Copy prompt);
-// flaky -> passing demo trace. Both make "View trace" work.
-const FAIL_TRACE = fileURLToPath(new URL('../../trace-viewer/public/fixtures/error-trace.zip', import.meta.url))
-const PASS_TRACE = fileURLToPath(new URL('../../trace-viewer/public/fixtures/demo.zip', import.meta.url))
-
 async function main(): Promise<void> {
   // Seeds a known-credentials demo account; refuse on prod unless explicitly forced.
   if (env.NODE_ENV === 'production' && !process.argv.includes('--force')) {
@@ -267,8 +275,7 @@ async function main(): Promise<void> {
 
   const userId = await ensureUser()
   const orgId = await ownedOrgId(userId)
-  const failTrace = await readFile(FAIL_TRACE)
-  const passTrace = await readFile(PASS_TRACE)
+  const traces = await loadDemoTraces()
 
   await db.delete(project).where(eq(project.organizationId, orgId))
   const apiKey = await auth.api.createApiKey({ body: { name: 'ci-github-actions', userId } })
@@ -280,7 +287,8 @@ async function main(): Promise<void> {
 
     for (let i = 0; i < RUNS; i++) {
       const startedAt = new Date(Date.now() - (LATEST - i) * DAY - jitter(6 * 3_600_000))
-      const tests = pdef.tests.map((d, idx) => makeTest(d, i, 12 + idx * 9))
+      const made = pdef.tests.map((d, idx) => makeTest(traces, pdef, d, i, 12 + idx * 9))
+      const tests = made.map(m => m.test)
       // Readable run id: it's the run-page heading (the run table has no name column).
       const runId = `${pdef.slug}-run-${i + 1}`
 
@@ -297,11 +305,11 @@ async function main(): Promise<void> {
       })
 
       const traced: { id: string, storageKey: string, buf: Buffer }[] = []
-      const testRows = tests.map((t) => {
+      const testRows = made.map(({ test: t, trace }) => {
         const id = randomUUID()
-        const hasTrace = t.status === 'unexpected' || t.status === 'flaky'
-        if (hasTrace)
-          traced.push({ id, storageKey: `${projectId}/${runId}/${randomUUID()}-trace.zip`, buf: t.status === 'unexpected' ? failTrace : passTrace })
+        const hasTrace = !!trace
+        if (trace)
+          traced.push({ id, storageKey: `${projectId}/${runId}/${randomUUID()}-trace.zip`, buf: trace.buf })
         return {
           id,
           runId,

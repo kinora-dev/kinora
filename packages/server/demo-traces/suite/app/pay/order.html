@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Payment · Kinora Pay</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="/logo.svg" width="26" height="26" alt=""><span>Kinora Pay</span></div>
+    <nav class="nav" aria-label="Main">
+      <a href="/">Home</a>
+      <a href="/payments" aria-current="page">Payments</a>
+      <a href="/customers">Customers</a>
+      <a href="/developers/usage">Developers</a>
+    </nav>
+    <span class="pill warn env">Test mode</span>
+  </header>
+
+  <main class="page">
+    <div class="crumbs"><a href="/payments">Payments</a> / <span class="mono" id="order-id"></span></div>
+    <div class="page-head">
+      <div>
+        <h1><span class="num" id="amount"></span><span class="pill" data-testid="order-status" id="status"></span></h1>
+        <p class="sub" id="sub"></p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="capture" type="button" hidden></button>
+        <button class="btn secondary" id="refund" type="button" hidden>Refund</button>
+      </div>
+    </div>
+    <p class="notice" id="notice" role="status"></p>
+
+    <div class="grid">
+      <div class="stack">
+        <section class="card">
+          <div class="card-head">Timeline</div>
+          <div class="card-body"><ol class="timeline" id="timeline"></ol></div>
+        </section>
+        <section class="card">
+          <div class="card-head">Line items</div>
+          <table class="table">
+            <thead><tr><th>Item</th><th>Qty</th><th style="text-align:right">Amount</th></tr></thead>
+            <tbody id="items"></tbody>
+          </table>
+        </section>
+      </div>
+      <aside class="card">
+        <div class="card-head">Details</div>
+        <div class="card-body">
+          <dl class="kv">
+            <dt>Customer</dt><dd id="customer"></dd>
+            <dt>Email</dt><dd id="email"></dd>
+            <dt>Method</dt><dd id="method"></dd>
+            <dt>Created</dt><dd id="created"></dd>
+            <dt>Statement</dt><dd class="mono">KINORA*PRO</dd>
+          </dl>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="refund-dialog" aria-labelledby="refund-title">
+    <form method="dialog">
+      <h2 id="refund-title">Refund this payment?</h2>
+      <p id="refund-copy"></p>
+      <div class="actions">
+        <button class="btn secondary" value="cancel">Cancel</button>
+        <button class="btn danger" id="confirm-refund" value="confirm"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const $ = id => document.getElementById(id)
+    const money = n => `$${n.toFixed(2)}`
+    const tone = { paid: 'ok', authorized: 'warn', refunded: '', failed: 'bad' }
+    const orderId = location.pathname.split('/').pop()
+    let order
+
+    function setStatus(status) {
+      order.status = status
+      $('status').textContent = status[0].toUpperCase() + status.slice(1)
+      $('status').className = `pill ${tone[status]}`
+      $('capture').hidden = status !== 'authorized'
+      $('refund').hidden = status !== 'paid'
+    }
+
+    function addEvent(text, kind, at = 'Just now') {
+      const li = document.createElement('li')
+      li.className = kind
+      li.innerHTML = `<span></span><time></time>`
+      li.firstChild.textContent = text
+      li.lastChild.textContent = at
+      $('timeline').prepend(li)
+    }
+
+    function notify(text, kind = '') {
+      $('notice').textContent = text
+      $('notice').className = `notice ${kind}`
+    }
+
+    async function load() {
+      order = await fetch(`/api/orders/${orderId}`).then(r => r.json())
+      $('order-id').textContent = order.id
+      $('amount').textContent = `${money(order.amount)} USD`
+      $('sub').textContent = `${order.plan} · ${order.customer.name}`
+      $('customer').textContent = order.customer.name
+      $('email').textContent = order.customer.email
+      $('method').textContent = order.method
+      $('created').textContent = order.created
+      $('capture').textContent = `Capture ${money(order.amount)}`
+      $('confirm-refund').textContent = `Refund ${money(order.amount)}`
+      $('refund-copy').textContent = `${money(order.amount)} goes back to ${order.method}. The customer gets an email once it lands.`
+      for (const item of order.items)
+        $('items').insertAdjacentHTML('beforeend', `<tr><td>${item.name}</td><td>${item.qty}</td><td style="text-align:right">${money(item.amount)}</td></tr>`)
+      for (const event of order.events)
+        addEvent(event.text, event.kind, event.at)
+      setStatus(order.status)
+    }
+
+    $('capture').addEventListener('click', async () => {
+      const res = await fetch(`/api/orders/${orderId}/capture`, { method: 'POST' })
+      const body = await res.json()
+      setStatus(body.status)
+      addEvent(`Payment captured (${body.charge})`, 'ok')
+      notify(`Payment captured. Receipt emailed to ${order.customer.email}.`)
+    })
+
+    $('refund').addEventListener('click', () => $('refund-dialog').showModal())
+
+    $('refund-dialog').addEventListener('close', async () => {
+      if ($('refund-dialog').returnValue !== 'confirm')
+        return
+      const res = await fetch(`/api/orders/${orderId}/refunds`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ amount: order.amount, reason: 'requested_by_customer' }),
+      })
+      const body = await res.json()
+      if (!res.ok) {
+        console.error('refund failed', body.error)
+        addEvent(`Refund failed: ${body.error.code}`, 'bad')
+        notify(`Refund failed: ${body.error.message}. Try again in a few minutes.`, 'bad')
+        return
+      }
+      setStatus('refunded')
+      addEvent('Refund issued', 'ok')
+      notify('Refund issued. Funds return in 5 to 10 days.')
+    })
+
+    load()
+  </script>
+</body>
+</html>

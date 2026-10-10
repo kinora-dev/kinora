@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>API usage · Kinora Pay</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="/logo.svg" width="26" height="26" alt=""><span>Kinora Pay</span></div>
+    <nav class="nav" aria-label="Main">
+      <a href="/">Home</a>
+      <a href="/payments">Payments</a>
+      <a href="/customers">Customers</a>
+      <a href="/developers/usage" aria-current="page">Developers</a>
+    </nav>
+    <span class="pill warn env">Test mode</span>
+  </header>
+
+  <main class="page">
+    <div class="crumbs"><a href="/developers">Developers</a> / Usage</div>
+    <div class="page-head">
+      <div>
+        <h1>API usage</h1>
+        <p class="sub">Live requests made with <span class="mono">sk_test_…4f2a</span> against <span class="mono">GET /v1/ping</span>.</p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="burst" type="button">Send 12 requests</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <div class="card-head">Requests <span class="muted" id="summary" style="font-weight:400;font-size:14px"></span></div>
+        <table class="table">
+          <thead><tr><th>#</th><th>Endpoint</th><th>Status</th><th>Remaining</th><th style="text-align:right">Latency</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <p class="empty" id="empty">No requests yet. Send a burst to check the limiter.</p>
+      </section>
+      <aside class="stack">
+        <section class="card">
+          <div class="card-head">Rate limit</div>
+          <div class="card-body">
+            <dl class="kv">
+              <dt>Limit</dt><dd>10 requests / second</dd>
+              <dt>Scope</dt><dd>Per API key</dd>
+              <dt>Over limit</dt><dd><span class="mono">429 Too Many Requests</span></dd>
+              <dt>Key</dt><dd class="mono">sk_test_…4f2a</dd>
+            </dl>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-head">Last 24 hours</div>
+          <div class="card-body">
+            <div class="bars" aria-hidden="true">
+              <span style="height:38%"></span><span style="height:52%"></span><span style="height:44%"></span><span style="height:61%"></span>
+              <span style="height:58%"></span><span style="height:72%"></span><span style="height:66%"></span><span class="bad" style="height:90%"></span>
+              <span style="height:70%"></span><span style="height:54%"></span><span style="height:63%"></span><span style="height:48%"></span>
+            </div>
+            <p class="muted" style="margin-top:12px;font-size:13px">48,210 requests · 312 throttled</p>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id)
+    const reasons = { 200: 'OK', 429: 'Too Many Requests', 500: 'Internal Server Error' }
+
+    $('burst').addEventListener('click', async () => {
+      $('empty').hidden = true
+      let throttled = 0
+      for (let i = 1; i <= 12; i++) {
+        const started = performance.now()
+        const res = await fetch('/api/v1/ping', { headers: { authorization: 'Bearer sk_test_4f2a' } })
+        const ms = Math.round(performance.now() - started)
+        if (res.status === 429)
+          throttled++
+        document.querySelector('[data-testid="last-status"]')?.removeAttribute('data-testid')
+        $('rows').insertAdjacentHTML('beforeend', `<tr>
+          <td class="muted">${i}</td>
+          <td class="mono">GET /v1/ping</td>
+          <td><span class="pill ${res.ok ? 'ok' : 'bad'}" data-testid="last-status">${res.status} ${reasons[res.status]}</span></td>
+          <td>${res.headers.get('x-ratelimit-remaining')}</td>
+          <td style="text-align:right">${ms} ms</td>
+        </tr>`)
+      }
+      $('summary').textContent = `12 sent · ${throttled} throttled`
+      if (!throttled)
+        console.warn('rate limiter let every request through', { limit: 10, sent: 12 })
+    })
+  </script>
+</body>
+</html>

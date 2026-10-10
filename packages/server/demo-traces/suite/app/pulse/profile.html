@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profile · Pulse</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="appbar">
+      <div class="brand"><img src="/logo.svg" width="26" height="26" alt=""><h1>Profile</h1></div>
+      <a class="btn secondary" href="/settings" style="padding:6px 12px;font-size:13px">Settings</a>
+    </header>
+
+    <section class="profile">
+      <span class="avatar lg" id="avatar" aria-hidden="true">AM</span>
+      <h2 id="name"></h2>
+      <p class="muted" id="role"></p>
+      <label class="btn secondary" for="photo">Change photo</label>
+      <input id="photo" type="file" accept="image/*" hidden>
+      <p class="notice" id="notice" role="status"></p>
+    </section>
+
+    <div class="stats">
+      <div><strong id="posts"></strong>Posts</div>
+      <div><strong id="followers"></strong>Followers</div>
+      <div><strong id="following"></strong>Following</div>
+    </div>
+
+    <section class="section">
+      <h3>About</h3>
+      <div class="list"><p id="bio"></p></div>
+    </section>
+    <section class="section">
+      <h3>Account</h3>
+      <div class="list">
+        <a href="/settings/notifications">Notifications <span class="muted">On</span></a>
+        <a href="/settings/privacy">Privacy <span class="muted">Team only</span></a>
+        <a href="/help">Help and feedback <span class="muted">›</span></a>
+      </div>
+    </section>
+  </div>
+
+  <nav class="tabbar" aria-label="Tabs">
+    <a href="/feed"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Feed</a>
+    <a href="/search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</a>
+    <a href="/inbox"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="m4 7 8 6 8-6"/></svg>Inbox</a>
+    <a href="/profile" aria-current="page"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profile</a>
+  </nav>
+
+  <script>
+    const $ = id => document.getElementById(id)
+    let me
+
+    async function load() {
+      me = await fetch('/api/me').then(r => r.json())
+      $('name').textContent = me.name
+      $('role').textContent = me.role
+      $('bio').textContent = me.bio
+      $('posts').textContent = me.stats.posts
+      $('followers').textContent = me.stats.followers
+      $('following').textContent = me.stats.following
+    }
+
+    $('photo').addEventListener('change', async () => {
+      const file = $('photo').files[0]
+      const form = new FormData()
+      form.append('avatar', file)
+      const res = await fetch('/api/me/avatar', { method: 'POST', body: form })
+      const body = await res.json()
+      const img = document.createElement('img')
+      img.alt = me.name
+      img.src = URL.createObjectURL(file)
+      $('avatar').replaceChildren(img)
+      $('avatar').removeAttribute('aria-hidden')
+      $('notice').textContent = 'Profile photo updated'
+      console.log('avatar uploaded', body)
+    })
+
+    load()
+  </script>
+</body>
+</html>

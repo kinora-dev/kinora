@@ -274,6 +274,9 @@ importers:
       '@kinora/core':
         specifier: workspace:*
         version: link:../core
+      '@playwright/test':
+        specifier: ^1.63.0
+        version: 1.63.0
       '@types/busboy':
         specifier: ^1.5.4
         version: 1.5.4

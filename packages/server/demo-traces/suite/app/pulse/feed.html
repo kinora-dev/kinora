@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feed · Pulse</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="appbar">
+      <div class="brand"><img src="/logo.svg" width="26" height="26" alt=""><h1>Pulse</h1></div>
+      <a class="avatar" href="/profile" aria-label="Your profile">AM</a>
+    </header>
+    <main class="feed" id="feed" aria-label="Team feed"></main>
+    <button class="btn secondary more" id="more" type="button">Load more</button>
+    <p class="end" id="end" hidden>You're all caught up</p>
+  </div>
+
+  <nav class="tabbar" aria-label="Tabs">
+    <a href="/feed" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Feed</a>
+    <a href="/search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</a>
+    <a href="/inbox"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="m4 7 8 6 8-6"/></svg>Inbox</a>
+    <a href="/profile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profile</a>
+  </nav>
+
+  <script>
+    const $ = id => document.getElementById(id)
+    let cursor = ''
+
+    function render(post) {
+      const article = document.createElement('article')
+      article.className = 'post'
+      article.innerHTML = `
+        <header><span class="avatar"></span><div><span class="who"></span><time></time></div></header>
+        <p></p>
+        <footer><span>♥ ${post.likes}</span><span>${post.replies} replies</span></footer>`
+      article.querySelector('.avatar').textContent = post.author.split(' ').map(w => w[0]).join('')
+      article.querySelector('.who').textContent = post.author
+      article.querySelector('time').textContent = post.ago
+      article.querySelector('p').textContent = post.text
+      $('feed').append(article)
+    }
+
+    async function loadPage() {
+      const page = await fetch(`/api/feed?cursor=${cursor}`).then(r => r.json())
+      page.items.forEach(render)
+      cursor = page.nextCursor
+      if (!page.items.length) {
+        console.warn('feed: empty page, treating as end of feed', { cursor })
+        $('more').hidden = true
+        $('end').hidden = false
+      }
+    }
+
+    $('more').addEventListener('click', loadPage)
+    loadPage()
+  </script>
+</body>
+</html>

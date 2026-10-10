@@ -20,12 +20,9 @@ ENV PORT=3000
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 kinora
 COPY --from=builder --chown=kinora:nodejs /prod /app
-# Demo seed (seed-market) uploads real trace.zip blobs; it resolves them at
-# ../../trace-viewer/public/fixtures relative to dist/scripts -> /app/trace-viewer/public/fixtures.
-COPY --chown=kinora:nodejs \
-  packages/trace-viewer/public/fixtures/error-trace.zip \
-  packages/trace-viewer/public/fixtures/demo.zip \
-  /app/trace-viewer/public/fixtures/
+# Demo seed (seed-market) uploads the recorded demo traces; it resolves them at
+# ../demo-traces/traces relative to dist/scripts -> /app/dist/demo-traces/traces.
+COPY --chown=kinora:nodejs packages/server/demo-traces/traces /app/dist/demo-traces/traces
 # Pre-create STORAGE_DIR owned by kinora so a fresh named volume inherits uid 1001 (else
 # Docker inits the volume root-owned and the non-root process can't write artifacts).
 RUN mkdir -p /app/.data/artifacts && chown -R kinora:nodejs /app/.data

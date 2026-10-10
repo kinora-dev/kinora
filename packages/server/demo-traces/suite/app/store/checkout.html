@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Checkout · Kinora Store</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="checkout">
+      <div class="brand">
+        <img src="/logo.svg" width="28" height="28" alt="">
+        <span>Kinora Store</span>
+      </div>
+      <ol class="steps" aria-label="Checkout steps">
+        <li class="step done"><strong>Cart</strong>Pro plan selected</li>
+        <li class="step done"><strong>Details</strong>Customer ready</li>
+        <li class="step" id="confirm-step"><strong>Confirm</strong><span>Waiting for payment</span></li>
+      </ol>
+      <h1 id="title">Checkout</h1>
+      <p id="message" class="lead">Kinora Pro for one seat, billed monthly. Change seats or cancel whenever you like.</p>
+
+      <label class="field" for="customer">Customer email</label>
+      <div class="form">
+        <input class="input" id="customer" type="email" placeholder="you@company.com" autocomplete="email">
+      </div>
+      <label class="field" for="code">Discount code</label>
+      <div class="form">
+        <input class="input" id="code" placeholder="LAUNCH20" autocomplete="off">
+        <button class="btn secondary" id="apply" type="button">Apply</button>
+      </div>
+      <p class="notice" id="code-notice"></p>
+      <button class="btn" id="complete" type="button">Complete checkout</button>
+      <p class="notice" id="receipt" role="status" style="margin-top:28px"></p>
+    </section>
+
+    <aside class="side" aria-label="Order summary">
+      <h2>Order summary</h2>
+      <div class="row"><span>Kinora Pro</span><strong>$29.00</strong></div>
+      <div class="row"><span>Team seats</span><strong>1</strong></div>
+      <div class="row"><span>Billing</span><strong>Monthly</strong></div>
+      <div class="row discount" id="discount-row" hidden><span id="discount-label"></span><strong id="discount-amount"></strong></div>
+      <div class="total"><span>Total due today</span><strong data-testid="total" id="total">$29.00</strong></div>
+      <p class="trust">Every test run keeps its trace, network log, and console output for 90 days.</p>
+    </aside>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id)
+    const money = n => `$${n.toFixed(2)}`
+    const subtotal = 29
+    let discount = 0
+
+    function renderTotal() {
+      $('total').textContent = money(subtotal)
+    }
+
+    $('apply').addEventListener('click', async () => {
+      const res = await fetch('/api/discounts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code: $('code').value.trim() }),
+      })
+      const offer = await res.json()
+      discount = subtotal * offer.percent / 100
+      $('discount-label').textContent = `Discount (${offer.code})`
+      $('discount-amount').textContent = `-${money(discount)}`
+      $('discount-row').hidden = false
+      $('code-notice').textContent = `${offer.code} applied: ${offer.percent}% off your first month`
+      console.log('discount applied', offer)
+      renderTotal()
+    })
+
+    $('complete').addEventListener('click', async () => {
+      const email = $('customer').value
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, plan: 'pro', seats: 1 }),
+      })
+      const order = await res.json()
+      console.log('order created', order.id)
+      $('title').textContent = 'Order complete'
+      $('message').textContent = 'Your team can start uploading Playwright runs right away.'
+      $('confirm-step').classList.add('done')
+      $('confirm-step').lastChild.textContent = 'Payment confirmed'
+      $('receipt').textContent = `Receipt sent to ${order.email}.`
+    })
+  </script>
+</body>
+</html>

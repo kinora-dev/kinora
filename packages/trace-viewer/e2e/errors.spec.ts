@@ -16,7 +16,7 @@ test('Errors tab reveals the failing source line', async ({ page }) => {
   await page.getByRole('button', { name: 'Reveal in source' }).click()
 
   await expect(page.getByRole('button', { name: 'Source' })).toHaveClass(/text-foreground/)
-  await expect(page.getByText('fail.spec.ts:5')).toBeVisible()
+  await expect(page.getByText('demo.spec.ts:6')).toBeVisible()
   await expect(page.getByText('Pay now')).toBeVisible()
   await expect(page.locator('.cm-targetLine')).toBeVisible()
 })

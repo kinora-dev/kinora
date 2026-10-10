@@ -58,6 +58,7 @@ pnpm migrate           # apply pending migrations (alias: `pnpm migrate latest`)
 pnpm db:create         # create the database
 pnpm db:seed           # seed demo account + data, prints login (demo@kinora.dev / password123) + an API token
 pnpm db:seed:market    # larger "marketing" seed dataset
+pnpm demo-traces:generate # re-record the demo traces seed-market attaches (runs demo-traces/suite, writes demo-traces/traces + manifest; commit them)
 pnpm db:reset:e2e      # drop + recreate `kinora_e2e` (used by web e2e)
 pnpm purge-expired-runs # retention sweep: delete runs past their retention window
 pnpm report-pending-usage # cloud: resend to Polar the usage of runs whose metering call failed

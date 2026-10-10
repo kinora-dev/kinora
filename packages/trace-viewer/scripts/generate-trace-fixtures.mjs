@@ -158,9 +158,10 @@ async function generateScenarioTraces() {
   await generateTraceFixture('network-rich-trace.zip', networkRichSpec())
   await generateTraceFixture('console-rich-trace.zip', consoleRichSpec())
   await generateTraceFixture('annotations-trace.zip', annotationsSpec())
+  await generateTraceFixture('error-trace.zip', errorSpec(), { file: 'demo.spec.ts', fails: true })
 }
 
-async function generateTraceFixture(name, spec) {
+async function generateTraceFixture(name, spec, { file = 'fixture.spec.ts', fails = false } = {}) {
   const tmpRoot = process.platform === 'win32' ? os.tmpdir() : '/tmp'
   const tmp = path.join(tmpRoot, `kinora-trace-fixture-${name.replace(/\.zip$/, '')}`)
   await rm(tmp, { force: true, recursive: true })
@@ -168,8 +169,13 @@ async function generateTraceFixture(name, spec) {
   try {
     await symlink(path.join(root, 'node_modules'), path.join(tmp, 'node_modules'), 'dir')
     await writeFile(path.join(tmp, 'playwright.config.mjs'), playwrightConfig())
-    await writeFile(path.join(tmp, 'fixture.spec.ts'), spec)
+    await writeFile(path.join(tmp, file), spec)
+    // A failing fixture makes Playwright exit 1, but it still writes the trace.
     await execFileAsync(playwrightBin, ['test', '--config', 'playwright.config.mjs'], { cwd: tmp })
+      .catch((error) => {
+        if (!fails)
+          throw error
+      })
     const trace = await findTraceZip(path.join(tmp, 'test-results'))
     const target = path.join(fixtures, name)
     await writeFile(target, await readFile(trace))
@@ -285,6 +291,18 @@ test('annotation metadata support', async ({ page }, testInfo) => {
   testInfo.annotations.push({ type: 'owner', description: 'QA platform team' })
   await page.setContent('<main><h1>Annotated trace</h1><p>Custom annotations are visible in the viewer.</p></main>')
   await expect(page.getByRole('heading', { name: 'Annotated trace' })).toBeVisible()
+})
+`
+}
+
+// Failing run: carries the `error-context` attachment behind the Errors tab "Copy prompt".
+function errorSpec() {
+  return String.raw`
+import { expect, test } from '@playwright/test'
+
+test('completes a purchase', async ({ page }) => {
+  await page.setContent('<main><h1>Checkout</h1><button>Add to cart</button></main>')
+  await expect(page.getByRole('button', { name: 'Pay now' })).toBeVisible({ timeout: 1500 })
 })
 `
 }

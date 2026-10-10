@@ -27,6 +27,7 @@
     "db:reset:e2e": "tsx scripts/reset-e2e.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:seed:market": "tsx scripts/seed-market.ts",
+    "demo-traces:generate": "tsx scripts/generate-demo-traces.ts",
     "migrate": "tsx scripts/migrate.ts",
     "purge-expired-runs": "tsx scripts/purge-expired-runs.ts",
     "report-pending-usage": "tsx scripts/report-pending-usage.ts",
@@ -57,6 +58,7 @@
   },
   "devDependencies": {
     "@kinora/core": "workspace:*",
+    "@playwright/test": "^1.63.0",
     "@types/busboy": "^1.5.4",
     "@types/node": "^26.5.1",
     "@types/nodemailer": "^8.0.1",

@@ -1,0 +1,94 @@
+[
+  {
+    "file": "tests/checkout.spec.ts",
+    "title": "completes a purchase",
+    "line": 9,
+    "column": 1,
+    "status": "passed",
+    "trace": "checkout--completes-a-purchase.zip"
+  },
+  {
+    "file": "tests/checkout.spec.ts",
+    "title": "applies a discount code",
+    "line": 17,
+    "column": 1,
+    "status": "failed",
+    "trace": "checkout--applies-a-discount-code.zip",
+    "error": {
+      "message": "Error: expect(locator).toHaveText(expected) failed\n\nLocator:  getByTestId('total')\nExpected: \"$23.20\"\nReceived: \"$29.00\"\nTimeout:  2000ms\n\nCall log:\n  - Expect \"toHaveText\" getByTestId('total') with timeout 2000ms\n  - waiting for getByTestId('total')\n    21 × locator resolved to <strong id=\"total\" data-testid=\"total\">$29.00</strong>\n       - unexpected value \"$29.00\"",
+      "stack": "at tests/checkout.spec.ts:22:43"
+    }
+  },
+  {
+    "file": "tests/feed.spec.ts",
+    "title": "loads the next page",
+    "line": 7,
+    "column": 1,
+    "status": "failed",
+    "trace": "feed--loads-the-next-page.zip",
+    "error": {
+      "message": "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  getByRole('article')\nExpected: 20\nReceived: 10\nTimeout:  2000ms\n\nCall log:\n  - Expect \"toHaveCount\" getByRole('article') with timeout 2000ms\n  - waiting for getByRole('article')\n    21 × locator resolved to 10 elements\n       - unexpected value \"10\"",
+      "stack": "at tests/feed.spec.ts:13:43"
+    }
+  },
+  {
+    "file": "tests/payments.spec.ts",
+    "title": "charges a card",
+    "line": 5,
+    "column": 1,
+    "status": "passed",
+    "trace": "payments--charges-a-card.zip"
+  },
+  {
+    "file": "tests/payments.spec.ts",
+    "title": "refunds an order",
+    "line": 15,
+    "column": 1,
+    "status": "failed",
+    "trace": "payments--refunds-an-order.zip",
+    "error": {
+      "message": "Error: expect(locator).toHaveText(expected) failed\n\nLocator:  getByRole('status')\nExpected: \"Refund issued. Funds return in 5 to 10 days.\"\nReceived: \"Refund failed: Card processor did not respond. Try again in a few minutes.\"\nTimeout:  2000ms\n\nCall log:\n  - Expect \"toHaveText\" getByRole('status') with timeout 2000ms\n  - waiting for getByRole('status')\n    9 × locator resolved to <p id=\"notice\" role=\"status\" class=\"notice bad\">Refund failed: Card processor did not respond. Tr…</p>\n      - unexpected value \"Refund failed: Card processor did not respond. Try again in a few minutes.\"",
+      "stack": "at tests/payments.spec.ts:20:42"
+    }
+  },
+  {
+    "file": "tests/profile.spec.ts",
+    "title": "uploads an avatar",
+    "line": 13,
+    "column": 1,
+    "status": "passed",
+    "trace": "profile--uploads-an-avatar.zip"
+  },
+  {
+    "file": "tests/proxy.spec.ts",
+    "title": "streams a large response",
+    "line": 5,
+    "column": 1,
+    "status": "passed",
+    "trace": "proxy--streams-a-large-response.zip"
+  },
+  {
+    "file": "tests/proxy.spec.ts",
+    "title": "retries on upstream 503",
+    "line": 13,
+    "column": 1,
+    "status": "failed",
+    "trace": "proxy--retries-on-upstream-503.zip",
+    "error": {
+      "message": "Error: expect(locator).toHaveText(expected) failed\n\nLocator:  getByTestId('response-status')\nExpected: \"200 OK\"\nReceived: \"503 Service Unavailable\"\nTimeout:  2000ms\n\nCall log:\n  - Expect \"toHaveText\" getByTestId('response-status') with timeout 2000ms\n  - waiting for getByTestId('response-status')\n    6 × locator resolved to <span class=\"pill\" id=\"response-status\" data-testid=\"response-status\"></span>\n      - unexpected value \"\"\n    15 × locator resolved to <span class=\"pill bad\" id=\"response-status\" data-testid=\"response-status\">503 Service Unavailable</span>\n       - unexpected value \"503 Service Unavailable\"",
+      "stack": "at tests/proxy.spec.ts:18:53"
+    }
+  },
+  {
+    "file": "tests/rate-limit.spec.ts",
+    "title": "throttles past the quota",
+    "line": 5,
+    "column": 1,
+    "status": "failed",
+    "trace": "rate-limit--throttles-past-the-quota.zip",
+    "error": {
+      "message": "Error: expect(locator).toHaveText(expected) failed\n\nLocator:  getByTestId('last-status')\nExpected: \"429 Too Many Requests\"\nReceived: \"200 OK\"\nTimeout:  2000ms\n\nCall log:\n  - Expect \"toHaveText\" getByTestId('last-status') with timeout 2000ms\n  - waiting for getByTestId('last-status')\n    21 × locator resolved to <span class=\"pill ok\" data-testid=\"last-status\">200 OK</span>\n       - unexpected value \"200 OK\"",
+      "stack": "at tests/rate-limit.spec.ts:10:49"
+    }
+  }
+]

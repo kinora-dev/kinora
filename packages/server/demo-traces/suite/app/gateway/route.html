@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Route · Kinora Gateway</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="/logo.svg" width="26" height="26" alt=""><span>Kinora Gateway</span></div>
+    <nav class="nav" aria-label="Main">
+      <a href="/">Overview</a>
+      <a href="/routes" aria-current="page">Routes</a>
+      <a href="/upstreams">Upstreams</a>
+      <a href="/logs">Logs</a>
+    </nav>
+    <span class="pill env">eu-west-1</span>
+  </header>
+
+  <main class="page">
+    <div class="crumbs"><a href="/routes">Routes</a> / <span id="crumb"></span></div>
+    <div class="page-head">
+      <div>
+        <h1><span class="mono" style="font-size:28px" id="name"></span><span class="pill" id="health"></span></h1>
+        <p class="sub" id="sub"></p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="stack">
+        <section class="card">
+          <div class="card-head">Test request</div>
+          <div class="card-body">
+            <div class="request">
+              <span class="method">GET</span>
+              <div>
+                <label class="field" for="path">Path</label>
+                <input class="input mono" id="path" autocomplete="off" disabled>
+              </div>
+              <button class="btn" id="send" type="button" disabled>Send request</button>
+            </div>
+            <div class="response" id="response" hidden>
+              <div class="response-line">
+                <span class="pill" data-testid="response-status" id="response-status"></span>
+                <span class="muted" id="response-meta"></span>
+              </div>
+              <div id="stream" hidden>
+                <div class="progress"><span id="progress"></span></div>
+                <p class="muted num"><span data-testid="stream-rows" id="stream-rows"></span> · <span id="stream-bytes"></span></p>
+              </div>
+              <ol class="attempts" data-testid="attempts" id="attempts" aria-label="Upstream attempts"></ol>
+            </div>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-head">Recent traffic <span class="muted" style="font-weight:400;font-size:14px">last 15 min</span></div>
+          <table class="table">
+            <thead><tr><th>Time</th><th>Request</th><th>Status</th><th style="text-align:right">Latency</th></tr></thead>
+            <tbody id="recent"></tbody>
+          </table>
+        </section>
+      </div>
+      <aside class="card">
+        <div class="card-head">Configuration</div>
+        <div class="card-body">
+          <dl class="kv">
+            <dt>Match</dt><dd class="mono" id="cfg-path"></dd>
+            <dt>Upstream</dt><dd class="mono" id="cfg-upstream"></dd>
+            <dt>Retries</dt><dd id="cfg-retries"></dd>
+            <dt>Retry on</dt><dd class="mono">502, 503, 504</dd>
+            <dt>Timeout</dt><dd id="cfg-timeout"></dd>
+            <dt>Response</dt><dd id="cfg-mode"></dd>
+          </dl>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id)
+    const reasons = { 200: 'OK', 404: 'Not Found', 502: 'Bad Gateway', 503: 'Service Unavailable', 504: 'Gateway Timeout' }
+    const statusText = code => `${code} ${reasons[code]}`
+    const routeId = location.pathname.split('/').pop()
+    let route
+
+    async function load() {
+      route = await fetch(`/api/routes/${routeId}`).then(r => r.json())
+      $('crumb').textContent = route.name
+      $('name').textContent = route.name
+      $('health').textContent = route.health === 'healthy' ? 'Healthy' : 'Degraded'
+      $('health').className = `pill ${route.health === 'healthy' ? 'ok' : 'warn'}`
+      $('sub').textContent = `${route.match} → ${route.upstream}`
+      $('cfg-path').textContent = route.match
+      $('cfg-upstream').textContent = route.upstream
+      $('cfg-retries').textContent = `${route.retries.attempts} attempts, ${route.retries.backoffMs} ms backoff`
+      $('cfg-timeout').textContent = route.timeout
+      $('cfg-mode').textContent = route.streaming ? 'Streamed' : 'Buffered'
+      $('path').value = route.samplePath
+      for (const r of route.recent) {
+        $('recent').insertAdjacentHTML('beforeend', `<tr>
+          <td class="muted">${r.at}</td><td class="mono">GET ${r.path}</td>
+          <td><span class="pill ${r.status < 400 ? 'ok' : 'bad'}">${statusText(r.status)}</span></td>
+          <td style="text-align:right">${r.ms} ms</td></tr>`)
+      }
+      $('path').disabled = false
+      $('send').disabled = false
+    }
+
+    function renderAttempts(attempts) {
+      $('attempts').replaceChildren()
+      attempts.forEach((a, i) => {
+        $('attempts').insertAdjacentHTML('beforeend', `<li><span>Attempt ${i + 1} · <span class="mono">${statusText(a.status)}</span></span><span class="muted num">${a.ms} ms</span></li>`)
+      })
+    }
+
+    async function readStream(res) {
+      const total = Number(res.headers.get('content-length'))
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let bytes = 0
+      let rows = 0
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done)
+          break
+        bytes += value.length
+        rows += (decoder.decode(value, { stream: true }).match(/\n/g) ?? []).length
+        $('progress').style.width = `${Math.round(bytes / total * 100)}%`
+        $('stream-rows').textContent = `${rows.toLocaleString('en-US')} rows`
+        $('stream-bytes').textContent = `${(bytes / 1024).toFixed(0)} KB received`
+      }
+    }
+
+    $('send').addEventListener('click', async () => {
+      const started = performance.now()
+      const res = await fetch(`/proxy${$('path').value}`)
+      $('response').hidden = false
+      $('response-status').textContent = statusText(res.status)
+      $('response-status').className = `pill ${res.ok ? 'ok' : 'bad'}`
+      if (res.ok && route.streaming) {
+        $('stream').hidden = false
+        await readStream(res)
+        renderAttempts([{ status: res.status, ms: Math.round(performance.now() - started) }])
+      }
+      else {
+        const body = await res.json()
+        renderAttempts(body.attempts)
+        if (!res.ok)
+          console.error('upstream gave up', body)
+      }
+      const attempts = Number(res.headers.get('x-gateway-attempts'))
+      $('response-meta').textContent = `${attempts} ${attempts === 1 ? 'attempt' : 'attempts'} · ${Math.round(performance.now() - started)} ms`
+    })
+
+    load()
+  </script>
+</body>
+</html>
