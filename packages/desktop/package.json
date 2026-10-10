@@ -36,7 +36,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.5.1",
     "@vitejs/plugin-vue": "^6.0.8",
-    "electron": "^42.11.3",
+    "electron": "^42.11.12",
     "electron-builder": "^26.15.3",
     "tailwindcss": "^4.3.3",
     "tsdown": "^0.22.14",
