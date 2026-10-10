@@ -28,3 +28,19 @@ test('a failed screenshot assertion shows its images as a comparison', async ({ 
   // Shown inline, so not repeated as loose attachment badges.
   await expect(page.getByRole('link', { name: 'button-primary-diff.png' })).toHaveCount(0)
 })
+
+test('the test history page loads the comparison of a failed screenshot run on demand', async ({ page }) => {
+  await page.goto('/projects/design-system/tests?unstable=false&q=button%20states%20match%20screenshots')
+  await page.getByRole('link', { name: /button states match screenshots/ }).click()
+
+  // Only the latest run has uploaded images, and nothing loads until asked.
+  const show = page.getByRole('button', { name: 'Show screenshot comparison' })
+  await expect(show).toHaveCount(1)
+  await expect(page.getByRole('figure')).toHaveCount(0)
+
+  await show.click()
+  const comparison = page.getByRole('figure', { name: 'Screenshot button-primary.png' })
+  await expect(comparison.getByRole('button', { name: 'Diff' })).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => comparison.getByRole('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(320)
+  await expect(show).toHaveCount(0)
+})

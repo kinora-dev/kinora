@@ -6,7 +6,7 @@ import { and, desc, eq, gt, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db'
 import { project, run, test, testQuarantine } from '../db/schemas/index'
-import { findProject, loadProjectHistory, loadRun, loadRunReport, loadRunSummaries, MAX_DASHBOARD_RUNS, toNormTest } from '../reports/queries'
+import { findProject, loadProjectHistory, loadRun, loadRunReport, loadRunSummaries, loadTestAttachments, MAX_DASHBOARD_RUNS, toNormTest } from '../reports/queries'
 import { orgProcedure, router } from '../trpc/index'
 
 export { MAX_DASHBOARD_RUNS }
@@ -59,6 +59,16 @@ export const dashboardRouter = router({
     .query(async ({ ctx, input }): Promise<ProjectHistory> => {
       const p = await ownedProject(ctx.organizationId, input.projectId)
       return loadProjectHistory(p)
+    }),
+
+  testAttachments: orgProcedure
+    .input(z.object({ projectId: z.string().min(1), runId: z.string().min(1), testKey: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const p = await ownedProject(ctx.organizationId, input.projectId)
+      const attachments = await loadTestAttachments(p, input.runId, input.testKey)
+      if (!attachments)
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Test not found in this run' })
+      return attachments
     }),
 
   quarantines: orgProcedure

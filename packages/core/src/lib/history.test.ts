@@ -153,3 +153,18 @@ describe('windowStats', () => {
     expect(windowStats([])).toEqual(idle)
   })
 })
+
+describe('buildTestHistories screenshots', () => {
+  it('counts the failed screenshot assertions of each run', () => {
+    const png = (name: string) => ({ name, contentType: 'image/png', hasBody: true })
+    const r1 = makeReport('r1', '2026-01-01T00:00:00Z', [makeTest({ testKey: 'K', status: 'expected' })])
+    const r2 = makeReport('r2', '2026-01-02T00:00:00Z', [makeTest({
+      testKey: 'K',
+      status: 'unexpected',
+      attachments: [png('a-expected.png'), png('a-actual.png'), png('a-diff.png'), png('b-actual.png'), png('screenshot.png')],
+    })])
+    const [h] = buildTestHistories([r1, r2])
+    expect(h.points[0]).not.toHaveProperty('screenshots')
+    expect(h.points[1].screenshots).toBe(2)
+  })
+})

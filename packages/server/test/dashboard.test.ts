@@ -186,6 +186,31 @@ describe('dashboard reads', () => {
     expect(att!.url).toContain('sig=') // resolved to a signed absolute URL at read time
   })
 
+  it('testAttachments signs the artifacts of one test in one run, and stays scoped', async () => {
+    const a = await createUser('a@test.dev')
+    const b = await createUser('b@test.dev')
+    const payload = runPayload('web-app', '@smoke', 'unexpected')
+    payload.tests[0].attachments = ['expected', 'actual', 'diff'].map(part => ({ name: `button-${part}.png`, contentType: 'image/png', hasBody: true }))
+    const { runId } = await (await ingest(await createApiKey(a.id), payload)).json() as { runId: string }
+
+    const p = await db.query.project.findFirst({ where: eq(project.slug, 'web-app') })
+    const t = await db.query.test.findFirst({ where: eq(test.runId, runId) })
+    await db.insert(artifact).values({ id: randomUUID(), projectId: p!.id, runId, testId: t!.id, name: 'button-diff.png', contentType: 'image/png', storageKey: `${p!.id}/${runId}/diff.png`, size: 4 })
+
+    const input = { projectId: 'web-app', runId, testKey: t!.testKey }
+    const attachments = await (await caller(a)).dashboard.testAttachments(input)
+    expect(attachments.map(x => x.name)).toEqual(['button-expected.png', 'button-actual.png', 'button-diff.png'])
+    expect(attachments.find(x => x.name === 'button-diff.png')?.url).toContain('sig=')
+    expect(attachments.find(x => x.name === 'button-actual.png')?.url).toBeUndefined()
+
+    // The history flags that run, without carrying any url.
+    const h = await (await caller(a)).dashboard.projectHistory({ projectId: 'web-app' })
+    expect(h.histories[0].points.at(-1)?.screenshots).toBe(1)
+
+    await expect((await caller(a)).dashboard.testAttachments({ ...input, testKey: 'nope' })).rejects.toThrow(/not found/i)
+    await expect((await caller(b)).dashboard.testAttachments(input)).rejects.toThrow()
+  })
+
   it('run throws NOT_FOUND for an unknown run on an owned project', async () => {
     const a = await createUser('a@test.dev')
     await ingest(await createApiKey(a.id))

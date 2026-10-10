@@ -1,4 +1,5 @@
 import type { RunReport, TestHistory, TestPoint } from '../contracts/kinora'
+import { splitScreenshotComparisons } from './attachments'
 import { storiesOf } from './story'
 
 export type { TestHistory, TestPoint } from '../contracts/kinora'
@@ -31,6 +32,11 @@ export function windowStats(points: Pick<TestPoint, 'status'>[], window = HEALTH
 // A test is interesting if it has ever failed or flaked.
 export function isUnstable(h: TestHistory): boolean {
   return h.failed > 0 || h.flaky > 0
+}
+
+function screenshotCount(attachments: RunReport['tests'][number]['attachments']): { screenshots?: number } {
+  const screenshots = splitScreenshotComparisons(attachments).comparisons.length
+  return screenshots ? { screenshots } : {}
 }
 
 // Build per-test timelines from a project's run reports. Reports may arrive in
@@ -84,6 +90,7 @@ export function buildTestHistories(reports: RunReport[]): TestHistory[] {
         duration: t.duration,
         retries: t.retries,
         errorMessage: t.errors[0]?.message,
+        ...screenshotCount(t.attachments),
       })
     }
   }

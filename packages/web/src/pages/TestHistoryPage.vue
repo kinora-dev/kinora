@@ -11,6 +11,7 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
 import ErrorState from '@/components/app/ErrorState.vue'
+import IncidentScreenshots from '@/components/viz/IncidentScreenshots.vue'
 import StatusTimeline from '@/components/viz/StatusTimeline.vue'
 import StoryBadge from '@/components/viz/StoryBadge.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
@@ -224,21 +225,25 @@ function toggleQuarantine() {
             </RouterLink>
           </div>
         </div>
-        <RouterLink
+        <!-- A card, not a link: the screenshot comparison inside it has its own buttons. -->
+        <div
           v-for="p in visibleIncidents"
           :key="p.runId"
-          :to="{ name: 'run', params: { projectId, runId: p.runId }, query: { q: history.title } }"
-          class="block rounded-lg border border-border/70 bg-card/80 px-4 py-3 transition-colors hover:border-border"
+          class="rounded-lg border border-border/70 bg-card/80 px-4 py-3"
         >
           <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
+            <RouterLink
+              :to="{ name: 'run', params: { projectId, runId: p.runId }, query: { q: history.title } }"
+              class="group flex items-center gap-2"
+            >
               <TestStatusBadge :status="p.status" />
-              <span class="font-mono text-xs text-muted-foreground">{{ formatDateTimeLong(p.startedAt) }}</span>
-            </div>
+              <span class="font-mono text-xs text-muted-foreground group-hover:text-foreground group-hover:underline">{{ formatDateTimeLong(p.startedAt) }}</span>
+            </RouterLink>
             <span v-if="p.retries" class="font-mono text-[11px] text-flaky">{{ p.retries }} retry</span>
           </div>
           <pre v-if="p.errorMessage" class="mt-2 overflow-x-auto rounded-md bg-fail/5 p-3 font-mono text-[11px] leading-relaxed text-fail">{{ stripAnsi(p.errorMessage) }}</pre>
-        </RouterLink>
+          <IncidentScreenshots v-if="p.screenshots" :project-id="projectId" :run-id="p.runId" :test-key="history.testKey" :count="p.screenshots" />
+        </div>
 
         <div v-if="!incidents.length" class="py-8 text-center font-mono text-sm text-pass">
           No failures recorded. Rock solid.

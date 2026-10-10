@@ -116,6 +116,19 @@ export async function loadRunReport(p: ProjectRow, r: RunRow): Promise<RunReport
   return runReport(p.slug, r, tests, urlsByTest, parseCodeowners(p.codeownersText))
 }
 
+// One test's attachments in one run, with signed urls: what the test history page loads when
+// someone opens a failed screenshot assertion. undefined = no such test in that run of the project.
+export async function loadTestAttachments(p: ProjectRow, runId: string, testKey: string): Promise<NormTest['attachments'] | undefined> {
+  const t = await db.query.test.findFirst({ where: and(eq(test.projectId, p.id), eq(test.runId, runId), eq(test.testKey, testKey)) })
+  if (!t)
+    return undefined
+  const arts = await db.query.artifact.findMany({ where: eq(artifact.testId, t.id), orderBy: asc(artifact.createdAt) })
+  const urls = new Map<string, string[]>()
+  for (const a of arts)
+    urls.set(a.name, [...(urls.get(a.name) ?? []), await storage.url(a.storageKey)])
+  return toNormTest(t, urls).attachments
+}
+
 // Newest runs only, then just those runs' tests, to bound memory on long-lived projects.
 export async function loadProjectHistory(p: ProjectRow): Promise<ProjectHistory> {
   const runs = await db.query.run.findMany({ where: eq(run.projectId, p.id), orderBy: desc(run.startedAt), limit: MAX_DASHBOARD_RUNS })
