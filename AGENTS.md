@@ -40,7 +40,7 @@ pnpm probe                        # headless self-check, exits 0/1 (VIEWER; HOME
 pnpm dist:mac                     # local package (dmg + zip). Signed+notarized releases come from the Release CI workflow
 ```
 
-CI (`.github/workflows/ci.yml`) is three jobs: `check` (lint -> typecheck -> build -> test), `integration_tests` (Postgres service + `@kinora/server test:integration`), and `e2e_tests` (Postgres service; `pnpm test:e2e` self-boots the stack on dedicated ports and resets `kinora_e2e` via `db:reset:e2e`, runs both the viewer and web suites). Build is in CI because cross-package types resolve through each lib's build output for published packages.
+CI (`.github/workflows/ci.yml`) runs `check` (lint -> typecheck -> build -> test), `integration_tests` (Postgres service + `@kinora/server test:integration`), `e2e_tests` (Postgres service; `pnpm --filter '!@kinora/ui' test:e2e` self-boots the stack on dedicated ports and resets `kinora_e2e` via `db:reset:e2e`, runs the viewer and web suites), and `component_tests` (`@kinora/ui` component + visual tests, no database, in parallel with `e2e_tests`: run in the same job, pnpm's dependency order would put them first and alone), plus the standalone `website` and `docs` builds. Build is in CI because cross-package types resolve through each lib's build output for published packages.
 
 Single test / package-scoped:
 
