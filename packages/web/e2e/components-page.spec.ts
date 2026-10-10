@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { login } from './helpers'
+import { login, openStory } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await login(page)
@@ -18,6 +18,8 @@ test('components page groups seeded stories by component', async ({ page }) => {
   // `Dialog/Default` and `components/Dialog/Default` are one story with two tests.
   const dialog = page.getByRole('region', { name: 'Dialog' })
   await expect(dialog.getByText('1 story')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Default, 2 tests' })).toBeVisible()
+  await openStory(dialog, 'Default')
   await expect(dialog.getByRole('link', { name: /closes on escape/ })).toBeVisible()
   await dialog.getByRole('link', { name: /traps focus/ }).click()
   await expect(page).toHaveURL(/\/projects\/design-system\/test\?key=/)
@@ -65,8 +67,26 @@ test('a story badge on a run links to that story on the components page', async 
 
 test('the test history page links to the stories the test mounts', async ({ page }) => {
   await page.goto('/projects/design-system/components?q=Loading')
+  await openStory(page.getByRole('region', { name: 'Button' }), 'Loading')
   await page.getByRole('link', { name: /button states match screenshots/ }).click()
 
   for (const story of ['Button / Primary', 'Button / Disabled', 'Button / Loading'])
     await expect(page.getByRole('link', { name: story })).toBeVisible()
+})
+
+test('folds the tests of a passing story until it is opened', async ({ page }) => {
+  // Seeded statuses are random: fold it first if it happens to be failing now.
+  await page.goto('/projects/design-system/components?q=Primary')
+  const button = page.getByRole('region', { name: 'Button' })
+  const toggle = button.getByRole('button', { name: /^Primary, \d+ tests?$/ })
+  const link = button.getByRole('link', { name: /primary button submits/ })
+
+  if (await toggle.getAttribute('aria-expanded') === 'true')
+    await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(link).toHaveCount(0)
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(link).toBeVisible()
 })

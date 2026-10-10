@@ -6,9 +6,9 @@ import { Button } from '@kinora/ui/button'
 import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
 import { StatBlock } from '@kinora/ui/stat-block'
-import { ArrowLeft, ChevronRight } from '@lucide/vue'
+import { ArrowLeft, ChevronDown, ChevronRight } from '@lucide/vue'
 import { useRouteQuery } from '@vueuse/router'
-import { computed } from 'vue'
+import { computed, reactive } from 'vue'
 import { RouterLink } from 'vue-router'
 import CopyLinkButton from '@/components/app/CopyLinkButton.vue'
 import ErrorState from '@/components/app/ErrorState.vue'
@@ -46,6 +46,21 @@ const unstableOnly = useRouteQuery<string, boolean>('unstable', 'false', {
     set: v => (v ? 'true' : 'false'),
   },
 })
+
+// Tests sit folded under their story so a large catalog stays scannable. A story failing or
+// flaky right now opens by default: that is where you would look first. The rest wait for a click.
+const toggled = reactive(new Set<string>())
+function isOpen(s: StoryHealth): boolean {
+  const openByDefault = s.lastStatus === 'unexpected' || s.lastStatus === 'flaky'
+  return openByDefault !== toggled.has(s.id)
+}
+function toggle(s: StoryHealth): void {
+  if (!toggled.delete(s.id))
+    toggled.add(s.id)
+}
+function testsLabel(s: StoryHealth): string {
+  return `${s.tests.length} ${s.tests.length === 1 ? 'test' : 'tests'}`
+}
 
 function isUnstable(s: StoryHealth): boolean {
   return unstableIds.value.has(s.id)
@@ -165,27 +180,39 @@ const rows = computed<ComponentHealth[]>(() => {
               class="flex flex-col gap-2 border-b border-border/40 px-4 py-3 last:border-b-0"
             >
               <div class="grid grid-cols-[1fr_auto] items-center gap-4">
-                <div class="flex min-w-0 items-center gap-2">
+                <!-- The timeline's cells are links, so they stay outside the toggle button. -->
+                <button
+                  type="button"
+                  class="group flex min-w-0 items-center gap-2 text-left"
+                  :aria-expanded="isOpen(s)"
+                  :aria-controls="`tests-${s.id}`"
+                  :aria-label="`${s.name}, ${testsLabel(s)}`"
+                  @click="toggle(s)"
+                >
+                  <ChevronDown class="size-3.5 shrink-0 text-muted-foreground transition-transform" :class="isOpen(s) ? '' : '-rotate-90'" />
                   <TestStatusBadge :status="s.lastStatus" />
-                  <span class="truncate text-sm font-medium">{{ s.name }}</span>
-                </div>
+                  <span class="truncate text-sm font-medium group-hover:underline">{{ s.name }}</span>
+                  <span class="shrink-0 font-mono text-[10px] text-muted-foreground">{{ testsLabel(s) }}</span>
+                </button>
                 <div class="hidden w-40 sm:block">
                   <StatusTimeline :points="s.points" :project-id="projectId" :height="18" :slots="WINDOW" />
                 </div>
               </div>
-              <RouterLink
-                v-for="t in s.tests"
-                :key="t.testKey"
-                :to="{ name: 'test', params: { projectId }, query: { key: t.testKey } }"
-                class="group flex items-center gap-2 font-mono text-[11px] text-muted-foreground hover:text-foreground"
-              >
-                <TestStatusBadge :status="t.lastStatus" />
-                <span class="truncate">{{ testLabel(t) }} · {{ t.file }}</span>
-                <Badge v-if="isQuarantined(t.testKey)" class="border-flaky/30 bg-flaky/10 text-[10px] text-flaky">
-                  Quarantined
-                </Badge>
-                <ChevronRight class="size-3 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5" />
-              </RouterLink>
+              <div v-if="isOpen(s)" :id="`tests-${s.id}`" class="flex flex-col gap-2 pl-5">
+                <RouterLink
+                  v-for="t in s.tests"
+                  :key="t.testKey"
+                  :to="{ name: 'test', params: { projectId }, query: { key: t.testKey } }"
+                  class="group flex items-center gap-2 font-mono text-[11px] text-muted-foreground hover:text-foreground"
+                >
+                  <TestStatusBadge :status="t.lastStatus" />
+                  <span class="truncate">{{ testLabel(t) }} · {{ t.file }}</span>
+                  <Badge v-if="isQuarantined(t.testKey)" class="border-flaky/30 bg-flaky/10 text-[10px] text-flaky">
+                    Quarantined
+                  </Badge>
+                  <ChevronRight class="size-3 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5" />
+                </RouterLink>
+              </div>
             </div>
           </section>
 

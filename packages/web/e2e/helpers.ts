@@ -1,5 +1,5 @@
 import type { AppRouter } from '@kinora/server'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import type { inferRouterOutputs } from '@trpc/server'
 import process from 'node:process'
 import { expect } from '@playwright/test'
@@ -56,6 +56,14 @@ async function query<T>(page: Page, path: string, input: unknown): Promise<T | u
   const res = await page.request.get(url)
   const json = await res.json() as [{ result?: { data?: T } }]
   return json[0]?.result?.data
+}
+
+// Components page: a story's tests are folded unless it is failing or flaky now. Opens it if needed.
+export async function openStory(scope: Locator, story: string): Promise<void> {
+  const toggle = scope.getByRole('button', { name: new RegExp(`^${story}, \\d+ tests?$`) })
+  if (await toggle.getAttribute('aria-expanded') === 'false')
+    await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
 }
 
 // Mint an ingest token for the logged-in user's active workspace (plaintext is returned once).
