@@ -1,6 +1,6 @@
 name: Playwright Update
 
-# Keeps the vendored trace viewer on the latest Playwright without depending on Renovate.
+# The only thing that updates Playwright in this repo (Renovate is told to leave it alone).
 # A new Playwright can change the trace format, and the viewer refuses traces newer than the
 # engine it vendors: every day we lag, users on the latest Playwright cannot open their traces.
 # Each day this checks npm, and when a newer @playwright/test is out it opens a pull request
@@ -51,7 +51,7 @@ jobs:
           if [ "$current" = "$latest" ]; then
             echo "Already on Playwright $latest."
             echo "update=false" >> "$GITHUB_OUTPUT"
-          elif [ -n "$(git ls-remote --heads origin "$branch")" ] || [ -n "$(gh pr list --state open --head renovate/playwright-monorepo --json number --jq '.[].number')" ]; then
+          elif [ -n "$(git ls-remote --heads origin "$branch")" ]; then
             echo "A pull request for Playwright $latest is already open."
             echo "update=false" >> "$GITHUB_OUTPUT"
           else
