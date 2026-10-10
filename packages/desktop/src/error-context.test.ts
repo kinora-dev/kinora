@@ -17,6 +17,15 @@ describe('extractErrorContext', () => {
     expect(md).not.toContain('# Instructions')
   })
 
+  it('reads the sha1-addressed resource of pre-v9 traces', () => {
+    const after = { type: 'after', attachments: [{ name: 'error-context', contentType: 'text/markdown', sha1: 'abc' }] }
+    const zip = zipSync({
+      'test.trace': new TextEncoder().encode(`${JSON.stringify(after)}\n`),
+      'resources/abc': new TextEncoder().encode('# Instructions\n- x\n\n# Test info\n- Name: t\n'),
+    })
+    expect(extractErrorContext(zip)).toBe('# Test info\n- Name: t')
+  })
+
   it('returns null when the trace has no error-context', () => {
     const zip = zipSync({ 'test.trace': new TextEncoder().encode('{"type":"context-options"}\n') })
     expect(extractErrorContext(zip)).toBeNull()

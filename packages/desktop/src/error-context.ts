@@ -4,7 +4,7 @@ import { unzipSync } from 'fflate'
 // Playwright attaches an `error-context` markdown blob (test info + error + code frame +
 // ARIA page snapshot) to failing tests, shaped for an LLM. It isn't hosted as its own
 // artifact, but it travels inside the trace.zip: an `after` event in a `*.trace` JSONL
-// names it with a sha1 that points at `resources/<sha1>`.
+// names its zip entry: `file` (trace format v9+) or a `sha1` pointing at `resources/<sha1>` (older traces).
 
 // The trace itself stays small; the cap only guards against pathological zips.
 const MAX_ZIP_BYTES = 200 * 1024 * 1024
@@ -18,14 +18,14 @@ export function extractErrorContext(zip: Uint8Array): string | null {
   catch {
     return null
   }
-  const sha1 = findErrorContextSha1(files)
-  if (!sha1)
+  const entry = findErrorContextEntry(files)
+  if (!entry)
     return null
-  const resource = files[`resources/${sha1}`]
+  const resource = files[entry]
   return resource ? stripInstructions(Buffer.from(resource).toString('utf8')) : null
 }
 
-function findErrorContextSha1(files: Record<string, Uint8Array>): string | null {
+function findErrorContextEntry(files: Record<string, Uint8Array>): string | null {
   for (const [name, data] of Object.entries(files)) {
     if (!name.endsWith('.trace'))
       continue
@@ -34,9 +34,11 @@ function findErrorContextSha1(files: Record<string, Uint8Array>): string | null 
         continue
       try {
         const evt = JSON.parse(line)
-        const att = (evt.attachments as { name: string, sha1?: string }[] | undefined)?.find(a => a.name === 'error-context')
+        const att = (evt.attachments as { name: string, file?: string, sha1?: string }[] | undefined)?.find(a => a.name === 'error-context')
+        if (att?.file)
+          return att.file
         if (att?.sha1)
-          return att.sha1
+          return `resources/${att.sha1}`
       }
       catch {
         // Malformed line: keep scanning.
