@@ -14,6 +14,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 concurrency:
   group: playwright-update
@@ -27,6 +28,10 @@ jobs:
       # A personal token, not the default one: pull requests opened with the default token do
       # not trigger CI, and this update must not merge unchecked.
       GH_TOKEN: ${{ secrets.RENOVATE_AUTOSYNC_TOKEN || github.token }}
+      # Who to tell. GitHub does not notify people of what their own token does, and not everyone
+      # watches the repo, so the pull request and the alert issue reach this user through a mention
+      # or an assignment made by the workflow's own bot token.
+      NOTIFY_USER: joris-gallot
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -86,6 +91,28 @@ jobs:
           git add package.json packages/*/package.json pnpm-lock.yaml packages/trace-viewer/README.md packages/trace-viewer/src/core packages/trace-viewer/src/sw
           git commit -m "chore(deps): update playwright to ${{ steps.version.outputs.latest }} and sync the vendored trace viewer"
           git push --set-upstream origin "${{ steps.version.outputs.branch }}"
-          gh pr create \
+          url=$(gh pr create \
             --title "chore(deps): update playwright to ${{ steps.version.outputs.latest }}" \
-            --body "Playwright ${{ steps.version.outputs.current }} -> ${{ steps.version.outputs.latest }}, with the vendored trace viewer engine re-synced. Opened by the Playwright Update workflow. Until this is merged and released, traces recorded with Playwright ${{ steps.version.outputs.latest }} may not open in kinora."
+            --body "Playwright ${{ steps.version.outputs.current }} -> ${{ steps.version.outputs.latest }}, with the vendored trace viewer engine re-synced. Opened by the Playwright Update workflow. Until this is merged and released, traces recorded with Playwright ${{ steps.version.outputs.latest }} may not open in kinora.")
+          GH_TOKEN="${{ github.token }}" gh pr comment "$url" --body "@$NOTIFY_USER Playwright ${{ steps.version.outputs.latest }} is out. Merge and release once CI is green."
+
+      # No pull request means nobody is told. Open (or refresh) an issue so a newer Playwright that
+      # could not be applied automatically never goes unnoticed.
+      - name: Report a failed update
+        if: failure() && steps.version.outputs.update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LATEST: ${{ steps.version.outputs.latest }}
+          CURRENT: ${{ steps.version.outputs.current }}
+        run: |
+          title="Playwright $LATEST is out and the automatic update failed"
+          body="The Playwright Update workflow could not bump Playwright $CURRENT -> $LATEST: $RUN_URL
+
+          Until kinora ships this update, traces recorded with Playwright $LATEST may not open in the trace viewer. Bump by hand with the steps in \`packages/trace-viewer/README.md\`, then close this issue."
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "@$NOTIFY_USER still failing: $RUN_URL"
+          else
+            gh issue create --title "$title" --body "$body" --assignee "$NOTIFY_USER"
+          fi
