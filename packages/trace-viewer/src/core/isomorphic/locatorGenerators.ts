@@ -166,16 +166,14 @@ function innerAsLocators(factory: LocatorFactory, parsed: ParsedSelector, isFram
       const attrSelector = parseAttributeSelector(part.body as string, true);
       const options: LocatorOptions = { attrs: [] };
       for (const attr of attrSelector.attributes) {
-        if (attr.name === 'name') {
-          if (options.exact !== undefined && options.exact !== attr.caseSensitive)
-            throw new Error(`Conflicting exactness in internal:role selector: ${stringifySelector({ parts: [part] })}`);
-          options.exact = attr.caseSensitive;
-          options.name = attr.value;
-        } else if (attr.name === 'description') {
-          if (options.exact !== undefined && options.exact !== attr.caseSensitive)
-            throw new Error(`Conflicting exactness in internal:role selector: ${stringifySelector({ parts: [part] })}`);
-          options.exact = attr.caseSensitive;
-          options.description = attr.value;
+        if (attr.name === 'name' || attr.name === 'description') {
+          // Only string values carry exactness, regular expressions are used as is.
+          if (typeof attr.value === 'string') {
+            if (options.exact !== undefined && options.exact !== attr.caseSensitive)
+              throw new Error(`Conflicting exactness in internal:role selector: ${stringifySelector({ parts: [part] })}`);
+            options.exact = attr.caseSensitive;
+          }
+          options[attr.name] = attr.value;
         } else {
           if (attr.name === 'level' && typeof attr.value === 'string')
             attr.value = +attr.value;
@@ -293,7 +291,7 @@ function combineTokens(factory: LocatorFactory, tokens: string[][], maxOutputSiz
 
 function detectExact(text: string): { exact?: boolean, text: string | RegExp } {
   let exact = false;
-  const match = text.match(/^\/(.*)\/([igm]*)$/);
+  const match = text.match(/^\/(.*)\/([dgimsuvy]*)$/);
   if (match)
     return { text: new RegExp(match[1], match[2]) };
   if (text.endsWith('"')) {
@@ -495,7 +493,7 @@ export class PythonLocatorFactory implements LocatorFactory {
   }
 
   private regexToString(body: RegExp) {
-    const suffix = body.flags.includes('i') ? ', re.IGNORECASE' : '';
+    const suffix = regexFlagsSuffix(body, 're', regexFlagNames.python);
     return `re.compile(r"${normalizeEscapedRegexQuotes(body.source).replace(/\\\//, '/').replace(/"/g, '\\"')}"${suffix})`;
   }
 
@@ -607,7 +605,7 @@ export class JavaLocatorFactory implements LocatorFactory {
   }
 
   private regexToString(body: RegExp) {
-    const suffix = body.flags.includes('i') ? ', Pattern.CASE_INSENSITIVE' : '';
+    const suffix = regexFlagsSuffix(body, 'Pattern', regexFlagNames.java);
     return `Pattern.compile(${this.quote(normalizeEscapedRegexQuotes(body.source))}${suffix})`;
   }
 
@@ -713,7 +711,7 @@ export class CSharpLocatorFactory implements LocatorFactory {
   }
 
   private regexToString(body: RegExp): string {
-    const suffix = body.flags.includes('i') ? ', RegexOptions.IgnoreCase' : '';
+    const suffix = regexFlagsSuffix(body, 'RegexOptions', regexFlagNames.csharp);
     return `new Regex(${this.quote(normalizeEscapedRegexQuotes(body.source))}${suffix})`;
   }
 
@@ -777,6 +775,19 @@ const generators: Record<Language, new (preferredQuote?: Quote) => LocatorFactor
   csharp: CSharpLocatorFactory,
   jsonl: JsonlLocatorFactory,
 };
+
+// Regular expression flags supported by the Python, Java and C# locators.
+export const regexFlagNames = {
+  python: { i: 'IGNORECASE', m: 'MULTILINE', s: 'DOTALL' },
+  java: { i: 'CASE_INSENSITIVE', m: 'MULTILINE', s: 'DOTALL' },
+  csharp: { i: 'IgnoreCase', m: 'Multiline', s: 'Singleline' },
+};
+
+// E.g. `, re.IGNORECASE | re.MULTILINE`.
+function regexFlagsSuffix(body: RegExp, flagsEnum: string, names: Record<string, string>): string {
+  const flags = [...body.flags].filter(flag => flag in names).map(flag => `${flagsEnum}.${names[flag]}`);
+  return flags.length ? `, ${flags.join(' | ')}` : '';
+}
 
 function isRegExp(obj: any): obj is RegExp {
   return obj instanceof RegExp;

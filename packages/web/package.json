@@ -40,7 +40,7 @@
   "devDependencies": {
     "@julr/vite-plugin-validate-env": "^2.2.2",
     "@kinora/server": "workspace:*",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "@sentry/vite-plugin": "^5.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@trpc/server": "^11.18.0",

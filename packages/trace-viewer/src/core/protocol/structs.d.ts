@@ -91,12 +91,11 @@ export type Metadata = {
   },
   title?: string,
   internal?: boolean,
-  stepId?: string,
   timeout?: number,
 };
 
 export type ClientSideCallMetadata = {
-  id: number,
+  id: string,
   stack?: StackFrame[],
 };
 
@@ -314,6 +313,7 @@ export type SerializedError = {
     message: string,
     name: string,
     stack?: string,
+    code?: string,
   },
   value?: SerializedValue,
 };
@@ -331,6 +331,16 @@ export type VirtualCredential = {
   userHandle: string,
   privateKey: string,
   publicKey: string,
+  signCount: number,
+};
+
+export type SetVirtualCredential = {
+  id: string,
+  rpId: string,
+  userHandle: string,
+  privateKey: string,
+  publicKey: string,
+  signCount?: number,
 };
 
 export type Point = {

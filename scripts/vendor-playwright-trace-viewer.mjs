@@ -75,9 +75,21 @@ const generated = [
 
 const stale = []
 
-for (const item of downloads) {
+// The lists above are the entry points. Upstream regularly splits code into new files (1.64's
+// service worker started importing `@isomorphic/istanbulCoverage`), so follow the imports of
+// everything downloaded and fetch whatever is missing, instead of trusting a fixed list.
+const queue = [...downloads]
+const seen = new Set(queue.map(item => item.upstream))
+for (let item = queue.shift(); item; item = queue.shift()) {
   const content = await fetchText(`${baseUrl}/${item.upstream}`)
   await handleFile(item.local, content)
+  for (const upstream of importedFiles(item.upstream, content)) {
+    if (seen.has(upstream))
+      continue
+    seen.add(upstream)
+    queue.push({ upstream, local: localPathOf(upstream) })
+    console.log(`  + ${upstream} (imported by ${item.upstream})`)
+  }
 }
 
 for (const item of generated)
@@ -97,6 +109,32 @@ if (mode === 'check') {
 }
 else {
   console.log(`Synced Playwright trace viewer vendored code from ${tag}.`)
+}
+
+// Upstream .ts files a vendored file imports, limited to the two trees we vendor. Other aliases
+// (`@protocol`, `@trace`, npm packages) are covered by the explicit downloads and generated shims.
+function importedFiles(upstream, content) {
+  const files = []
+  for (const [, specifier] of content.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)) {
+    let target
+    if (specifier.startsWith('@isomorphic/'))
+      target = `packages/isomorphic/${specifier.slice('@isomorphic/'.length)}`
+    else if (specifier.startsWith('.'))
+      target = path.posix.join(path.posix.dirname(upstream), specifier)
+    if (target && localPathOf(target))
+      files.push(/\.(?:ts|d\.ts)$/.test(target) ? target : `${target}.ts`)
+  }
+  return files
+}
+
+function localPathOf(upstream) {
+  const isomorphic = 'packages/isomorphic/'
+  const sw = 'packages/trace-viewer/src/sw/'
+  if (upstream.startsWith(isomorphic))
+    return `packages/trace-viewer/src/core/isomorphic/${upstream.slice(isomorphic.length)}`
+  if (upstream.startsWith(sw))
+    return `packages/trace-viewer/src/sw/${upstream.slice(sw.length)}`
+  return undefined
 }
 
 async function handleFile(local, content) {

@@ -31,7 +31,9 @@ test('renders an ARIA snapshot when present', async ({ page }) => {
   await page.getByRole('button', { name: 'ARIA' }).click()
 
   await expect(page.getByText('ARIA snapshot', { exact: true })).toBeVisible()
-  await expect(page.getByText('call@')).toBeVisible()
+  // The id of the call the snapshot belongs to. Its prefix depends on the Playwright version
+  // (`call@57` up to 1.63, a per-run prefix like `cdwd@57` since), so only its shape is checked.
+  await expect(page.getByText(/^[\w:]+@\d+$/)).toBeVisible()
   await expect(page.getByText('resources/aria-checkout.yml')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Copy ARIA' })).toBeVisible()
   await expect(page.getByText('- document:')).toBeVisible()

@@ -56,6 +56,12 @@ jobs:
         if: steps.playwright.outputs.changed == 'true'
         run: pnpm --filter @kinora/trace-viewer typecheck
 
+      # Bundles the vendored service worker: the step that fails when upstream starts importing a
+      # file the sync did not fetch (typecheck does not cover src/sw).
+      - name: Build trace viewer
+        if: steps.playwright.outputs.changed == 'true'
+        run: pnpm --filter @kinora/trace-viewer build
+
       - name: Commit vendored sync
         if: steps.playwright.outputs.changed == 'true'
         run: |

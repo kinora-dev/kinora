@@ -108,6 +108,10 @@ export class SnapshotRenderer {
         // crafted trace file could include them to achieve XSS.
         if (name.toUpperCase() === 'SCRIPT')
           return;
+        // Reject names that would emit extra attributes (space, =, <, >, /).
+        // Allow Unicode custom elements such as math-α.
+        if (/[\s=<>\/]/.test(name))
+          return;
         // Element node.
         // Note that <noscript> will not be rendered by default in the trace viewer, because
         // JS is enabled. So rename it to <x-noscript>.
@@ -316,6 +320,8 @@ function generateNonce(): string {
 }
 
 function snapshotScript(viewport: ViewportSize, ...targetIds: (string | undefined)[]) {
+  // Stringified into the snapshot, keep it free of counters.
+  /* istanbul ignore next */
   function applyPlaywrightAttributes(blankSnapshotUrl: string, viewport: ViewportSize, ...targetIds: (string | undefined)[]) {
     // eslint-disable-next-line no-restricted-globals
     const win = window;

@@ -1,0 +1,91 @@
+name: Playwright Update
+
+# Keeps the vendored trace viewer on the latest Playwright without depending on Renovate.
+# A new Playwright can change the trace format, and the viewer refuses traces newer than the
+# engine it vendors: every day we lag, users on the latest Playwright cannot open their traces.
+# Each day this checks npm, and when a newer @playwright/test is out it opens a pull request
+# with the bump and the re-vendored engine. CI on that pull request (including the viewer's
+# live-trace spec) decides whether it is safe to merge.
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: playwright-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # A personal token, not the default one: pull requests opened with the default token do
+      # not trigger CI, and this update must not merge unchecked.
+      GH_TOKEN: ${{ secrets.RENOVATE_AUTOSYNC_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          token: ${{ secrets.RENOVATE_AUTOSYNC_TOKEN || github.token }}
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Compare with the latest Playwright
+        id: version
+        run: |
+          current=$(node -p "require('./packages/trace-viewer/package.json').devDependencies['@playwright/test'].replace(/^[^0-9]*/, '')")
+          latest=$(npm view @playwright/test version)
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          branch="chore/playwright-$latest"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          if [ "$current" = "$latest" ]; then
+            echo "Already on Playwright $latest."
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$(git ls-remote --heads origin "$branch")" ] || [ -n "$(gh pr list --state open --head renovate/playwright-monorepo --json number --jq '.[].number')" ]; then
+            echo "A pull request for Playwright $latest is already open."
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Playwright $current -> $latest"
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump @playwright/test
+        if: steps.version.outputs.update == 'true'
+        run: |
+          sed -i -E 's/("@playwright\/test": ")\^[0-9]+\.[0-9]+\.[0-9]+"/\1^${{ steps.version.outputs.latest }}"/' package.json packages/*/package.json
+          pnpm install --no-frozen-lockfile
+
+      - name: Sync vendored Playwright trace viewer
+        if: steps.version.outputs.update == 'true'
+        run: pnpm vendor:playwright-trace
+
+      # Typecheck covers kinora's UI against the new engine; the build bundles the vendored
+      # service worker, which is what breaks when upstream adds a file the sync did not fetch.
+      - name: Typecheck and build the trace viewer
+        if: steps.version.outputs.update == 'true'
+        run: |
+          pnpm --filter @kinora/trace-viewer typecheck
+          pnpm --filter @kinora/trace-viewer build
+
+      - name: Open the pull request
+        if: steps.version.outputs.update == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${{ steps.version.outputs.branch }}"
+          git add package.json packages/*/package.json pnpm-lock.yaml packages/trace-viewer/README.md packages/trace-viewer/src/core packages/trace-viewer/src/sw
+          git commit -m "chore(deps): update playwright to ${{ steps.version.outputs.latest }} and sync the vendored trace viewer"
+          git push --set-upstream origin "${{ steps.version.outputs.branch }}"
+          gh pr create \
+            --title "chore(deps): update playwright to ${{ steps.version.outputs.latest }}" \
+            --body "Playwright ${{ steps.version.outputs.current }} -> ${{ steps.version.outputs.latest }}, with the vendored trace viewer engine re-synced. Opened by the Playwright Update workflow. Until this is merged and released, traces recorded with Playwright ${{ steps.version.outputs.latest }} may not open in kinora."

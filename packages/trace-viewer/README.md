@@ -6,7 +6,7 @@ plus kinora's own UI on top.
 
 ## Layout
 
-- `src/core/` - **vendored** engine, synced from Playwright `v1.63.0`.
+- `src/core/` - **vendored** engine, synced from Playwright `v1.64.0`.
   - `isomorphic/` - snapshot engine + trace model + helpers (`packages/isomorphic` upstream)
   - `trace/` - local compatibility type re-exports for kinora imports
   - `protocol/channels.ts` - minimal hand-written subset of `@protocol/channels`

@@ -58,7 +58,7 @@
   },
   "devDependencies": {
     "@kinora/core": "workspace:*",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "@types/busboy": "^1.5.4",
     "@types/node": "^26.5.1",
     "@types/nodemailer": "^8.0.1",

@@ -19,6 +19,12 @@
       "automerge": true
     },
     {
+      "description": "Playwright first: the trace viewer refuses traces newer than the engine it vendors, so a late bump breaks trace debugging for users on the latest Playwright. The Playwright Update workflow is the safety net when this is rate-limited",
+      "groupName": "playwright",
+      "matchSourceUrls": ["https://github.com/microsoft/playwright"],
+      "prPriority": 10
+    },
+    {
       "description": "better-auth packages pin better-call to an exact version, so bumping one alone splits @better-auth/core into two pnpm instances and every plugin endpoint drops out of InferAPI",
       "groupName": "better-auth",
       "matchSourceUrls": ["https://github.com/better-auth/better-auth"]
