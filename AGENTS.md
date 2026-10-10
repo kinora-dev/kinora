@@ -156,6 +156,10 @@ Two per-package Dockerfiles, both built from the **repo root** (workspace contex
 
 `docs/` is the public documentation (https://docs.kinora.dev), also a standalone **Astro** site with its own pnpm workspace + lockfile + `Dockerfile`, **not** part of the root workspace. Pages are markdown in `docs/src/content/docs/` (`guides/`, `self-hosting/`, `reference/`); the sidebar is hand-maintained in `docs/src/lib/nav.ts`, so a new page needs an entry there. Build from `docs/` with `pnpm build` (astro + pagefind). Update the matching page when a change affects user-facing behavior of the reporter, CLI, MCP, desktop app, or self-host config.
 
+### Dependency updates
+
+Renovate runs **self-hosted** from `.github/workflows/renovate.yml` (every 6 hours, also manual with a dry-run option), reading `renovate.json`. The Mend-hosted Renovate app is disabled for this repo: it ran out of memory regenerating the root pnpm lockfile and silently stopped for two months. Do not re-enable it alongside the workflow, both would push to the same `renovate/*` branches. Playwright is excluded from Renovate and owned by the Playwright Update workflow (see Trace viewer).
+
 ## Required workflow
 
 - Add or update tests when the change has behavior worth protecting. Skip tests for purely cosmetic, mechanical, or documentation-only changes when a test would only mirror implementation details.

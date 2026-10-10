@@ -27,7 +27,7 @@ jobs:
     env:
       # A personal token, not the default one: pull requests opened with the default token do
       # not trigger CI, and this update must not merge unchecked.
-      GH_TOKEN: ${{ secrets.RENOVATE_AUTOSYNC_TOKEN || github.token }}
+      GH_TOKEN: ${{ secrets.AUTOMATION_TOKEN || github.token }}
       # Who to tell. GitHub does not notify people of what their own token does, and not everyone
       # watches the repo, so the pull request and the alert issue reach this user through a mention
       # or an assignment made by the workflow's own bot token.
@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          token: ${{ secrets.RENOVATE_AUTOSYNC_TOKEN || github.token }}
+          token: ${{ secrets.AUTOMATION_TOKEN || github.token }}
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 

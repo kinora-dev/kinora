@@ -1,0 +1,59 @@
+name: Renovate
+
+# Self-hosted Renovate. The Mend-hosted app runs out of memory on this repo (its job is killed
+# while pnpm regenerates the root workspace lockfile) and went two months without finishing a
+# single run. A GitHub runner has far more memory, and the logs are in the Actions tab.
+# Reads the same renovate.json. The Mend app must stay disabled for this repo, or both would
+# push to the same `renovate/*` branches.
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: Renovate log level
+        default: info
+        type: choice
+        options: [info, debug]
+      dryRun:
+        description: Look up updates without opening or changing pull requests
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      # A personal token (or GitHub App token) with repo + workflow access: Renovate opens pull
+      # requests with it so CI runs on them, and it updates workflow files.
+      - name: Renovate
+        if: ${{ !inputs.dryRun }}
+        uses: renovatebot/github-action@230ce922b08968d0a4f6f70f295601daff09ef1d # v46.3.7
+        with:
+          token: ${{ secrets.AUTOMATION_TOKEN }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # The repo already has renovate.json and its dependency dashboard.
+          RENOVATE_ONBOARDING: 'false'
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+
+      - name: Renovate (dry run)
+        if: ${{ inputs.dryRun }}
+        uses: renovatebot/github-action@230ce922b08968d0a4f6f70f295601daff09ef1d # v46.3.7
+        with:
+          token: ${{ secrets.AUTOMATION_TOKEN }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_ONBOARDING: 'false'
+          RENOVATE_DRY_RUN: full
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
