@@ -19,11 +19,10 @@ import {
   TableHeader,
   TableRow,
 } from '@kinora/ui/table'
-import { valueUpdater } from '@kinora/ui/table/utils'
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown } from '@lucide/vue'
 import { getCoreRowModel, getPaginationRowModel, getSortedRowModel, useVueTable } from '@tanstack/vue-table'
 import { useRouteQuery } from '@vueuse/router'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatDateTime } from '@/lib/format'
 
@@ -54,7 +53,16 @@ const headerCols = [
   { id: 'sha', label: 'SHA', right: true },
 ] as const
 
-const sorting = ref<SortingState>([{ id: 'run', desc: true }])
+const SORTABLE = new Set(columns.filter(c => c.enableSorting !== false).map(c => c.id))
+
+// Sort lives in the URL next to the page (?sort=health&dir=asc): a page number only means
+// something under a given order, so a shared link must carry both. null = newest first, desc.
+const sortQuery = useRouteQuery<string | null>('sort', null)
+const dirQuery = useRouteQuery<string | null>('dir', null)
+const sorting = computed<SortingState>(() => [{
+  id: sortQuery.value && SORTABLE.has(sortQuery.value) ? sortQuery.value : 'run',
+  desc: dirQuery.value !== 'asc',
+}])
 
 const PAGE_SIZE = 25
 
@@ -76,7 +84,17 @@ const table = useVueTable({
   getCoreRowModel: getCoreRowModel(),
   getSortedRowModel: getSortedRowModel(),
   getPaginationRowModel: getPaginationRowModel(),
-  onSortingChange: updaterOrValue => valueUpdater(updaterOrValue, sorting),
+  onSortingChange: (updater) => {
+    const [next] = typeof updater === 'function' ? updater(sorting.value) : updater
+    if (!next)
+      return
+    sortQuery.value = next.id === 'run' ? null : next.id
+    dirQuery.value = next.desc ? null : 'asc'
+    // A new order should land on page 1, not mid-list of an unrelated ranking.
+    page.value = null
+  },
+  // Always sorted: the default (run desc) has no "unsorted" state to toggle back to.
+  enableSortingRemoval: false,
   onPaginationChange: (updater) => {
     const next = typeof updater === 'function' ? updater({ pageIndex: pageIndex.value, pageSize: PAGE_SIZE }) : updater
     page.value = next.pageIndex > 0 ? String(next.pageIndex + 1) : null
