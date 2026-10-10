@@ -38,7 +38,7 @@
     "@aws-sdk/lib-storage": "^3.1131.0",
     "@aws-sdk/s3-request-presigner": "^3.1131.0",
     "@better-auth/api-key": "^1.7.7",
-    "@hono/node-server": "^2.1.1",
+    "@hono/node-server": "^2.1.4",
     "@hono/trpc-server": "^0.4.2",
     "@hono/zod-validator": "^0.8.0",
     "@polar-sh/better-auth": "^1.8.4",
