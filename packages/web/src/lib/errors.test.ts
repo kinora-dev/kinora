@@ -59,6 +59,7 @@ describe('reportQueryError', () => {
     reportQueryError(trpcError('Failed to fetch'))
     reportQueryError(trpcError('Project not found', 'NOT_FOUND'))
     reportQueryError(new TRPCClientError('Unable to transform response from server', { meta: { response: { status: 429 } } }))
+    reportQueryError(trpcError('UNAUTHORIZED', 'UNAUTHORIZED'))
     expect(reportError).not.toHaveBeenCalled()
 
     const unexpected = trpcError('boom', 'INTERNAL_SERVER_ERROR')

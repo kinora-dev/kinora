@@ -46,8 +46,10 @@ export function describeError(error: unknown): ErrorInfo {
 // `onError` for page queries (useAsyncState). VueUse's default is `globalThis.reportError`, which
 // raises every failed query as an uncaught window error, on top of the ErrorState the page shows.
 // That is noise for failures we expect: an unreachable server (including requests cut short by
-// navigating away), rate limiting, and missing or forbidden pages.
+// navigating away), rate limiting, missing or forbidden pages, and an expired session (the tRPC
+// client already sends the user back to login on a 401).
 export function reportQueryError(error: unknown): void {
-  if (describeError(error).kind === 'unknown')
+  const expired = error instanceof TRPCClientError && (error.data as { code?: string } | null | undefined)?.code === 'UNAUTHORIZED'
+  if (!expired && describeError(error).kind === 'unknown')
     globalThis.reportError?.(error)
 }
