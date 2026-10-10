@@ -65,7 +65,7 @@
     "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "^4.1.11",
     "tsdown": "^0.22.14",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "vitest": "^4.1.11"
   }
