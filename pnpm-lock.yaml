@@ -6,7 +6,7 @@ settings:
   injectWorkspacePackages: true
 
 overrides:
-  '@codemirror/view': ^6.43.8
+  '@codemirror/view': ^6.43.14
   esbuild@0.28.0: 0.28.2
 
 importers:
@@ -311,13 +311,13 @@ importers:
         specifier: ^6.2.5
         version: 6.2.5
       '@codemirror/language':
-        specifier: ^6.12.4
+        specifier: ^6.13.1
         version: 6.13.1
       '@codemirror/state':
-        specifier: ^6.7.4
+        specifier: ^6.7.6
         version: 6.7.6
       '@codemirror/view':
-        specifier: ^6.43.8
+        specifier: ^6.43.14
         version: 6.43.14
       '@kinora/ui':
         specifier: workspace:*
