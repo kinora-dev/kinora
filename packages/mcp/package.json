@@ -1,7 +1,7 @@
 {
   "name": "@kinora/mcp",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server exposing kinora Playwright test failures and history to coding agents",
   "author": "Joris Gallot",
   "license": "MIT",

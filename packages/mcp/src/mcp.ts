@@ -4,6 +4,7 @@ import { parseArgs } from 'node:util'
 import { createReadClient, DEFAULT_KINORA_URL } from '@kinora/core'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import pkg from '../package.json' with { type: 'json' }
 import { registerTools } from './tools'
 
 const USAGE = `kinora-mcp - MCP server exposing kinora test failures and history to coding agents
@@ -33,7 +34,7 @@ function resolveConfig(): { url: string, token: string } {
 
 async function main(): Promise<void> {
   const { url, token } = resolveConfig()
-  const server = new McpServer({ name: 'kinora', version: '0.1.0' })
+  const server = new McpServer({ name: 'kinora', version: pkg.version })
   registerTools(server, createReadClient({ baseUrl: url, token }))
   await server.connect(new StdioServerTransport())
   // stdout is the protocol channel; status goes to stderr.
