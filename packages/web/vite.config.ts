@@ -10,9 +10,12 @@ import pkg from '../../package.json' with { type: 'json' }
 
 // Release version = the root package.json, the one the Release workflow bumps.
 const release = `@kinora/web@${pkg.version}`
+// Unique per build (cloud deploys main without a version bump): an open tab compares it to
+// /version.json to notice a deploy (src/lib/updates.ts).
+const build = Date.now().toString(36)
 
 export default defineConfig({
-  define: { __KINORA_RELEASE__: JSON.stringify(release) },
+  define: { __KINORA_RELEASE__: JSON.stringify(release), __KINORA_BUILD__: JSON.stringify(build) },
   build: {
     // Maps emitted only for the Sentry upload; the plugin deletes them after, so none ship to users.
     sourcemap: process.env.SENTRY_AUTH_TOKEN ? 'hidden' : false,
@@ -31,6 +34,13 @@ export default defineConfig({
     }),
     vue(),
     tailwindcss(),
+    {
+      name: 'kinora-version',
+      apply: 'build',
+      generateBundle() {
+        this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build }) })
+      },
+    },
     // Uploads source maps + injects debug IDs. Skipped (no-op) without an auth token, e.g. self-host.
     process.env.SENTRY_AUTH_TOKEN
       ? sentryVitePlugin({

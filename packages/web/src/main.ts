@@ -3,6 +3,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { initAnalytics } from './lib/analytics'
 import { env } from './lib/env'
+import { watchForUpdates } from './lib/updates'
 import { router } from './router'
 import './style.css'
 
@@ -21,5 +22,8 @@ if (import.meta.env.PROD && import.meta.env.VITE_KINORA_CLOUD === 'true' && env.
     sendDefaultPii: false,
   })
 }
+
+if (import.meta.env.PROD)
+  watchForUpdates(router, __KINORA_BUILD__)
 
 app.use(router).mount('#app')
