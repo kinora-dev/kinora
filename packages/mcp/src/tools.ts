@@ -1,12 +1,13 @@
 import type { createReadClient } from '@kinora/core'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { byInstability, IngestError, isUnstable } from '@kinora/core'
+import { buildComponents, byInstability, IngestError, isUnstable, windowStats } from '@kinora/core'
 import { z } from 'zod'
-import { formatFailure, formatHistory, traceUrlOf } from './format'
+import { formatComponent, formatFailure, formatHistory, traceUrlOf } from './format'
 
 type ReadClient = ReturnType<typeof createReadClient>
 
 const MAX_HISTORY_RESULTS = 25
+const MAX_COMPONENTS = 50
 const MAX_RUN_TESTS = 1000
 // Each formatted failure carries up to ~8KB of error + stack; cap so a broken run can't flood the agent's context.
 const MAX_FAILURES = 50
@@ -102,6 +103,34 @@ export function registerTools(server: McpServer, client: ReadClient): void {
         out = histories.filter(isUnstable).sort(byInstability)
       }
       return ok({ histories: out.slice(0, MAX_HISTORY_RESULTS).map(formatHistory) })
+    },
+  ))
+
+  server.registerTool('component_health', {
+    title: 'Component and story health',
+    description: 'Health of the UI components a project tests with Playwright component tests (stories recorded by @kinora/reporter/ct), grouped by component: per story, its latest status, whether it failed or flaked in the last 20 runs, fail/flaky rates, and the tests that mount it. Filter by component name or story id, or ask for unstable stories only. Empty when the project records no stories.',
+    inputSchema: z.object({
+      project: z.string().describe('Project slug.'),
+      component: z.string().optional().describe('Case-insensitive substring of a component name, path or story id, e.g. "Button".'),
+      unstableOnly: z.boolean().optional().describe('Only stories that failed or flaked in the last 20 runs.'),
+    }),
+  }, ({ project, component, unstableOnly }) => guard(
+    () => client.getHistory(project),
+    (histories) => {
+      const q = component?.toLowerCase()
+      const components = buildComponents(histories)
+        .map(c => ({
+          component: c,
+          stories: c.stories.filter(s =>
+            (!unstableOnly || windowStats(s.points).unstable)
+            && (!q || c.path.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))),
+        }))
+        .filter(c => c.stories.length)
+      return ok({
+        components: components.slice(0, MAX_COMPONENTS).map(c => formatComponent(c.component, c.stories)),
+        ...(components.length > MAX_COMPONENTS && { truncated: `showing ${MAX_COMPONENTS} of ${components.length} components` }),
+        ...(!histories.some(h => h.stories?.length) && { note: 'No component stories recorded for this project. Component tests must import test from @kinora/reporter/ct.' }),
+      })
     },
   ))
 

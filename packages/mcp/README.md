@@ -25,7 +25,7 @@ Add it to your agent's MCP config. It needs a kinora API key (create one in the 
 
 ## Documentation
 
-The full tool list (`list_projects`, `list_failures`, `get_run`, `test_history`, `get_trace`) is in the docs:
+The full tool list (`list_projects`, `list_failures`, `get_run`, `test_history`, `get_trace`, `component_health`) is in the docs:
 
 **https://docs.kinora.dev/guides/mcp/**
 

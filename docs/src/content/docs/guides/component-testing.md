@@ -197,6 +197,11 @@ test('emits a click per press', async ({ mount }) => {
   story name, so `Button/Primary` reads better than a full source path. The gallery decides the
   id, as in the example above.
 
+## Coding agents
+
+The [MCP server](/guides/mcp/) exposes the same data through its `component_health` tool, so an
+agent can ask which stories of a component are failing or flaky, and which tests mount them.
+
 ## Visual tests
 
 `toHaveScreenshot` works on a mounted story like on any locator, and a failure shows up in kinora

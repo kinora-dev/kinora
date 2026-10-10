@@ -1,4 +1,5 @@
-import type { NormTest, TestHistory, TestPoint } from '@kinora/core'
+import type { ComponentHealth, NormTest, StoryHealth, TestHistory, TestPoint } from '@kinora/core'
+import { windowStats } from '@kinora/core'
 
 const MAX_ERROR_CHARS = 4000
 const MAX_HISTORY_POINTS = 20
@@ -50,6 +51,31 @@ export function formatHistory(h: TestHistory) {
     recentFlakyRate: h.recentFlakyRate,
     newlyBroken: h.newlyBroken,
     newlyFlaky: h.newlyFlaky,
+    ...(h.stories?.length && { stories: h.stories }),
     recentPoints: h.points.slice(-MAX_HISTORY_POINTS).map(point),
+  }
+}
+
+// Same window and "unstable" rule as the dashboard's Components page.
+export function formatStory(s: StoryHealth) {
+  const recent = windowStats(s.points)
+  return {
+    id: s.id,
+    name: s.name,
+    lastStatus: s.lastStatus,
+    unstable: recent.unstable,
+    failRate: recent.failRate,
+    flakyRate: recent.flakyRate,
+    recentStatuses: s.points.slice(-MAX_HISTORY_POINTS).map(p => p.status),
+    tests: s.tests.map(t => ({ testKey: t.testKey, title: t.title, file: t.file, lastStatus: t.lastStatus })),
+  }
+}
+
+export function formatComponent(c: ComponentHealth, stories: StoryHealth[] = c.stories) {
+  return {
+    name: c.name || '(no component)',
+    path: c.path,
+    lastStatus: c.lastStatus,
+    stories: stories.map(formatStory),
   }
 }

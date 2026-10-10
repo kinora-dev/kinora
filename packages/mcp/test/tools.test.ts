@@ -1,4 +1,4 @@
-import type { NormTest, RunReport, TestHistory } from '@kinora/core'
+import type { NormTest, RunReport, TestHistory, TestPoint } from '@kinora/core'
 import { IngestError, SCHEMA_VERSION } from '@kinora/core'
 import { describe, expect, it, vi } from 'vitest'
 import { registerTools } from '../src/tools'
@@ -112,5 +112,53 @@ describe('get_trace', () => {
     const { isError, data } = await call('get_trace', { project: 'p', testKey: 'k1' })
     expect(isError).toBe(true)
     expect(data).toContain('no trace')
+  })
+})
+
+describe('component_health', () => {
+  const pt = (runId: string, status: TestPoint['status']): TestPoint => ({ runId, startedAt: `2026-01-0${runId.slice(1)}T00:00:00Z`, status, duration: 1, retries: 0 })
+  const histories = [
+    hist({ testKey: 'a', title: 'primary', stories: ['components/Button/Primary'], points: [pt('r1', 'expected'), pt('r2', 'expected')], lastStatus: 'expected' }),
+    hist({ testKey: 'b', title: 'disabled', stories: ['components/Button/Disabled'], points: [pt('r1', 'flaky'), pt('r2', 'expected')], lastStatus: 'expected' }),
+    hist({ testKey: 'c', title: 'dialog', stories: ['components/Dialog/Default'], points: [pt('r1', 'expected'), pt('r2', 'unexpected')], lastStatus: 'unexpected' }),
+    hist({ testKey: 'e2e', title: 'checkout' }),
+  ]
+
+  it('groups stories by component with their window health and tests', async () => {
+    const call = harness({ getHistory: vi.fn().mockResolvedValue(histories) })
+    const { data } = await call('component_health', { project: 'p' })
+    expect(data.components.map((c: any) => c.name)).toEqual(['Button', 'Dialog'])
+    const disabled = data.components[0].stories.find((s: any) => s.name === 'Disabled')
+    expect(disabled).toMatchObject({ id: 'components/Button/Disabled', lastStatus: 'expected', unstable: true, flakyRate: 0.5, recentStatuses: ['flaky', 'expected'] })
+    expect(disabled.tests).toEqual([{ testKey: 'b', title: 'disabled', file: 'f', lastStatus: 'expected' }])
+    expect(data.note).toBeUndefined()
+  })
+
+  it('filters by component and by instability', async () => {
+    const call = harness({ getHistory: vi.fn().mockResolvedValue(histories) })
+    expect((await call('component_health', { project: 'p', component: 'dialog' })).data.components.map((c: any) => c.name)).toEqual(['Dialog'])
+    const unstable = (await call('component_health', { project: 'p', unstableOnly: true })).data.components
+    expect(unstable.flatMap((c: any) => c.stories.map((s: any) => s.id))).toEqual(['components/Button/Disabled', 'components/Dialog/Default'])
+  })
+
+  it('explains an empty result on a project without stories', async () => {
+    const call = harness({ getHistory: vi.fn().mockResolvedValue([hist({ testKey: 'e2e' })]) })
+    const { data } = await call('component_health', { project: 'p' })
+    expect(data.components).toEqual([])
+    expect(data.note).toMatch(/@kinora\/reporter\/ct/)
+  })
+
+  it('surfaces server errors', async () => {
+    const call = harness({ getHistory: vi.fn().mockRejectedValue(new IngestError(404, 'Project not found')) })
+    expect(await call('component_health', { project: 'nope' })).toEqual({ isError: true, data: 'kinora: Project not found' })
+  })
+})
+
+describe('test_history stories', () => {
+  it('lists the stories a component test mounts', async () => {
+    const call = harness({ getHistory: vi.fn().mockResolvedValue([hist({ testKey: 'k', stories: ['Button/Primary'] }), hist({ testKey: 'e2e' })]) })
+    const { data } = await call('test_history', { project: 'p', query: 't' })
+    expect(data.histories[0].stories).toEqual(['Button/Primary'])
+    expect(data.histories[1]).not.toHaveProperty('stories')
   })
 })

@@ -41,3 +41,4 @@ be passed as `--token` / `--url` flags.
 | `get_run` | Full report for one run: counts, git/CI metadata, all test statuses, failures. |
 | `test_history` | Per-test history: pass/fail/flaky rates + `newlyBroken`/`newlyFlaky` flags to tell a fresh regression from a chronic/flaky test. |
 | `get_trace` | The Playwright `trace.zip` URL for one test, to open in the viewer or download. |
+| `component_health` | Per-component and per-story health from [component tests](/guides/component-testing/): latest status, instability over the last 20 runs, and the tests mounting each story. Filter by component or unstable stories. |
