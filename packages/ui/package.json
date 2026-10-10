@@ -36,7 +36,7 @@
     "@vueuse/core": "^14.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "reka-ui": "^2.10.4",
+    "reka-ui": "^2.11.0",
     "tailwind-merge": "^3.7.0",
     "vee-validate": "^4.15.1",
     "vue-sonner": "^2.0.9"

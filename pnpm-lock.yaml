@@ -423,7 +423,7 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       reka-ui:
-        specifier: ^2.10.4
+        specifier: ^2.11.0
         version: 2.11.0(vue@3.5.42(typescript@6.0.3))
       tailwind-merge:
         specifier: ^3.7.0
@@ -517,7 +517,7 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       reka-ui:
-        specifier: ^2.10.4
+        specifier: ^2.11.0
         version: 2.11.0(vue@3.5.42(typescript@6.0.3))
       tailwind-merge:
         specifier: ^3.7.0
