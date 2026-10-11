@@ -39,7 +39,7 @@
     "prepublishOnly": "tsdown"
   },
   "dependencies": {
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@kinora/core": "workspace:*",
