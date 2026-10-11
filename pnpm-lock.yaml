@@ -43,7 +43,7 @@ importers:
         version: 5.0.3(@vitest/browser@5.0.3)(vitest@5.0.3)
       tsdown:
         specifier: ^0.22.14
-        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3))
+        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3))
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -68,7 +68,7 @@ importers:
         version: 5.0.3(@vitest/browser@5.0.3)(vitest@5.0.3)
       tsdown:
         specifier: ^0.22.14
-        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3))
+        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3))
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -135,7 +135,7 @@ importers:
         version: 4.3.3
       tsdown:
         specifier: ^0.22.14
-        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3))
+        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3))
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -169,7 +169,7 @@ importers:
         version: 5.0.3(@vitest/browser@5.0.3)(vitest@5.0.3)
       tsdown:
         specifier: ^0.22.14
-        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3))
+        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3))
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -197,7 +197,7 @@ importers:
         version: 5.0.3(@vitest/browser@5.0.3)(vitest@5.0.3)
       tsdown:
         specifier: ^0.22.14
-        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3))
+        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3))
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -294,7 +294,7 @@ importers:
         version: 5.0.3(@vitest/browser@5.0.3)(vitest@5.0.3)
       tsdown:
         specifier: ^0.22.14
-        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3))
+        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3))
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -387,8 +387,8 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/coverage-v8@5.0.3)(@vitest/ui@5.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       vue-tsc:
-        specifier: ^3.3.11
-        version: 3.3.11(typescript@6.0.3)
+        specifier: ^3.3.13
+        version: 3.3.13(typescript@6.0.3)
 
   packages/ui:
     dependencies:
@@ -466,8 +466,8 @@ importers:
         specifier: ^3.5.42
         version: 3.5.42(typescript@6.0.3)
       vue-tsc:
-        specifier: ^3.3.11
-        version: 3.3.11(typescript@6.0.3)
+        specifier: ^3.3.13
+        version: 3.3.13(typescript@6.0.3)
 
   packages/vitest-contract:
     devDependencies:
@@ -513,7 +513,7 @@ importers:
         version: 5.0.3(@vitest/browser@5.0.3)(vitest@5.0.3)
       tsdown:
         specifier: ^0.22.14
-        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3))
+        version: 0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3))
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -636,8 +636,8 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/browser-playwright@5.0.3)(@vitest/coverage-v8@5.0.3)(@vitest/ui@5.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       vue-tsc:
-        specifier: ^3.3.11
-        version: 3.3.11(typescript@6.0.3)
+        specifier: ^3.3.13
+        version: 3.3.13(typescript@6.0.3)
 
 packages:
 
@@ -3327,8 +3327,8 @@ packages:
   '@vue/devtools-shared@8.2.1':
     resolution: {integrity: sha512-Fkac7lUdGReh6pVOi3AYPRGe82LQqRmAfThW7RRligOAP0ZA/Z1z9XLHDM9dv34pV2HRc79DK8uKPeG2fLnA/g==}
 
-  '@vue/language-core@3.3.11':
-    resolution: {integrity: sha512-QJmpliwAVpC/OxubIByPAhNzsQPRc8/gxlN2qnVzVfIMjMDz/9RnXRFoetjz5yEgXVXyp4LqhXq3V53PjmNzFw==}
+  '@vue/language-core@3.3.13':
+    resolution: {integrity: sha512-axA0Xemn5LuUKuKWob0/kVq7xQ2mJJM6VqA9Exvt35nM9yRC31goWVve/G/Zb2ZCLsXC8FHYjjfXlnshknSCew==}
 
   '@vue/reactivity@3.5.42':
     resolution: {integrity: sha512-TzNNfKpb7hDxbQltwAut8VDQA5YP+BuRlxntHUuRjyKwlMvmAPbs3unhCvieijifY6vFfVBwsS7wG/C7uq+bEQ==}
@@ -7400,8 +7400,8 @@ packages:
       nuxt:
         optional: true
 
-  vue-tsc@3.3.11:
-    resolution: {integrity: sha512-gOb0B9rtU2+f1dszwPqSH5kAieIF9ReeLhD3kSRNHv5WZZUQz/JdVXW0RTdqhNTMlQkqKzrTTviqKr/4FYZraQ==}
+  vue-tsc@3.3.13:
+    resolution: {integrity: sha512-jE4/bXdOMSHVxEGgQCqNllJy+9N3Gx6tfSAsg0yhFK/MAN6eXqISihupnDEKSCt12VVnjN2gI3AqLYcqoh5x/A==}
     hasBin: true
     peerDependencies:
       typescript: '>=5.0.0'
@@ -10416,7 +10416,7 @@ snapshots:
 
   '@vue/devtools-shared@8.2.1': {}
 
-  '@vue/language-core@3.3.11':
+  '@vue/language-core@3.3.13':
     dependencies:
       '@volar/language-core': 2.4.28
       '@vue/compiler-dom': 3.5.43
@@ -13846,7 +13846,7 @@ snapshots:
 
   robust-predicates@3.0.3: {}
 
-  rolldown-plugin-dts@0.27.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(rolldown@1.2.13)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3)):
+  rolldown-plugin-dts@0.27.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(rolldown@1.2.13)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3)):
     dependencies:
       dts-resolver: 3.0.0(oxc-resolver@11.21.2)
       get-tsconfig: 5.0.0-beta.5
@@ -13858,7 +13858,7 @@ snapshots:
     optionalDependencies:
       '@volar/typescript': 2.4.28(typescript@6.0.3)
       typescript: 6.0.3
-      vue-tsc: 3.3.11(typescript@6.0.3)
+      vue-tsc: 3.3.13(typescript@6.0.3)
     transitivePeerDependencies:
       - oxc-resolver
 
@@ -14297,7 +14297,7 @@ snapshots:
       minimist: 1.2.8
       strip-bom: 3.0.0
 
-  tsdown@0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3)):
+  tsdown@0.22.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(tsx@4.23.15)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3)):
     dependencies:
       ansis: 4.4.0
       cac: 7.0.0
@@ -14308,7 +14308,7 @@ snapshots:
       obug: 2.2.1
       picomatch: 4.0.7
       rolldown: 1.2.13
-      rolldown-plugin-dts: 0.27.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(rolldown@1.2.13)(typescript@6.0.3)(vue-tsc@3.3.11(typescript@6.0.3))
+      rolldown-plugin-dts: 0.27.14(@volar/typescript@2.4.28(typescript@6.0.3))(oxc-resolver@11.21.2)(rolldown@1.2.13)(typescript@6.0.3)(vue-tsc@3.3.13(typescript@6.0.3))
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tree-kill: 1.2.2
@@ -14573,10 +14573,10 @@ snapshots:
 
   vue-sonner@2.0.9: {}
 
-  vue-tsc@3.3.11(typescript@6.0.3):
+  vue-tsc@3.3.13(typescript@6.0.3):
     dependencies:
       '@volar/typescript': 2.4.28(typescript@6.0.3)
-      '@vue/language-core': 3.3.11
+      '@vue/language-core': 3.3.13
       typescript: 6.0.3
 
   vue@3.5.42(typescript@6.0.3):
