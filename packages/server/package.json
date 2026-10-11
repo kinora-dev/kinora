@@ -40,7 +40,7 @@
     "@better-auth/api-key": "^1.7.7",
     "@hono/node-server": "^2.1.4",
     "@hono/trpc-server": "^0.4.2",
-    "@hono/zod-validator": "^0.8.0",
+    "@hono/zod-validator": "^0.9.1",
     "@polar-sh/better-auth": "^1.8.4",
     "@polar-sh/sdk": "^0.48.1",
     "@sentry/node": "^10.74.0",
