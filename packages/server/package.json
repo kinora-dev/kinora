@@ -34,9 +34,9 @@
     "notify-usage-alerts": "tsx scripts/notify-usage-alerts.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1131.0",
-    "@aws-sdk/lib-storage": "^3.1131.0",
-    "@aws-sdk/s3-request-presigner": "^3.1131.0",
+    "@aws-sdk/client-s3": "^3.1149.0",
+    "@aws-sdk/lib-storage": "^3.1149.0",
+    "@aws-sdk/s3-request-presigner": "^3.1149.0",
     "@better-auth/api-key": "^1.7.7",
     "@hono/node-server": "^2.1.4",
     "@hono/trpc-server": "^0.4.2",
