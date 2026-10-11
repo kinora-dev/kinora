@@ -1,6 +1,6 @@
 # Build from the REPO ROOT (needs the pnpm workspace + @kinora/core):
 #   docker build -f packages/server/Dockerfile -t kinora-server .
-FROM node:26-alpine AS base
+FROM node:26.11.1-alpine AS base
 RUN npm i -g corepack@latest && corepack enable
 WORKDIR /repo
 

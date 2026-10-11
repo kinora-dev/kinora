@@ -43,7 +43,7 @@
   },
   "devDependencies": {
     "@kinora/core": "workspace:*",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^4.1.11",
     "tsdown": "^0.22.14",
     "tsx": "^4.23.15",

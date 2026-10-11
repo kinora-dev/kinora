@@ -60,7 +60,7 @@
     "@kinora/core": "workspace:*",
     "@playwright/test": "^1.64.0",
     "@types/busboy": "^1.5.5",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.5",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "^4.1.11",
