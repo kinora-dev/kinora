@@ -24,7 +24,7 @@
     "@kinora/ui": "workspace:*",
     "@lezer/highlight": "^1.2.5",
     "@lucide/vue": "^1.55.0",
-    "@sentry/vue": "^10.74.0",
+    "@sentry/vue": "^10.76.2",
     "@tanstack/vue-table": "^8.21.3",
     "@vueuse/core": "^14.4.0",
     "@zip.js/zip.js": "2.7.29",
