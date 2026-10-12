@@ -88,8 +88,8 @@ importers:
         specifier: workspace:*
         version: link:../ui
       '@lucide/vue':
-        specifier: ^1.45.0
-        version: 1.45.0(vue@3.5.42(typescript@6.0.3))
+        specifier: ^1.55.0
+        version: 1.55.0(vue@3.5.42(typescript@6.0.3))
       '@sentry/electron':
         specifier: ^7.20.1
         version: 7.20.1(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
@@ -326,8 +326,8 @@ importers:
         specifier: ^1.2.5
         version: 1.2.5
       '@lucide/vue':
-        specifier: ^1.45.0
-        version: 1.45.0(vue@3.5.42(typescript@6.0.3))
+        specifier: ^1.55.0
+        version: 1.55.0(vue@3.5.42(typescript@6.0.3))
       '@sentry/vue':
         specifier: ^10.74.0
         version: 10.76.2(vue@3.5.42(typescript@6.0.3))
@@ -402,8 +402,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       '@lucide/vue':
-        specifier: ^1.45.0
-        version: 1.45.0(vue@3.5.42(typescript@6.0.3))
+        specifier: ^1.55.0
+        version: 1.55.0(vue@3.5.42(typescript@6.0.3))
       '@tanstack/vue-table':
         specifier: ^8.21.3
         version: 8.21.3(vue@3.5.42(typescript@6.0.3))
@@ -533,8 +533,8 @@ importers:
         specifier: workspace:*
         version: link:../ui
       '@lucide/vue':
-        specifier: ^1.45.0
-        version: 1.45.0(vue@3.5.42(typescript@6.0.3))
+        specifier: ^1.55.0
+        version: 1.55.0(vue@3.5.42(typescript@6.0.3))
       '@polar-sh/better-auth':
         specifier: ^1.8.4
         version: 1.8.4(@polar-sh/sdk@0.49.0)(@stripe/react-stripe-js@4.0.2(@stripe/stripe-js@7.9.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(@stripe/stripe-js@7.9.0)(better-auth@1.7.7(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(knex@3.3.0(pg@8.23.1)(supports-color@10.2.2))(kysely@0.29.5)(pg@8.23.1))(pg@8.23.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.3)(vue@3.5.42(typescript@6.0.3)))(react@19.3.0)(zod@4.6.6)
@@ -1783,8 +1783,8 @@ packages:
   '@lezer/lr@1.4.11':
     resolution: {integrity: sha512-UwgZcl1R66H2hDzBrA7kWyYmX6s8p5TQ+e/t7CuvgCtBEPxbEPaHYHu+pJBvTvDotEJpuQkJjbXuHiw5Cixxgw==}
 
-  '@lucide/vue@1.45.0':
-    resolution: {integrity: sha512-tbMlusqK6brViI1xj8nsXAgNDyJOvNeOdOQlBI0hOWCAbnBrPRlanoQ6EygDEMv3dqwXfCZPb4a0/ImtI5KAmQ==}
+  '@lucide/vue@1.55.0':
+    resolution: {integrity: sha512-3lpuTiVGIMbG7vEVhcDnHvIu+ZkjXka7eOp9tIA9iDPu6GHpfqwykVyAb+LM1uYYVgSI9Myo4HGzTvVnTS2CyA==}
     peerDependencies:
       vue: '>=3.0.1'
 
@@ -8619,7 +8619,7 @@ snapshots:
     dependencies:
       '@lezer/common': 1.5.3
 
-  '@lucide/vue@1.45.0(vue@3.5.42(typescript@6.0.3))':
+  '@lucide/vue@1.55.0(vue@3.5.42(typescript@6.0.3))':
     dependencies:
       vue: 3.5.42(typescript@6.0.3)
 
