@@ -341,8 +341,8 @@ importers:
         specifier: ^14.4.0
         version: 14.4.0(vue@3.5.42(typescript@6.0.3))
       '@zip.js/zip.js':
-        specifier: 2.7.29
-        version: 2.7.29
+        specifier: 2.23.0
+        version: 2.23.0
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -3540,9 +3540,9 @@ packages:
   '@yuku-toolchain/types@0.18.1':
     resolution: {integrity: sha512-rWtqVdjA8O34nV/4mBFIdUm5Zj+FIzZDR7P2PEpqXXp53VEHabTROu7j2RjzzJbLMVYjW6gDKwOgPgiKRA+x4w==}
 
-  '@zip.js/zip.js@2.7.29':
-    resolution: {integrity: sha512-KtOa3HY7Vi77ctZAVhx2nsKweDTCP4DVBghZkvg5qyIX6T/Z54QlU6f0q2hFhxu5j+LgUDeMMhiv2xj4ZF6snA==}
-    engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=16.5.0'}
+  '@zip.js/zip.js@2.23.0':
+    resolution: {integrity: sha512-K5obAqfrO7zhycnCupM9aaoZ9kx0SA0kv7+Z2oOUsdpWquv4s/Z4zyD7AdTqxrK3pgPM+ozaUi8kdRQbCWaIrQ==}
+    engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
 
   abbrev@4.0.0:
     resolution: {integrity: sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA==}
@@ -10573,7 +10573,7 @@ snapshots:
 
   '@yuku-toolchain/types@0.18.1': {}
 
-  '@zip.js/zip.js@2.7.29': {}
+  '@zip.js/zip.js@2.23.0': {}
 
   abbrev@4.0.0: {}
 
