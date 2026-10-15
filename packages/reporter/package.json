@@ -41,7 +41,7 @@
     "prepublishOnly": "tsdown"
   },
   "peerDependencies": {
-    "@axe-core/playwright": ">=4.7.0",
+    "@axe-core/playwright": ">=4.13.0",
     "@playwright/test": ">=1.40.0"
   },
   "peerDependenciesMeta": {
