@@ -4,7 +4,7 @@
 #     --build-arg VITE_KINORA_SERVER_URL=https://api.kinora.dev -t kinora-web .
 # Omit that arg when the API answers on the dashboard's own origin (the self-host image, which
 # also bakes the proxying nginx.conf below); the dashboard then falls back to window.location.origin.
-FROM node:26.11.1-alpine AS build
+FROM node:26.12.0-alpine AS build
 RUN npm i -g corepack@latest && corepack enable
 WORKDIR /repo
 
