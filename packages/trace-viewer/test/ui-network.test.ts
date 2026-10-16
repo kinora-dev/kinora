@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allResources, bodyUrl, formatSize, prettyJson, resourceCategory, resourcesForAction, resourcesInWindow, routeOutcome, statusClass, toCurl, toFetch } from '../src/ui/lib/network'
+import { allResources, bodyUrl, formatSize, networkMatches, prettyJson, resourceCategory, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, toCurl, toFetch } from '../src/ui/lib/network'
 
 type Res = Parameters<typeof resourceCategory>[0]
 
@@ -212,5 +212,54 @@ describe('routeOutcome', () => {
     expect(routeOutcome({ ...res(), _wasContinued: true })).toBe('continued')
     expect(routeOutcome({ ...res(), _wasAborted: true })).toBe('aborted')
     expect(allResources([{ ...res(), _wasFulfilled: true }])[0].route).toBe('fulfilled')
+  })
+})
+
+describe('networkMatches', () => {
+  const row = (extra: Partial<Res> = {}, opts: Parameters<typeof res>[0] = {}) => allResources([{ ...res(opts), ...extra }])[0]
+
+  it('matches nothing for an empty query', () => {
+    expect(networkMatches(row(), '')).toEqual([])
+  })
+
+  it('finds the query in the url, headers and inline request body', () => {
+    const r = row({}, { url: 'https://api.example.com/graphql?op=GetTeam', method: 'POST', reqHeaders: [{ name: 'X-Team', value: 'Rockets' }], postData: '{"query":"query GetTeam { roster }"}' })
+    expect(networkMatches(r, 'getteam')).toEqual(['url', 'request body'])
+    expect(networkMatches(r, 'rockets')).toEqual(['headers'])
+    expect(networkMatches(r, 'roster')).toEqual(['request body'])
+  })
+
+  it('finds the query in a loaded response body', () => {
+    expect(networkMatches(row(), 'scout-builder', '{"name":"scout-builder"}')).toEqual(['response body'])
+    expect(networkMatches(row(), 'scout-builder')).toEqual([])
+  })
+})
+
+describe('searchableResponseFile', () => {
+  it('returns text-like bodies stored in the trace only', () => {
+    const json = { ...res({ mime: 'application/json' }) }
+    json.response.content._file = 'abc.json'
+    expect(searchableResponseFile(json)).toBe('abc.json')
+    const img = { ...res({ mime: 'image/png' }) }
+    img.response.content._file = 'abc.png'
+    expect(searchableResponseFile(img)).toBeUndefined()
+    expect(searchableResponseFile(res({ mime: 'application/json' }))).toBeUndefined()
+  })
+})
+
+describe('request body search', () => {
+  it('searches a request body stored as a trace file once loaded', () => {
+    const r = allResources([res({ method: 'POST' })])[0]
+    expect(networkMatches(r, 'getroster', undefined, '{"operationname":"getroster"}')).toEqual(['request body'])
+  })
+
+  it('fetches only stored, text-like request bodies', () => {
+    const stored = res({ method: 'POST', reqHeaders: [{ name: 'Content-Type', value: 'application/json' }] })
+    stored.request.postData = { mimeType: 'application/json', _file: 'req.json' } as typeof stored.request.postData
+    expect(searchableRequestFile(stored)).toBe('req.json')
+    expect(searchableRequestFile(res({ method: 'POST', postData: 'inline' }))).toBeUndefined()
+    const binary = res({ method: 'POST' })
+    binary.request.postData = { mimeType: 'application/octet-stream', _file: 'blob.bin' } as typeof binary.request.postData
+    expect(searchableRequestFile(binary)).toBeUndefined()
   })
 })
