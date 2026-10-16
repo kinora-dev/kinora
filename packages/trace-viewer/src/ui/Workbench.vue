@@ -2,7 +2,7 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@kinora/ui/resizable'
 import { ThemeToggle } from '@kinora/ui/theme-toggle'
 import { TooltipProvider } from '@kinora/ui/tooltip'
-import { Loader2 } from '@lucide/vue'
+import { Download, Loader2 } from '@lucide/vue'
 import { useStorage } from '@vueuse/core'
 import { computed, onMounted } from 'vue'
 import ActionsList from './components/ActionsList.vue'
@@ -22,6 +22,27 @@ const cols = useStorage('kinora-tv-cols', [22, 78])
 const rows = useStorage('kinora-tv-rows', [62, 38])
 
 useKeyboardNav()
+
+async function downloadTrace(): Promise<void> {
+  const uri = store.traceUri.value
+  if (!uri)
+    return
+  const name = store.traceName.value || decodeURIComponent(new URL(uri, location.href).pathname.split('/').pop() || '') || 'trace.zip'
+  try {
+    const res = await fetch(uri)
+    if (!res.ok)
+      throw new Error(String(res.status))
+    const href = URL.createObjectURL(await res.blob())
+    const a = document.createElement('a')
+    a.href = href
+    a.download = name.endsWith('.zip') ? name : `${name}.zip`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(href), 0)
+  }
+  catch {
+    window.open(uri, '_blank', 'noopener,noreferrer')
+  }
+}
 const { isDragging } = useTraceDrop()
 
 onMounted(() => {
@@ -57,7 +78,18 @@ onMounted(() => {
             · {{ store.traceName.value || store.model.value?.title }}
           </span>
         </div>
-        <div class="ml-auto">
+        <div class="ml-auto flex items-center gap-1">
+          <button
+            v-if="store.status.value === 'ready' && store.traceUri.value"
+            type="button"
+            data-testid="download-trace"
+            class="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="Download trace"
+            aria-label="Download trace"
+            @click="downloadTrace"
+          >
+            <Download class="size-4" />
+          </button>
           <ThemeToggle />
         </div>
       </header>
