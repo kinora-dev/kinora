@@ -41,7 +41,7 @@
     "prepublishOnly": "tsdown"
   },
   "peerDependencies": {
-    "@axe-core/playwright": ">=4.13.0",
+    "@axe-core/playwright": ">=4.14.0",
     "@playwright/test": ">=1.40.0"
   },
   "peerDependenciesMeta": {
@@ -53,7 +53,7 @@
     "@kinora/core": "workspace:*"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
+    "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.4",
