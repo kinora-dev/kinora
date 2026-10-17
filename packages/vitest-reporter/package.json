@@ -40,16 +40,16 @@
     "prepublishOnly": "tsdown"
   },
   "peerDependencies": {
-    "vitest": ">=4.1.11"
+    "vitest": ">=4.1.12"
   },
   "dependencies": {
     "@kinora/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
-    "@vitest/coverage-v8": "^5.0.4",
+    "@vitest/coverage-v8": "^5.0.5",
     "tsdown": "^0.23.1",
     "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.5"
   }
 }
