@@ -44,7 +44,7 @@
     "@hono/zod-validator": "^0.9.1",
     "@polar-sh/better-auth": "^2.1.0",
     "@polar-sh/sdk": "^1.0.2",
-    "@sentry/node": "^10.76.2",
+    "@sentry/node": "^11.8.0",
     "@trpc/server": "^11.19.0",
     "better-auth": "^1.7.11",
     "busboy": "^1.6.0",
