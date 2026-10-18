@@ -17,7 +17,7 @@
     "@better-auth/api-key": "^1.7.10",
     "@kinora/core": "workspace:*",
     "@kinora/ui": "workspace:*",
-    "@lucide/vue": "^1.57.0",
+    "@lucide/vue": "^1.59.0",
     "@polar-sh/better-auth": "^2.1.0",
     "@polar-sh/sdk": "^1.0.2",
     "@sentry/vue": "^10.76.2",
