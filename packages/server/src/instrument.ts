@@ -8,7 +8,18 @@ if (env.KINORA_CLOUD && env.NODE_ENV === 'production' && env.SENTRY_DSN) {
     environment: 'production',
     release: `@kinora/server@${version}`,
     tracesSampleRate: 0.1,
-    sendDefaultPii: false,
+    // sendDefaultPii was removed in Sentry v11; dataCollection now defaults to collecting everything, so opt back into the v10 restrictive posture explicitly.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      stackFrameVariables: false,
+    },
     beforeSend(event) {
       // kinora ingests customer DOM/network/test data; never let request bodies or auth reach Sentry.
       if (event.request) {
