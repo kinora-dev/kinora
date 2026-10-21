@@ -15,7 +15,18 @@ if (import.meta.env.PROD && import.meta.env.VITE_KINORA_SENTRY_DSN) {
     environment: 'production',
     release: __KINORA_RELEASE__,
     tracesSampleRate: 0.1,
-    sendDefaultPii: false,
+    // sendDefaultPii was removed in Sentry v11; dataCollection now defaults to collecting everything, so opt back into the v10 restrictive posture explicitly.
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      stackFrameVariables: false,
+    },
     beforeSend: scrubEvent,
     beforeBreadcrumb: scrubBreadcrumb,
   })
