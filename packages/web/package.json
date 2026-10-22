@@ -32,7 +32,7 @@
     "reka-ui": "^2.11.0",
     "tailwind-merge": "^3.7.0",
     "vee-validate": "^4.15.1",
-    "vue": "^3.5.42",
+    "vue": "^3.5.44",
     "vue-router": "^5.4.0",
     "vue-sonner": "^2.0.9",
     "zod": "^4.6.7"
