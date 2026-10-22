@@ -40,7 +40,10 @@ async function downloadTrace(): Promise<void> {
     setTimeout(() => URL.revokeObjectURL(href), 0)
   }
   catch {
-    window.open(uri, '_blank', 'noopener,noreferrer')
+    // Only ever navigate to http(s): a trace URI is attacker-controlled via ?trace=.
+    const resolved = new URL(uri, location.href)
+    if (resolved.protocol === 'http:' || resolved.protocol === 'https:')
+      window.open(resolved.href, '_blank', 'noopener,noreferrer')
   }
 }
 const { isDragging } = useTraceDrop()
