@@ -21,7 +21,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Skips the jobs a change can't affect. Skipped jobs count as passing for the required checks.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      docs: ${{ steps.filter.outputs.docs }}
+      website: ${{ steps.filter.outputs.website }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          # `every`: a file matches a filter only if it matches all of its patterns.
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!docs/**'
+              - '!website/**'
+              - '!**/*.md'
+            docs:
+              - '{docs/**,.github/workflows/ci.yml}'
+            website:
+              - '{website/**,.github/workflows/ci.yml}'
+
   check:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -56,6 +88,8 @@ jobs:
   # website is a standalone Astro workspace (own lockfile), so pnpm -r above never touches it.
   # Lint is already covered by the root eslint .; this catches astro type errors + a broken build.
   website:
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -81,6 +115,8 @@ jobs:
         run: pnpm build
 
   docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -106,6 +142,8 @@ jobs:
         run: pnpm build
 
   integration_tests:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -144,9 +182,25 @@ jobs:
       - name: Integration tests
         run: pnpm --filter @kinora/server test:coverage
 
-  e2e_tests:
+  # One runner per suite (and two web shards): sharing a runner, the suites competed for its CPU.
+  e2e:
+    name: e2e (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: viewer
+            package: '@kinora/trace-viewer'
+          - name: web 1/2
+            package: '@kinora/web'
+            args: --shard=1/2
+          - name: web 2/2
+            package: '@kinora/web'
+            args: --shard=2/2
     services:
       postgres:
         image: postgres:18.6
@@ -189,12 +243,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('./packages/web/node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Keyed on the Playwright version, so unrelated lockfile changes keep the cache.
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
 
       # On a cache hit the browser binary is restored; OS deps live system-wide and aren't cached.
       - name: Install Playwright browser
@@ -205,16 +264,27 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @kinora/web exec playwright install-deps chromium
 
-      # test:e2e resets kinora_e2e + self-boots the stack on dedicated ports (same as local).
-      # @kinora/ui and the Vitest reporter contract run in component_tests, which needs no database.
-      # (web and trace-viewer depend on @kinora/ui, so pnpm would also run its suite first, alone.)
-      - name: E2E (viewer + web suites)
-        run: pnpm --filter '!@kinora/ui' --filter '!@kinora/vitest-contract' test:e2e
+      # The web test:e2e resets kinora_e2e + self-boots the stack on dedicated ports (same as local).
+      - name: E2E
+        run: pnpm --filter '${{ matrix.package }}' test:e2e ${{ matrix.args }}
+
+  # Single required check over the e2e matrix, whose job names carry the matrix values.
+  e2e_tests:
+    needs: [changes, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check e2e results
+        if: needs.changes.result != 'success' || contains(fromJSON('["failure", "cancelled"]'), needs.e2e.result)
+        run: exit 1
 
   # @kinora/ui component + visual tests and the Vitest reporter contract, in parallel with e2e_tests.
   # No database: they need the gallery's dev server, Docker (for the browser that renders the visual
   # tests) and a local fake kinora server.
   component_tests:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -229,17 +299,21 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('./packages/ui/node_modules/@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
       # Fetched in the background while the browser installs and the component tests run, so the
       # visual tests that follow find the image ready.
       - name: Pull the Playwright image for visual tests
-        run: docker pull -q "mcr.microsoft.com/playwright:v$(node -p "require('./packages/ui/node_modules/@playwright/test/package.json').version")-noble" > /tmp/playwright-image.log 2>&1 &
+        run: docker pull -q "mcr.microsoft.com/playwright:v${{ steps.playwright.outputs.version }}-noble" > /tmp/playwright-image.log 2>&1 &
 
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
 
       - name: Install Playwright browser
         if: steps.playwright-cache.outputs.cache-hit != 'true'
