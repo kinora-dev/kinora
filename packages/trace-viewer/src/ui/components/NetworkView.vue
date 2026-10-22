@@ -6,7 +6,15 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@kinora/ui/resizable'
 import { valueUpdater } from '@kinora/ui/table/utils'
 import { ChevronDown, ChevronUp, Copy, ListFilter } from '@lucide/vue'
-import { getCoreRowModel, getSortedRowModel, useVueTable } from '@tanstack/vue-table'
+import {
+  createSortedRowModel,
+  rowSortingFeature,
+  sortFn_alphanumeric,
+  sortFn_basic,
+  sortFn_text,
+  tableFeatures,
+  useTable,
+} from '@tanstack/vue-table'
 import { useStorage } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { allResources, bodyUrl, formatSize, isTextMime, NETWORK_SEARCH_FIELDS, networkMatches, prettyJson, RESOURCE_CATEGORIES, resourcesForAction, resourcesInWindow, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, toCurl, toFetch } from '../lib/network'
@@ -136,7 +144,13 @@ const rows = computed(() => {
   )
 })
 
-const columns: ColumnDef<NetworkRow>[] = [
+const features = tableFeatures({
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+  sortFns: { basic: sortFn_basic, alphanumeric: sortFn_alphanumeric, text: sortFn_text },
+})
+
+const columns: ColumnDef<typeof features, NetworkRow>[] = [
   { accessorKey: 'name', header: 'Name' },
   { accessorKey: 'method', header: 'Method' },
   { accessorKey: 'status', header: 'Status' },
@@ -146,14 +160,13 @@ const columns: ColumnDef<NetworkRow>[] = [
   { accessorKey: 'route', header: 'Route' },
 ]
 
-const table = useVueTable({
+const state = computed(() => ({ sorting: sorting.value }))
+
+const table = useTable({
+  features,
   get data() { return rows.value },
   columns,
-  getCoreRowModel: getCoreRowModel(),
-  getSortedRowModel: getSortedRowModel(),
-  state: {
-    get sorting() { return sorting.value },
-  },
+  state,
   onSortingChange: updater => valueUpdater(updater, sorting),
 })
 
