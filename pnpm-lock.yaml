@@ -249,8 +249,8 @@ importers:
         specifier: ^1.59.0
         version: 1.59.0(vue@3.5.42(typescript@6.0.3))
       '@sentry/electron':
-        specifier: ^7.20.1
-        version: 7.20.1(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
+        specifier: ^7.20.2
+        version: 7.20.2(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
       '@trpc/client':
         specifier: ^11.19.0
         version: 11.19.0(@trpc/server@11.19.0(typescript@6.0.3))(typescript@6.0.3)
@@ -2742,8 +2742,8 @@ packages:
     resolution: {integrity: sha512-4MVTthk6C/1oQFjbVIfygHyNkx2YGbwNLml0kJji0vjJXy6ZNls9zdIp0FTBTi4e3189IcSc5OXD4qcJdmEeKA==}
     engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
 
-  '@sentry/electron@7.20.1':
-    resolution: {integrity: sha512-Z8fkBrHSRAWisOx7DP+3aYTfHFWSDfGL4YULSCdQv19ALhK2owhAPGyw2XjwyFKArDA+JGu8BlNiUahDCad7/A==}
+  '@sentry/electron@7.20.2':
+    resolution: {integrity: sha512-lVO9nuyeMR0dJt3NsB5B8jKHTE24lHj4CDOv54+taefzOFAWN/FosFUX+stnOUGNeCKg9JtlkyKC1WJoxxJgaw==}
     peerDependencies:
       '@sentry/node-native': 10.75.0
     peerDependenciesMeta:
@@ -9483,7 +9483,7 @@ snapshots:
     dependencies:
       '@sentry/conventions': 0.27.0
 
-  '@sentry/electron@7.20.1(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)':
+  '@sentry/electron@7.20.2(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)':
     dependencies:
       '@sentry/browser': 10.75.0
       '@sentry/conventions': 0.16.0
