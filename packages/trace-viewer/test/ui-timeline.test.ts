@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { actionInWindow, filmstripTiles, inWindow, normalizeRange, xToTime } from '../src/ui/lib/timeline'
+import { actionInWindow, filmstripTiles, inWindow, normalizeRange, screencastFrames, xToTime } from '../src/ui/lib/timeline'
 
 describe('normalizeRange', () => {
   it('orders the endpoints', () => {
@@ -49,6 +49,26 @@ describe('actionInWindow', () => {
   it('treats a missing endTime as an instant at startTime', () => {
     expect(actionInWindow({ startTime: 15 }, range)).toBe(true)
     expect(actionInWindow({ startTime: 25 }, range)).toBe(false)
+  })
+})
+
+describe('screencastFrames', () => {
+  it('is empty without a model', () => {
+    expect(screencastFrames(null)).toEqual([])
+  })
+
+  it('flattens every page, sorted by timestamp, as viewer file URLs', () => {
+    const model = {
+      createRelativeUrl: (path: string) => `/viewer/${path}`,
+      pages: [
+        { screencastFrames: [{ file: 'b.jpeg', timestamp: 200 }] },
+        { screencastFrames: [{ file: 'a.jpeg', timestamp: 100 }] },
+      ],
+    } as Parameters<typeof screencastFrames>[0]
+    expect(screencastFrames(model)).toEqual([
+      { url: '/viewer/file/a.jpeg', timestamp: 100 },
+      { url: '/viewer/file/b.jpeg', timestamp: 200 },
+    ])
   })
 })
 

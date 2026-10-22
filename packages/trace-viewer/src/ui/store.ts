@@ -6,7 +6,7 @@ import { buildActionTree, TraceModel } from '@isomorphic/trace/traceModel'
 import { computed, ref, shallowRef } from 'vue'
 import { advance, indexAt } from './lib/playback'
 import { collectSnapshots, snapshotInfoUrl, snapshotUrl } from './lib/snapshots'
-import { actionInWindow, normalizeRange } from './lib/timeline'
+import { actionInWindow, screencastFrames as buildScreencastFrames, normalizeRange } from './lib/timeline'
 
 export interface ActionItem {
   id: string
@@ -299,15 +299,7 @@ const playbackItems = computed(() => {
     .sort((a, b) => a.action.startTime - b.action.startTime)
 })
 
-const screencastFrames = computed(() => {
-  const m = model.value
-  if (!m)
-    return []
-  return m.pages
-    .flatMap(page => page.screencastFrames)
-    .map(frame => ({ timestamp: frame.timestamp, url: m.createRelativeUrl(`file/${frame.file}`) }))
-    .sort((a, b) => a.timestamp - b.timestamp)
-})
+const screencastFrames = computed(() => buildScreencastFrames(model.value))
 
 const playbackFrameUrl = computed(() => {
   const t = playhead.value

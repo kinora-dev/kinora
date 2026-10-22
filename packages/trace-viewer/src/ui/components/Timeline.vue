@@ -5,7 +5,7 @@ import { useElementSize } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { actionDuration, actionStatus, actionTitle } from '../lib/action'
 import { formatMs } from '../lib/format'
-import { filmstripTiles, xToTime } from '../lib/timeline'
+import { filmstripTiles, screencastFrames, xToTime } from '../lib/timeline'
 import { useTraceStore } from '../store'
 
 const store = useTraceStore()
@@ -60,15 +60,7 @@ const cursor = computed(() => {
   }
 })
 
-const frames = computed(() => {
-  const m = store.model.value
-  if (!m)
-    return []
-  return m.pages
-    .flatMap(page => page.screencastFrames)
-    .map(f => ({ url: m.createRelativeUrl(`file/${f.file}`), timestamp: f.timestamp }))
-    .sort((a, b) => a.timestamp - b.timestamp)
-})
+const frames = computed(() => screencastFrames(store.model.value))
 
 const FILMSTRIP_TILE_WIDTH = 58
 const filmstrip = ref<HTMLElement | null>(null)

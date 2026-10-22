@@ -93,28 +93,31 @@ watch([query, searchesBodies], ([q, bodies]) => {
     void loadResponseTexts()
 })
 
+const scopedRows = computed(() => {
+  const resources = store.model.value?.resources ?? []
+  const range = store.timeRange.value
+  return range
+    ? resourcesInWindow(resources, range)
+    : scope.value === 'all'
+      ? allResources(resources)
+      : resourcesForAction(resources, store.selectedAction.value)
+})
+
 const matchesById = computed(() => {
   const out = new Map<string, NetworkMatch[]>()
   const q = query.value
   if (!q)
     return out
-  for (const r of store.model.value?.resources ?? []) {
-    const found = networkMatches(allResources([r])[0], q, responseTexts.value.get(r.id), requestTexts.value.get(r.id))
-    out.set(r.id, found.filter(field => searchIn.value.includes(field)))
+  for (const row of scopedRows.value) {
+    const found = networkMatches(row, q, responseTexts.value.get(row.id), requestTexts.value.get(row.id))
+    out.set(row.id, found.filter(field => searchIn.value.includes(field)))
   }
   return out
 })
 
 const rows = computed(() => {
-  const resources = store.model.value?.resources ?? []
-  const range = store.timeRange.value
-  const all = range
-    ? resourcesInWindow(resources, range)
-    : scope.value === 'all'
-      ? allResources(resources)
-      : resourcesForAction(resources, store.selectedAction.value)
   const q = query.value
-  return all.filter(r =>
+  return scopedRows.value.filter(r =>
     (!q || !!matchesById.value.get(r.id)?.length)
     && (activeCats.value.size === 0 || activeCats.value.has(r.category)),
   )

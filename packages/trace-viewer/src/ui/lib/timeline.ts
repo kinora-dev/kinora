@@ -1,3 +1,5 @@
+import type { TraceModel } from '@isomorphic/trace/traceModel'
+
 export interface TimeRange {
   start: number
   end: number
@@ -24,6 +26,20 @@ export function actionInWindow(action: { startTime?: number, endTime?: number },
   const start = action.startTime ?? 0
   const end = action.endTime ?? start
   return end >= range.start && start <= range.end
+}
+
+export interface ScreencastFrame {
+  url: string
+  timestamp: number
+}
+
+export function screencastFrames(model: TraceModel | null): ScreencastFrame[] {
+  if (!model)
+    return []
+  return model.pages
+    .flatMap(page => page.screencastFrames)
+    .map(f => ({ url: model.createRelativeUrl(`file/${f.file}`), timestamp: f.timestamp }))
+    .sort((a, b) => a.timestamp - b.timestamp)
 }
 
 export interface FilmstripTile<T> {
