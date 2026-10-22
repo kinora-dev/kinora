@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allResources, bodyUrl, formatSize, networkMatches, prettyJson, resourceCategory, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, toCurl, toFetch } from '../src/ui/lib/network'
+import { allResources, bodyUrl, formatSize, networkMatches, prettyJson, resourceAtUrl, resourceCategory, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, toCurl, toFetch } from '../src/ui/lib/network'
 
 type Res = Parameters<typeof resourceCategory>[0]
 
@@ -244,6 +244,25 @@ describe('searchableResponseFile', () => {
     img.response.content._file = 'abc.png'
     expect(searchableResponseFile(img)).toBeUndefined()
     expect(searchableResponseFile(res({ mime: 'application/json' }))).toBeUndefined()
+  })
+})
+
+describe('resourceAtUrl', () => {
+  it('is undefined when no request has that url', () => {
+    expect(resourceAtUrl([res({ url: 'https://example.com/a.js' })], 'https://example.com/b.js', 1000)).toBeUndefined()
+  })
+
+  it('picks the closest matching request at or before the given time', () => {
+    const early = { ...res({ url: 'https://example.com/a.js', monotonicTime: 100 }), id: 'early' }
+    const late = { ...res({ url: 'https://example.com/a.js', monotonicTime: 300 }), id: 'late' }
+    const other = { ...res({ url: 'https://example.com/b.js', monotonicTime: 200 }), id: 'other' }
+    expect(resourceAtUrl([early, late, other], 'https://example.com/a.js', 250)?.id).toBe('early')
+    expect(resourceAtUrl([early, late, other], 'https://example.com/a.js', 1000)?.id).toBe('late')
+  })
+
+  it('falls back to the first match when none happened at or before the time', () => {
+    const r = { ...res({ url: 'https://example.com/a.js', monotonicTime: 500 }), id: 'r' }
+    expect(resourceAtUrl([r], 'https://example.com/a.js', 0)?.id).toBe('r')
   })
 })
 

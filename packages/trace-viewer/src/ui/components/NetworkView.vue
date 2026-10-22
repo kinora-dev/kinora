@@ -88,6 +88,19 @@ watch(() => store.model.value, () => {
   loadingBodies.value = false
 })
 
+// A cross-link from another tab (e.g. a console message) always wins over whatever is filtering the
+// list. `immediate` because DetailTabs mounts this view only once detailTab is already 'network', by
+// which point the reveal is already set: a non-immediate watch would never see it change.
+watch(() => store.networkReveal.value, (reveal) => {
+  if (!reveal)
+    return
+  search.value = ''
+  activeCats.value = new Set()
+  scope.value = 'all'
+  store.clearTimeRange()
+  selectedId.value = reveal.resourceId
+}, { immediate: true })
+
 watch([query, searchesBodies], ([q, bodies]) => {
   if (q && bodies)
     void loadResponseTexts()

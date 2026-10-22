@@ -116,6 +116,17 @@ export function resourcesInWindow(
     .map(toNetworkRow)
 }
 
+// The network resource a console/page URL most likely refers to: the matching
+// request closest at or before the given time, falling back to the first match
+// when none of them have a known time (e.g. an aborted request).
+export function resourceAtUrl(resources: ResourceEntry[], url: string, atOrBefore: number): ResourceEntry | undefined {
+  const matches = resources.filter(r => r.request.url === url)
+  const before = matches
+    .filter(r => r._monotonicTime !== undefined && r._monotonicTime <= atOrBefore)
+    .sort((a, b) => b._monotonicTime! - a._monotonicTime!)
+  return before[0] ?? matches[0]
+}
+
 export function isTextMime(mime: string): boolean {
   return mime.startsWith('text/') || mime.includes('json') || mime.includes('xml') || mime.includes('javascript') || mime.includes('form-urlencoded') || mime.includes('graphql')
 }

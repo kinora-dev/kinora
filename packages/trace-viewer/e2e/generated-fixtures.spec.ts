@@ -19,6 +19,18 @@ test('generated popup fixture exposes popup actions', async ({ page }) => {
   await expect(page.frameLocator('iframe[name="snapshot"]').getByRole('heading', { name: 'Receipt popup' })).toBeVisible()
 })
 
+test('console message location cross-links to the network request that served it', async ({ page }) => {
+  await openTrace(page, 'popup-trace.zip')
+
+  await page.getByRole('button', { name: /^Console/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await expect(page.getByText('popup receipt opened')).toBeVisible()
+
+  await page.getByTestId('console-network-link').click()
+
+  await expect(page.getByTestId('net-detail')).toContainText('receipt.html')
+})
+
 test('generated network fixture covers post bodies and error statuses', async ({ page }) => {
   await openTrace(page, 'network-rich-trace.zip')
 

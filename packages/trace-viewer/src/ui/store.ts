@@ -36,6 +36,11 @@ interface SourceReveal {
   version: number
 }
 
+interface NetworkReveal {
+  resourceId: string
+  version: number
+}
+
 const status = ref<Status>('idle')
 const errorMessage = ref('')
 const errorKind = ref<LoadErrorKind>('generic')
@@ -51,6 +56,7 @@ const snapshotTab = ref<SnapshotTab>('action')
 const snapshotInfo = ref<SnapshotInfo>({})
 const detailTab = ref<DetailTab>(initialDetailTab())
 const sourceReveal = ref<SourceReveal | null>(null)
+const networkReveal = ref<NetworkReveal | null>(null)
 const pickedLocator = ref<PickedLocator | null>(null)
 const inspectingLocator = ref(false)
 const playing = ref(false)
@@ -70,6 +76,7 @@ interface PendingLoad {
 
 let playFrame: number | undefined
 let sourceRevealVersion = 0
+let networkRevealVersion = 0
 
 function initialDetailTab(): DetailTab {
   const tab = new URLSearchParams(globalThis.location?.search ?? '').get('tab')
@@ -145,6 +152,7 @@ async function load(uri: string, name = ''): Promise<void> {
     collapsed.value = new Set()
     timeRange.value = null
     sourceReveal.value = null
+    networkReveal.value = null
     pickedLocator.value = null
     inspectingLocator.value = false
     // Default selection: failed action, else the last page action with a
@@ -282,6 +290,11 @@ function revealSource(stack: StackFrame[]): void {
   detailTab.value = 'source'
 }
 
+function revealNetworkResource(resourceId: string): void {
+  networkReveal.value = { resourceId, version: ++networkRevealVersion }
+  detailTab.value = 'network'
+}
+
 function setInspectingLocator(value: boolean): void {
   inspectingLocator.value = value
 }
@@ -392,6 +405,7 @@ export function useTraceStore() {
     snapshotInfo,
     detailTab,
     sourceReveal,
+    networkReveal,
     pickedLocator,
     inspectingLocator,
     playing,
@@ -409,6 +423,7 @@ export function useTraceStore() {
     setTab,
     setDetailTab,
     revealSource,
+    revealNetworkResource,
     setInspectingLocator,
     pickLocator,
     togglePlay,

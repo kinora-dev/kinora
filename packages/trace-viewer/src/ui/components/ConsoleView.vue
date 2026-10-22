@@ -2,6 +2,7 @@
 import type { ConsoleMessageTraceEvent } from '@trace/trace'
 import { cn } from '@kinora/ui'
 import { computed, ref } from 'vue'
+import { resourceAtUrl } from '../lib/network'
 import { inWindow } from '../lib/timeline'
 import { useTraceStore } from '../store'
 
@@ -18,6 +19,7 @@ const messages = computed(() => {
       : store.selectedAction.value
         ? (store.model.value?.eventsForAction(store.selectedAction.value) ?? [])
         : []
+  const resources = store.model.value?.resources ?? []
   return source
     .filter((e): e is ConsoleMessageTraceEvent => e.type === 'console')
     .map((e) => {
@@ -27,6 +29,7 @@ const messages = computed(() => {
         kind: consoleKind(e.messageType),
         location: e.location,
         locationLabel: formatLocation(e),
+        networkResourceId: e.location?.url ? resourceAtUrl(resources, e.location.url, e.time)?.id : undefined,
         text: e.text,
         time: e.time,
         type: e.messageType,
@@ -104,8 +107,17 @@ const kindClass: Record<string, string> = {
         <div class="mb-1 flex items-center gap-2 text-[10px] text-muted-foreground">
           <span class="rounded bg-muted px-1.5 py-0.5 uppercase tracking-wide">{{ msg.type }}</span>
           <span class="tabular-nums">{{ Math.round(msg.time) }}ms</span>
+          <button
+            v-if="msg.networkResourceId"
+            type="button"
+            data-testid="console-network-link"
+            class="ml-auto min-w-0 truncate underline-offset-2 hover:underline"
+            @click="store.revealNetworkResource(msg.networkResourceId)"
+          >
+            {{ msg.locationLabel }}
+          </button>
           <a
-            v-if="msg.location?.url"
+            v-else-if="msg.location?.url"
             :href="msg.location.url"
             target="_blank"
             rel="noreferrer"
