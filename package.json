@@ -1,7 +1,7 @@
 {
   "name": "kinora",
   "type": "module",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "private": true,
   "packageManager": "pnpm@12.14.0",
   "description": "A dashboard for your Playwright reports, across projects and over time",
