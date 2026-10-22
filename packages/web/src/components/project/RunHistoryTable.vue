@@ -11,7 +11,16 @@ import {
   TableRow,
 } from '@kinora/ui/table'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from '@lucide/vue'
-import { getCoreRowModel, getPaginationRowModel, getSortedRowModel, useVueTable } from '@tanstack/vue-table'
+import {
+  createPaginatedRowModel,
+  createSortedRowModel,
+  rowPaginationFeature,
+  rowSortingFeature,
+  sortFn_alphanumeric,
+  sortFn_basic,
+  tableFeatures,
+  useTable,
+} from '@tanstack/vue-table'
 import { useRouteQuery } from '@vueuse/router'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -27,7 +36,15 @@ const router = useRouter()
 // Worst-first ordering when sorting health descending; a run missing shards ranks with failures.
 const HEALTH_RANK: Record<RunHealth | 'partial', number> = { failing: 3, partial: 3, flaky: 2, passing: 1, empty: 0 }
 
-const columns: ColumnDef<RunSummary>[] = [
+const features = tableFeatures({
+  rowSortingFeature,
+  rowPaginationFeature,
+  sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+  sortFns: { basic: sortFn_basic, alphanumeric: sortFn_alphanumeric },
+})
+
+const columns: ColumnDef<typeof features, RunSummary>[] = [
   { id: 'run', accessorFn: r => r.startedAt }, // ISO string sorts chronologically
   { id: 'health', accessorFn: r => HEALTH_RANK[partialRunLabel(r) ? 'partial' : runHealth(r.counts)] },
   { id: 'pass', accessorFn: r => passRate(r.counts) },
@@ -62,12 +79,15 @@ const PAGE_SIZE = 25
 
 const { pageIndex, currentPage, setPage } = useUrlPage(() => props.runs.length, PAGE_SIZE)
 
-const table = useVueTable({
+const state = computed(() => ({
+  sorting: sorting.value,
+  pagination: { pageIndex: pageIndex.value, pageSize: PAGE_SIZE },
+}))
+
+const table = useTable({
+  features,
   get data() { return props.runs },
   columns,
-  getCoreRowModel: getCoreRowModel(),
-  getSortedRowModel: getSortedRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
   onSortingChange: (updater) => {
     const [next] = typeof updater === 'function' ? updater(sorting.value) : updater
     if (!next)
@@ -85,10 +105,7 @@ const table = useVueTable({
   },
   // URL is the source of truth for the page; don't let async data arrival reset a deep-linked page.
   autoResetPageIndex: false,
-  state: {
-    get sorting() { return sorting.value },
-    get pagination() { return { pageIndex: pageIndex.value, pageSize: PAGE_SIZE } },
-  },
+  state,
 })
 
 function sortDir(id: string) {
