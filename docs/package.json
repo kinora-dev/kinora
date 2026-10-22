@@ -20,12 +20,12 @@
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@lucide/astro": "^1.59.0",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "^7.4.0",
+    "astro": "^7.4.2",
     "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
+    "@astrojs/check": "^0.9.12",
     "pagefind": "^1.5.2",
     "typescript": "^6.0.3"
   }
