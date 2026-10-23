@@ -356,24 +356,32 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
                   :data-col="header.column.id"
                   :style="{ width: `${header.getSize()}px` }"
                   :class="cn(
-                    'relative cursor-pointer truncate px-3 py-1.5 font-medium text-muted-foreground select-none hover:text-foreground',
+                    'relative cursor-pointer px-3 py-1.5 font-medium text-muted-foreground select-none hover:text-foreground',
                     alignEnd.has(header.column.id) ? 'text-right' : 'text-left',
                   )"
                   @click="header.column.toggleSorting()"
                 >
-                  <span class="inline-flex items-center gap-1">
-                    {{ header.column.columnDef.header }}
+                  <span class="inline-flex max-w-full items-center gap-1">
+                    <span class="truncate">{{ header.column.columnDef.header }}</span>
                     <ChevronUp v-if="header.column.getIsSorted() === 'asc'" class="size-3" />
                     <ChevronDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3" />
                   </span>
                   <div
                     data-testid="net-col-resizer"
-                    :class="cn('absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none hover:bg-signal/40', header.column.getIsResizing() && 'bg-signal/60')"
+                    title="Drag to resize, double-click to reset"
+                    class="group/resizer absolute top-0 -right-1.5 z-10 flex h-full w-3 cursor-col-resize touch-none justify-center"
                     @click.stop
                     @dblclick.stop="header.column.resetSize()"
                     @mousedown="header.getResizeHandler()($event)"
                     @touchstart="header.getResizeHandler()($event)"
-                  />
+                  >
+                    <span
+                      :class="cn(
+                        'my-auto h-3.5 w-px bg-border transition-all group-hover/resizer:h-full group-hover/resizer:w-0.5 group-hover/resizer:bg-signal',
+                        header.column.getIsResizing() && 'h-full w-0.5 bg-signal',
+                      )"
+                    />
+                  </div>
                 </th>
                 <!-- Takes the leftover width so resized columns keep exactly their size. -->
                 <th aria-hidden="true" class="p-0" />
