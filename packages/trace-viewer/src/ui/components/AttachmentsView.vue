@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Attachment } from '@isomorphic/trace/traceModel'
 import { Download, Paperclip } from '@lucide/vue'
-import { computed, reactive, watchEffect } from 'vue'
+import { computed, nextTick, reactive, ref, watch, watchEffect } from 'vue'
 import { groupImageDiffs } from '../lib/attachments'
 import { useTraceStore } from '../store'
 import ImageDiff from './ImageDiff.vue'
@@ -9,6 +9,7 @@ import ImageDiff from './ImageDiff.vue'
 const store = useTraceStore()
 
 interface AttachmentView {
+  callId: string
   key: string
   name: string
   contentType: string
@@ -31,6 +32,7 @@ const grouped = computed(() => groupImageDiffs(store.model.value?.visibleAttachm
 
 const diffs = computed(() =>
   grouped.value.diffs.map(g => ({
+    callId: g.expected?.callId ?? '',
     name: g.name,
     expected: g.expected && attachmentUrl(g.expected),
     actual: g.actual && attachmentUrl(g.actual),
@@ -40,6 +42,7 @@ const diffs = computed(() =>
 
 const attachments = computed<AttachmentView[]>(() =>
   grouped.value.rest.map((att, i) => ({
+    callId: att.callId,
     key: `${i}-${att.name}`,
     name: att.name,
     contentType: att.contentType,
@@ -83,6 +86,23 @@ async function loadText(key: string, url: string): Promise<void> {
   }
 }
 
+const root = ref<HTMLElement | null>(null)
+const flashing = ref<string>()
+
+// `immediate`: the tab mounts after the reveal that opened it, so it would never see it change.
+watch(() => store.attachmentReveal.value, async (reveal) => {
+  if (!reveal)
+    return
+  await nextTick()
+  const el = root.value?.querySelector<HTMLElement>(`[data-call-id="${CSS.escape(reveal.callId)}"]`)
+  el?.scrollIntoView({ block: 'nearest' })
+  flashing.value = reveal.callId
+  setTimeout(() => {
+    if (flashing.value === reveal.callId)
+      flashing.value = undefined
+  }, 1200)
+}, { immediate: true })
+
 watchEffect(() => {
   for (const a of attachments.value) {
     if (a.isText && a.url && texts[a.key] === undefined) {
@@ -94,12 +114,12 @@ watchEffect(() => {
 </script>
 
 <template>
-  <div class="h-full overflow-auto p-3">
+  <div ref="root" class="h-full overflow-auto p-3">
     <div v-if="!attachments.length && !diffs.length" class="flex h-full items-center justify-center text-sm text-muted-foreground">
       No attachments
     </div>
     <div v-else class="flex flex-col gap-3">
-      <div v-for="d in diffs" :key="`diff-${d.name}`" class="overflow-hidden rounded-md border border-border">
+      <div v-for="d in diffs" :key="`diff-${d.name}`" :data-call-id="d.callId" class="overflow-hidden rounded-md border border-border transition-shadow" :class="[flashing === d.callId && 'ring-2 ring-signal']">
         <div class="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5">
           <Paperclip class="size-3.5 text-muted-foreground" />
           <span class="text-xs font-medium">{{ d.name }}</span>
@@ -108,7 +128,7 @@ watchEffect(() => {
         <ImageDiff :name="d.name" :expected="d.expected" :actual="d.actual" :diff="d.diff" />
       </div>
 
-      <div v-for="a in attachments" :key="a.key" data-testid="attachment" class="overflow-hidden rounded-md border border-border">
+      <div v-for="a in attachments" :key="a.key" data-testid="attachment" :data-call-id="a.callId" :data-flash="flashing === a.callId || undefined" class="overflow-hidden rounded-md border border-border transition-shadow" :class="[flashing === a.callId && 'ring-2 ring-signal']">
         <div class="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5">
           <Paperclip class="size-3.5 text-muted-foreground" />
           <span class="text-xs font-medium">{{ a.name }}</span>

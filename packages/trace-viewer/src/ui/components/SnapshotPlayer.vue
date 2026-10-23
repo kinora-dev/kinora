@@ -26,7 +26,7 @@ const viewport = computed(() => store.snapshotInfo.value.viewport)
 const pageUrl = computed(() => store.snapshotInfo.value.url ?? '')
 const frameSrc = computed(() => store.currentSnapshotUrl.value ?? 'about:blank')
 const hasSnapshot = computed(() => !!store.currentSnapshotUrl.value)
-const ariaTarget = computed(() => collectAriaTargets(store.model.value, store.selectedAction.value)[store.snapshotTab.value])
+const ariaTarget = computed(() => collectAriaTargets(store.model.value, store.activeAction.value)[store.snapshotTab.value])
 const ariaEvent = computed(() => {
   const target = ariaTarget.value
   return target && store.model.value?.ariaSnapshotForCall(target.action.callId, target.phase)
@@ -36,7 +36,7 @@ const screenshotUrl = computed(() => {
   const target = ariaTarget.value
   return fileUrl(target && store.model.value?.screenshotForCall(target.action.callId, target.phase)?.file)
 })
-const actionPhase = computed(() => store.snapshotTab.value === 'action' ? store.selectedAction.value : undefined)
+const actionPhase = computed(() => store.snapshotTab.value === 'action' ? store.activeAction.value : undefined)
 
 function fileUrl(file: string | undefined): string | undefined {
   const model = store.model.value
@@ -48,7 +48,7 @@ function setMode(value: SnapshotMode): void {
 }
 
 const ariaTerms = computed(() => {
-  const action = store.selectedAction.value
+  const action = store.activeAction.value
   if (!action)
     return []
   const params = action.params ?? {}

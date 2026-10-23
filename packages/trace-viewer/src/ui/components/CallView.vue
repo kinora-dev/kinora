@@ -8,7 +8,7 @@ import { useTraceStore } from '../store'
 const store = useTraceStore()
 
 const summary = computed(() => {
-  const action = store.selectedAction.value
+  const action = store.activeAction.value
   const model = store.model.value
   return action ? callSummary(action, { sdkLanguage: model?.sdkLanguage, startTime: model?.startTime }) : null
 })
@@ -33,7 +33,7 @@ async function copyValue(id: string, value: string): Promise<void> {
   }, 1500)
 }
 
-const allParamsText = computed(() => JSON.stringify(store.selectedAction.value?.params ?? {}, null, 2))
+const allParamsText = computed(() => JSON.stringify(store.activeAction.value?.params ?? {}, null, 2))
 
 function copyParams(): void {
   void navigator.clipboard.writeText(allParamsText.value)
@@ -85,7 +85,7 @@ const statusClass = computed(() => {
           <div>
             <span class="uppercase tracking-wide">Call id</span>
             <div class="font-mono text-foreground/90">
-              {{ store.selectedAction.value?.callId }}
+              {{ store.activeAction.value?.callId }}
             </div>
           </div>
         </div>

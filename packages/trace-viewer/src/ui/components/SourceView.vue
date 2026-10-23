@@ -13,7 +13,7 @@ const CodeView = defineAsyncComponent(() => import('./CodeView.vue'))
 
 const store = useTraceStore()
 
-const frames = computed<StackFrame[]>(() => store.sourceReveal.value?.stack ?? store.selectedAction.value?.stack ?? [])
+const frames = computed<StackFrame[]>(() => store.sourceReveal.value?.stack ?? store.activeAction.value?.stack ?? [])
 const revealVersion = computed(() => store.sourceReveal.value?.version ?? 0)
 const selectedFrame = ref(0)
 const content = ref('')

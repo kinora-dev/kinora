@@ -5,7 +5,7 @@ import { useTraceStore } from '../store'
 
 const store = useTraceStore()
 
-const lines = computed(() => store.selectedAction.value ? actionLogLines(store.selectedAction.value) : [])
+const lines = computed(() => store.activeAction.value ? actionLogLines(store.activeAction.value) : [])
 </script>
 
 <template>

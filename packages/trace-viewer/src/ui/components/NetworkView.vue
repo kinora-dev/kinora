@@ -127,7 +127,7 @@ const scopedRows = computed(() => {
     ? resourcesInWindow(resources, range, context)
     : scope.value === 'all'
       ? allResources(resources, context)
-      : resourcesForAction(resources, store.selectedAction.value, context)
+      : resourcesForAction(resources, store.activeAction.value, context)
 })
 
 const matchesById = computed(() => {

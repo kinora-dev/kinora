@@ -17,8 +17,8 @@ const messages = computed(() => {
     ? (store.model.value?.events ?? []).filter(e => inWindow(e.time, range))
     : scope.value === 'all'
       ? (store.model.value?.events ?? [])
-      : store.selectedAction.value
-        ? (store.model.value?.eventsForAction(store.selectedAction.value) ?? [])
+      : store.activeAction.value
+        ? (store.model.value?.eventsForAction(store.activeAction.value) ?? [])
         : []
   const resources = store.model.value?.resources ?? []
   const start = store.model.value?.startTime ?? 0

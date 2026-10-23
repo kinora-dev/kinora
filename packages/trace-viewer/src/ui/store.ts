@@ -57,6 +57,7 @@ const snapshotInfo = ref<SnapshotInfo>({})
 const detailTab = ref<DetailTab>(initialDetailTab())
 const sourceReveal = ref<SourceReveal | null>(null)
 const networkReveal = ref<NetworkReveal | null>(null)
+const attachmentReveal = ref<{ callId: string, version: number } | null>(null)
 const pickedLocator = ref<PickedLocator | null>(null)
 const inspectingLocator = ref(false)
 const playing = ref(false)
@@ -77,6 +78,7 @@ interface PendingLoad {
 let playFrame: number | undefined
 let sourceRevealVersion = 0
 let networkRevealVersion = 0
+let attachmentRevealVersion = 0
 
 function initialDetailTab(): DetailTab {
   const tab = new URLSearchParams(globalThis.location?.search ?? '').get('tab')
@@ -232,7 +234,10 @@ function setHoveredAction(id: string | null): void {
 
 const selectedIndex = computed(() => items.value.findIndex(i => i.id === selectedId.value))
 const selectedAction = computed<ActionEntry | undefined>(() => items.value[selectedIndex.value]?.action)
-const snapshots = computed(() => collectSnapshots(model.value, selectedAction.value))
+// What the snapshot and detail tabs show: a hovered action previews over the selection, like upstream.
+const activeAction = computed<ActionEntry | undefined>(() =>
+  (hoveredActionId.value && items.value.find(i => i.id === hoveredActionId.value)?.action) || selectedAction.value)
+const snapshots = computed(() => collectSnapshots(model.value, activeAction.value))
 const currentSnapshot = computed<Snapshot | undefined>(() => snapshots.value[snapshotTab.value])
 const currentSnapshotUrl = computed(() => snapshotUrl(traceUri.value, currentSnapshot.value))
 
@@ -273,8 +278,53 @@ function selectIndex(index: number): void {
     select(item.id)
 }
 
+// Arrow keys walk the rows on screen, skipping children of collapsed steps.
 function step(delta: number): void {
-  selectIndex(selectedIndex.value + delta)
+  const rows = visibleItems.value
+  const index = rows.findIndex(i => i.id === selectedId.value)
+  const item = rows[index === -1 ? 0 : index + delta]
+  if (item)
+    select(item.id)
+}
+
+// Left collapses an open step, otherwise moves to the parent step.
+function collapseOrParent(): void {
+  const index = selectedIndex.value
+  const item = items.value[index]
+  if (!item)
+    return
+  if (item.hasChildren && !collapsed.value.has(item.id)) {
+    toggleCollapse(item.id)
+    return
+  }
+  const parent = items.value.slice(0, index).findLast(i => i.depth < item.depth)
+  if (parent)
+    select(parent.id)
+}
+
+// Right expands a collapsed step, otherwise moves to its first child.
+function expandOrChild(): void {
+  const index = selectedIndex.value
+  const item = items.value[index]
+  if (!item?.hasChildren)
+    return
+  if (collapsed.value.has(item.id))
+    toggleCollapse(item.id)
+  else
+    select(items.value[index + 1].id)
+}
+
+function revealConsole(id: string): void {
+  select(id)
+  detailTab.value = 'console'
+}
+
+function revealAttachment(id: string): void {
+  select(id)
+  const callId = items.value.find(i => i.id === id)?.action.callId
+  if (callId)
+    attachmentReveal.value = { callId, version: ++attachmentRevealVersion }
+  detailTab.value = 'attachments'
 }
 
 function setTab(tab: SnapshotTab): void {
@@ -398,6 +448,12 @@ export function useTraceStore() {
     selectedId,
     selectedIndex,
     selectedAction,
+    activeAction,
+    attachmentReveal,
+    collapseOrParent,
+    expandOrChild,
+    revealAttachment,
+    revealConsole,
     snapshotTab,
     snapshots,
     currentSnapshot,

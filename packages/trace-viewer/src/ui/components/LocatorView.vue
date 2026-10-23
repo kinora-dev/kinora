@@ -12,7 +12,7 @@ const source = computed(() => store.pickedLocator.value ? 'Snapshot picker' : 'S
 const selector = computed(() => {
   if (store.pickedLocator.value)
     return store.pickedLocator.value.selector
-  const params = store.selectedAction.value?.params ?? {}
+  const params = store.activeAction.value?.params ?? {}
   const value = params.selector ?? params.locator?.selector
   return typeof value === 'string' ? value : ''
 })

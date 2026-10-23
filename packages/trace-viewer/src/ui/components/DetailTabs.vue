@@ -19,13 +19,13 @@ const store = useTraceStore()
 
 const errorCount = computed(() => store.model.value?.errorDescriptors.length ?? 0)
 const consoleCount = computed(() => {
-  const action = store.selectedAction.value
+  const action = store.activeAction.value
   if (!action)
     return 0
   return store.model.value?.eventsForAction(action).filter(e => e.type === 'console').length ?? 0
 })
 const networkCount = computed(() =>
-  resourcesForAction(store.model.value?.resources ?? [], store.selectedAction.value).length,
+  resourcesForAction(store.model.value?.resources ?? [], store.activeAction.value).length,
 )
 const attachmentCount = computed(() => store.model.value?.visibleAttachments.length ?? 0)
 const annotationCount = computed(() => store.model.value?.annotations?.length ?? 0)
