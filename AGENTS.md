@@ -128,7 +128,7 @@ A `@kinora/ui` wrapper around a Reka component must bind `useForwardProps(...)`,
 - **A running `pnpm dev:viewer` serves a stale service worker after a sync.** `public/sw.bundle.js` is only rebuilt when `dev` or `build` starts, and local e2e reuses a running dev server: after re-vendoring, run `pnpm --filter @kinora/trace-viewer build:sw` (or restart the dev server) before trusting local viewer tests.
 - **Do not edit or lint the vendored code.** `src/core/**`, `src/sw/**`, `src/sw-main.ts`, and `public/sw.bundle.js` are in eslint's `ignores` (`eslint.config.js`).
 - The service worker is built as a separate step: `build:sw` (`vite.sw.config.ts`) bundles `src/sw-main.ts` into a single IIFE classic script at `public/sw.bundle.js`. `dev` and `build` run `build:sw` first.
-- Generated trace fixtures live in `public/fixtures/` and are refreshed with `pnpm --filter @kinora/trace-viewer fixtures:generate`. Use this when changing fixture scenarios; `aria-trace.zip` is derived from `demo.zip` with an injected `aria-snapshot` event for deterministic ARIA coverage.
+- Generated trace fixtures live in `public/fixtures/` and are refreshed with `pnpm --filter @kinora/trace-viewer fixtures:generate`. Use this when changing fixture scenarios; `aria-trace.zip` is recorded with context tracing (`snapshots: { dom: true, aria: true }`), since the test runner's `trace` option cannot capture ARIA snapshots.
 - In prod the viewer is served under `/trace/` (`vite.config.ts` sets `base: '/trace/'` on build); the dashboard links to it via `traceViewerHref` (`web/src/lib/trace.ts`), passing the artifact URL as `?trace=`.
 
 ### Desktop app

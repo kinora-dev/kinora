@@ -24,7 +24,7 @@ test('shows ARIA snapshot mode empty state', async ({ page }) => {
   await expect(page.getByText('No ARIA snapshot captured for this phase')).toBeVisible()
 })
 
-test('renders an ARIA snapshot when present', async ({ page }) => {
+test('renders a recorded ARIA snapshot as YAML', async ({ page }) => {
   await page.goto('/?trace=fixtures/aria-trace.zip')
   await expect(page.getByTestId('action').first()).toBeVisible()
   await page.getByTestId('action').filter({ hasText: 'Click' }).first().click()
@@ -34,10 +34,16 @@ test('renders an ARIA snapshot when present', async ({ page }) => {
   // The id of the call the snapshot belongs to. Its prefix depends on the Playwright version
   // (`call@57` up to 1.63, a per-run prefix like `cdwd@57` since), so only its shape is checked.
   await expect(page.getByText(/^[\w:]+@\d+$/)).toBeVisible()
-  await expect(page.getByText('resources/aria-checkout.yml')).toBeVisible()
+  await expect(page.getByText(/^aria\/[\w:]+@\d+-action\.json$/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Copy ARIA' })).toBeVisible()
-  await expect(page.getByText('- document:')).toBeVisible()
-  await expect(page.getByText('button "Complete checkout"')).toBeVisible()
+
+  // Playwright 1.63+ records the snapshot as JSON; it must not reach the user raw.
+  const snapshot = page.getByTestId('aria-snapshot')
+  await expect(snapshot).not.toContainText('"role"')
+  await expect(snapshot).toContainText('- main:')
+  await expect(snapshot).toContainText('- heading "Checkout" [level=1]')
+  await expect(snapshot).toContainText('- button "Complete checkout"')
+  await expect(snapshot).not.toContainText('[box=')
 })
 
 test('shows the test source code', async ({ page }) => {

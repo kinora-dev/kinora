@@ -16,7 +16,6 @@ const fixtures = path.join(root, 'public/fixtures')
 const playwrightBin = path.join(root, 'node_modules/.bin/playwright')
 
 await generateDemoTrace()
-await generateAriaTrace()
 await generateScenarioTraces()
 await sanitizeFixturePaths()
 
@@ -159,6 +158,7 @@ async function generateScenarioTraces() {
   await generateTraceFixture('console-rich-trace.zip', consoleRichSpec())
   await generateTraceFixture('annotations-trace.zip', annotationsSpec())
   await generateTraceFixture('error-trace.zip', errorSpec(), { file: 'demo.spec.ts', fails: true })
+  await generateTraceFixture('aria-trace.zip', ariaSpec())
 }
 
 async function generateTraceFixture(name, spec, { file = 'fixture.spec.ts', fails = false } = {}) {
@@ -307,68 +307,40 @@ test('completes a purchase', async ({ page }) => {
 `
 }
 
+function ariaSpec() {
+  return String.raw`
+import { expect, test } from '@playwright/test'
+
+// The test runner's trace option cannot record ARIA snapshots, so this test traces its own context.
+test.use({ trace: 'off' })
+
+test('aria checkout', async ({ browser }, testInfo) => {
+  const context = await browser.newContext()
+  await context.tracing.start({ snapshots: { dom: true, aria: true }, sources: true })
+  const page = await context.newPage()
+  await page.setContent([
+    '<main>',
+    '<h1 id="title">Checkout</h1>',
+    '<label>Customer email <input id="customer"></label>',
+    '<button id="complete">Complete checkout</button>',
+    '</main>',
+    '<script>document.getElementById("complete").onclick = () => { document.getElementById("title").textContent = "Order complete" }</script>',
+  ].join(''))
+  await page.getByLabel('Customer email').fill('alex@example.com')
+  await page.getByRole('button', { name: 'Complete checkout' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Order complete')
+  await context.tracing.stop({ path: testInfo.outputPath('trace.zip') })
+  await context.close()
+})
+`
+}
+
 async function findTraceZip(dir) {
   const entries = await readdir(dir, { recursive: true, withFileTypes: true })
   const entry = entries.find(entry => entry.isFile() && entry.name === 'trace.zip')
   if (!entry)
     throw new Error(`Could not find trace.zip under ${dir}`)
   return path.join(entry.parentPath, entry.name)
-}
-
-async function generateAriaTrace() {
-  const source = path.join(fixtures, 'demo.zip')
-  const target = path.join(fixtures, 'aria-trace.zip')
-  const ariaFile = 'resources/aria-checkout.yml'
-  const ariaText = `- document:
-  - heading "Order complete" [level=1]
-  - textbox "Customer email": alex@example.com
-  - button "Complete checkout"
-`
-
-  const entries = await readZip(source)
-  const libraryTraceEntry = [...entries.keys()].find((name) => {
-    if (!/^\d+-trace\.trace$/.test(name))
-      return false
-    const trace = decode(entries.get(name))
-    return !!trace && !!tryFindEvent(trace, event => event.type === 'before' && event.method === 'click' && event.params?.selector === '#complete')
-  })
-  const trace = libraryTraceEntry ? decode(entries.get(libraryTraceEntry)) : undefined
-  const testTrace = decode(entries.get('test.trace'))
-  if (!trace || !testTrace || !libraryTraceEntry)
-    throw new Error('demo.zip is missing trace files')
-
-  const libraryClick = findEvent(trace, event => event.type === 'before' && event.method === 'click' && event.params?.selector === '#complete')
-  const testClick = findEvent(testTrace, event => event.type === 'before' && String(event.params?.selector ?? event.params?.locator ?? '').includes('#complete'))
-  const pageId = libraryClick?.pageId ?? 'page@kinora-demo'
-  const timestamp = libraryClick?.startTime ?? 0
-  const events = [
-    { type: 'aria-snapshot', callId: libraryClick.callId, phase: 'action', pageId, timestamp, file: ariaFile },
-    { type: 'aria-snapshot', callId: libraryClick.callId, phase: 'after', pageId, timestamp, file: ariaFile },
-    { type: 'aria-snapshot', callId: testClick.callId, phase: 'action', pageId, timestamp, file: ariaFile },
-    { type: 'aria-snapshot', callId: testClick.callId, phase: 'after', pageId, timestamp, file: ariaFile },
-  ]
-  entries.set(libraryTraceEntry, encode(`${trace.trimEnd()}\n${events.map(event => JSON.stringify(event)).join('\n')}\n`))
-  entries.set(ariaFile, encode(ariaText))
-
-  await writeZip(target, entries)
-  console.log(`Generated ${path.relative(process.cwd(), target)}`)
-}
-
-function tryFindEvent(trace, predicate) {
-  for (const line of trace.split('\n')) {
-    if (!line.trim())
-      continue
-    const event = JSON.parse(line)
-    if (predicate(event))
-      return event
-  }
-}
-
-function findEvent(trace, predicate) {
-  const event = tryFindEvent(trace, predicate)
-  if (!event)
-    throw new Error('Could not find expected trace event')
-  return event
 }
 
 async function readZip(file) {

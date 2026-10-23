@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import type { AriaTokenKind } from '../lib/aria'
 import { Check, Copy } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
+import { ariaLineTokens, ariaSnapshotText } from '../lib/aria'
 
 const props = defineProps<{
   callId?: string
@@ -18,17 +20,28 @@ const visibleTerms = computed(() => (props.terms ?? [])
   .map(term => term.trim())
   .filter(term => term.length >= 2 && text.value.toLowerCase().includes(term.toLowerCase())))
 
-interface AriaPart { highlight: boolean, text: string }
+interface AriaPart { highlight: boolean, kind?: AriaTokenKind, text: string }
 
-const parts = computed<AriaPart[]>(() => {
-  if (!text.value || !visibleTerms.value.length)
-    return [{ highlight: false, text: text.value }]
-  const pattern = new RegExp(`(${visibleTerms.value.map(escapeRegex).join('|')})`, 'gi')
-  return text.value.split(pattern).filter(Boolean).map(part => ({
-    highlight: visibleTerms.value.some(term => term.toLowerCase() === part.toLowerCase()),
-    text: part,
+const lines = computed<AriaPart[][]>(() => {
+  const pattern = visibleTerms.value.length
+    ? new RegExp(`(${visibleTerms.value.map(escapeRegex).join('|')})`, 'gi')
+    : undefined
+  return text.value.split('\n').map(line => ariaLineTokens(line).flatMap((token): AriaPart[] => {
+    if (!pattern)
+      return [{ highlight: false, kind: token.kind, text: token.text }]
+    return token.text.split(pattern).filter(Boolean).map(part => ({
+      highlight: visibleTerms.value.some(term => term.toLowerCase() === part.toLowerCase()),
+      kind: token.kind,
+      text: part,
+    }))
   }))
 })
+
+const kindClass: Record<AriaTokenKind, string> = {
+  attribute: 'text-(--code-attribute)',
+  role: 'text-(--code-tag)',
+  string: 'text-(--code-string)',
+}
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -50,7 +63,7 @@ watch(() => props.url, async (url) => {
   loading.value = true
   try {
     const res = await fetch(url)
-    text.value = res.ok ? await res.text() : ''
+    text.value = res.ok ? ariaSnapshotText(await res.text()).trimEnd() : ''
   }
   catch {
     text.value = ''
@@ -83,7 +96,7 @@ watch(() => props.url, async (url) => {
       <div v-if="loading" class="flex h-full items-center justify-center text-sm text-muted-foreground">
         Loading ARIA snapshot…
       </div>
-      <pre v-else-if="text" class="font-mono text-xs leading-relaxed whitespace-pre-wrap"><template v-for="(part, i) in parts" :key="i"><mark v-if="part.highlight" class="rounded bg-signal/20 px-0.5 text-foreground">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template></pre>
+      <pre v-else-if="text" data-testid="aria-snapshot" class="font-mono text-xs leading-relaxed whitespace-pre-wrap"><div v-for="(line, i) in lines" :key="i"><template v-for="(part, j) in line" :key="j"><mark v-if="part.highlight" class="rounded bg-signal/20 px-0.5" :class="[part.kind ? kindClass[part.kind] : 'text-foreground']">{{ part.text }}</mark><span v-else-if="part.kind" :class="kindClass[part.kind]">{{ part.text }}</span><template v-else>{{ part.text }}</template></template></div></pre>
       <div v-else class="flex h-full items-center justify-center text-sm text-muted-foreground">
         No ARIA snapshot captured for this phase
       </div>

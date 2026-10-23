@@ -12,6 +12,7 @@ const tag = `v${version}`
 const baseUrl = `https://raw.githubusercontent.com/microsoft/playwright/${tag}`
 
 const isomorphicFiles = [
+  'ariaSnapshotRenderer.ts',
   'cssParser.ts',
   'cssTokenizer.ts',
   'locatorGenerators.ts',
