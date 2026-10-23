@@ -130,6 +130,7 @@ A `@kinora/ui` wrapper around a Reka component must bind `useForwardProps(...)`,
 - The service worker is built as a separate step: `build:sw` (`vite.sw.config.ts`) bundles `src/sw-main.ts` into a single IIFE classic script at `public/sw.bundle.js`. `dev` and `build` run `build:sw` first.
 - Generated trace fixtures live in `public/fixtures/` and are refreshed with `pnpm --filter @kinora/trace-viewer fixtures:generate`. Use this when changing fixture scenarios; `aria-trace.zip` (DOM + ARIA + screenshots) and `aria-only-trace.zip` (no DOM) are recorded with context tracing (`snapshots: { aria: true, screen: true }`), since the test runner's `trace` option cannot capture ARIA snapshots.
 - In prod the viewer is served under `/trace/` (`vite.config.ts` sets `base: '/trace/'` on build); the dashboard links to it via `traceViewerHref` (`web/src/lib/trace.ts`), passing the artifact URL as `?trace=`.
+- **Feature parity with upstream's UI is the baseline.** The reference is `packages/trace-viewer/src/ui` of microsoft/playwright at the vendored tag: build what it has, the way it behaves, before anything else. Going beyond it is welcome when it clearly helps the user (a match count, a layout option, annotating test-runner errors), not for its own sake; mark the deviation with a short comment so it is not "fixed back" to upstream. Prefer vendoring upstream logic through `vendor:playwright-trace` over rewriting it by hand.
 
 ### Desktop app
 
