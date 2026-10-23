@@ -204,6 +204,33 @@ test('console tab can show all messages in the trace', async ({ page }) => {
   await expect(page.getByText('demo warning from checkout flow')).toBeVisible()
 })
 
+test('console and network times are relative to the trace start', async ({ page }) => {
+  const parseMs = (label: string | null): number => {
+    const m = label?.trim().match(/^([\d.]+)(ms|s)$/)
+    expect(m, `unexpected time label "${label}"`).toBeTruthy()
+    return Number(m![1]) * (m![2] === 's' ? 1000 : 1)
+  }
+  const actionStart = async (title: string): Promise<number> => {
+    await page.getByTestId('action').filter({ hasText: title }).first().click()
+    return parseMs(await page.getByTestId('timeline-current-time').textContent())
+  }
+  const fillStart = await actionStart('Fill')
+  const nextStart = await actionStart('toHaveText')
+  const clickStart = await actionStart('Click')
+
+  // The demo logs to the console during the click, so its time sits between the two action starts.
+  await page.getByRole('button', { name: /^Console/ }).click()
+  const consoleTime = parseMs(await page.getByTestId('console-time').first().textContent())
+  expect(consoleTime).toBeGreaterThanOrEqual(clickStart - 1)
+  expect(consoleTime).toBeLessThanOrEqual(nextStart + 1)
+
+  // style.css is fetched by the page before the form is filled.
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await page.getByTestId('net-row').filter({ hasText: 'style.css' }).click()
+  expect(parseMs(await page.getByTestId('net-started').textContent())).toBeLessThanOrEqual(fillStart + 1)
+})
+
 test('attachments tab previews the screenshot', async ({ page }) => {
   await page.getByRole('button', { name: /^Attachments/ }).click()
   await expect(page.getByText('screenshot', { exact: true })).toBeVisible()

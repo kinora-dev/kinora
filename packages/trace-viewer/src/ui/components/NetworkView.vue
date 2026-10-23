@@ -17,6 +17,7 @@ import {
 } from '@tanstack/vue-table'
 import { useStorage } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
+import { formatMs } from '../lib/format'
 import { allResources, bodyUrl, formatSize, isTextMime, NETWORK_SEARCH_FIELDS, networkMatches, prettyJson, RESOURCE_CATEGORIES, resourcesForAction, resourcesInWindow, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, toCurl, toFetch } from '../lib/network'
 import { useTraceStore } from '../store'
 import FilterInput from './FilterInput.vue'
@@ -453,10 +454,10 @@ const alignEnd = new Set(['size', 'duration', 'status'])
                   {{ selected.route }}
                 </div>
               </div>
-              <div>
+              <div v-if="selected.resource._monotonicTime !== undefined">
                 <span class="uppercase tracking-wide">Started</span>
-                <div class="font-mono text-foreground/90">
-                  {{ Math.round(selected.resource._monotonicTime ?? 0) }}ms
+                <div data-testid="net-started" class="font-mono text-foreground/90">
+                  {{ formatMs(selected.resource._monotonicTime - (store.model.value?.startTime ?? 0)) }}
                 </div>
               </div>
             </div>

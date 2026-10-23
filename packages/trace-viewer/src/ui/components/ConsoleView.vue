@@ -2,6 +2,7 @@
 import type { ConsoleMessageTraceEvent } from '@trace/trace'
 import { cn } from '@kinora/ui'
 import { computed, ref } from 'vue'
+import { formatMs } from '../lib/format'
 import { resourceAtUrl } from '../lib/network'
 import { inWindow } from '../lib/timeline'
 import { useTraceStore } from '../store'
@@ -20,6 +21,7 @@ const messages = computed(() => {
         ? (store.model.value?.eventsForAction(store.selectedAction.value) ?? [])
         : []
   const resources = store.model.value?.resources ?? []
+  const start = store.model.value?.startTime ?? 0
   return source
     .filter((e): e is ConsoleMessageTraceEvent => e.type === 'console')
     .map((e) => {
@@ -31,7 +33,7 @@ const messages = computed(() => {
         locationLabel: formatLocation(e),
         networkResourceId: e.location?.url ? resourceAtUrl(resources, e.location.url, e.time)?.id : undefined,
         text: e.text,
-        time: e.time,
+        time: formatMs(e.time - start),
         type: e.messageType,
       }
     })
@@ -106,7 +108,7 @@ const kindClass: Record<string, string> = {
       >
         <div class="mb-1 flex items-center gap-2 text-[10px] text-muted-foreground">
           <span class="rounded bg-muted px-1.5 py-0.5 uppercase tracking-wide">{{ msg.type }}</span>
-          <span class="tabular-nums">{{ Math.round(msg.time) }}ms</span>
+          <span data-testid="console-time" class="tabular-nums">{{ msg.time }}</span>
           <button
             v-if="msg.networkResourceId"
             type="button"
