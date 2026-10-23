@@ -12,6 +12,17 @@ test('generated iframe fixture replays nested frame snapshots', async ({ page })
   await expect(page.frameLocator('iframe[name="snapshot"]').frameLocator('iframe[title="Payment frame"]').getByText('Paid inside iframe')).toBeVisible()
 })
 
+test('picks a locator inside a nested iframe', async ({ page }) => {
+  await openTrace(page, 'iframe-trace.zip')
+  await page.getByTestId('action').filter({ hasText: 'Fill "Alex Example"' }).click()
+  await page.getByRole('button', { name: 'Pick locator' }).click()
+  await page.frameLocator('iframe[name="snapshot"]').frameLocator('iframe[title="Payment frame"]').locator('#cardholder').click()
+
+  await expect(page.getByTestId('locator-source')).toHaveText('Snapshot picker')
+  await expect(page.getByTestId('locator-value')).toContainText(`.contentFrame().`)
+  await expect(page.getByTestId('selector-value')).toHaveText(/ >> internal:control=enter-frame >> #cardholder$/)
+})
+
 test('generated popup fixture exposes popup actions', async ({ page }) => {
   await openTrace(page, 'popup-trace.zip')
 

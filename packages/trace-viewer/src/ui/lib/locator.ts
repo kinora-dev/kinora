@@ -67,3 +67,11 @@ export function locatorForElement(element: Element, testIdName = 'data-testid'):
           : `locator(${quoteLocatorValue(selector)})`
   return { selector, locator }
 }
+
+// Prefixes a pick made inside nested iframes with the frames leading to it, outermost first.
+export function locatorInFrames(pick: LocatorPick, frameSelectors: string[]): LocatorPick {
+  return {
+    selector: [...frameSelectors.map(frame => `${frame} >> internal:control=enter-frame`), pick.selector].join(' >> '),
+    locator: [...frameSelectors.map(frame => `locator(${quoteLocatorValue(frame)}).contentFrame()`), pick.locator].join('.'),
+  }
+}

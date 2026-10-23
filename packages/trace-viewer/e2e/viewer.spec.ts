@@ -203,6 +203,46 @@ test('picks a locator from the snapshot', async ({ page }) => {
   await expect(page.getByTestId('selector-value')).toHaveText('#complete')
 })
 
+test('renders the snapshot at the recorded viewport, scaled to fit', async ({ page }) => {
+  // The demo runs as Desktop Chrome, recorded at 1280x720: wider than the snapshot panel.
+  await expect(page.getByText('1280×720')).toBeVisible()
+  await expect.poll(() => page.frame({ name: 'snapshot' })?.evaluate(() => window.innerWidth)).toBe(1280)
+  const container = (await page.getByTestId('snapshot-container').boundingBox())!
+  const stage = (await page.getByTestId('snapshot-stage').boundingBox())!
+  expect(stage.width).toBeLessThanOrEqual(container.width + 1)
+  expect(stage.height).toBeLessThanOrEqual(container.height + 1)
+  expect(stage.width / stage.height).toBeCloseTo(1280 / 720, 1)
+})
+
+test('escape cancels the locator picker', async ({ page }) => {
+  const pick = page.getByRole('button', { name: 'Pick locator' })
+  await pick.click()
+  await expect(pick).toHaveClass(/text-signal/)
+  await page.keyboard.press('Escape')
+  await expect(pick).not.toHaveClass(/text-signal/)
+
+  // Also while the snapshot document has focus.
+  await pick.click()
+  await page.frameLocator('iframe[name="snapshot"]').locator('body').press('Escape')
+  await expect(pick).not.toHaveClass(/text-signal/)
+})
+
+test('copies the snapshot url from the address bar', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.getByRole('button', { name: 'Copy URL' }).click()
+  // The demo builds its page with setContent, so the recorded url is about:blank.
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('about:blank')
+})
+
+test('keeps the previous snapshot on screen while the next one loads', async ({ page }) => {
+  // The next snapshot loads in a second, hidden iframe; only the visible one is named `snapshot`.
+  await expect(page.locator('iframe[name="snapshot"]')).toHaveCount(1)
+  await expect(page.locator('iframe[name="snapshot-next"]')).toHaveCount(1)
+  await page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' }).click()
+  await expect(page.frameLocator('iframe[name="snapshot"]').locator('#customer')).toBeVisible()
+  await expect(page.locator('iframe[name="snapshot"]')).toHaveCount(1)
+})
+
 test('syntax highlights the source', async ({ page }) => {
   await page.getByRole('button', { name: 'Source', exact: true }).click()
   // A duplicate @codemirror/view silently drops highlight decorations, leaving plain monochrome text.
@@ -334,7 +374,7 @@ test('network tab can show all requests in the trace', async ({ page }) => {
 test('network copy menu offers cURL and fetch', async ({ page }) => {
   await page.getByRole('button', { name: /^Network/ }).click()
   await page.getByTestId('net-row').first().click()
-  await page.getByRole('button', { name: 'Copy' }).click()
+  await page.getByTestId('net-detail').getByRole('button', { name: 'Copy', exact: true }).click()
   await expect(page.getByRole('menuitem', { name: 'Copy as cURL' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: 'Copy as fetch' })).toBeVisible()
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { attrSelector, locatorForElement, quoteLocatorValue, uniqueSelector } from '../src/ui/lib/locator'
+import { attrSelector, locatorForElement, locatorInFrames, quoteLocatorValue, uniqueSelector } from '../src/ui/lib/locator'
 
 class FakeElement {
   nodeType = 1
@@ -82,5 +82,19 @@ describe('locatorForElement', () => {
   it('falls back to locator(css) for long text', () => {
     const text = 'A'.repeat(81)
     expect(locatorForElement(el('div', { id: 'notice' }, text)).locator).toBe(`locator('#notice')`)
+  })
+})
+
+describe('locatorInFrames', () => {
+  it('keeps a top-frame pick as is', () => {
+    const pick = { selector: '#pay', locator: `getByRole('button', { name: 'Pay' })` }
+    expect(locatorInFrames(pick, [])).toEqual(pick)
+  })
+
+  it('enters each frame from the outermost one', () => {
+    expect(locatorInFrames({ selector: '#cardholder', locator: `locator('#cardholder')` }, ['iframe[title="Payment frame"]', '#inner'])).toEqual({
+      selector: 'iframe[title="Payment frame"] >> internal:control=enter-frame >> #inner >> internal:control=enter-frame >> #cardholder',
+      locator: `locator('iframe[title="Payment frame"]').contentFrame().locator('#inner').contentFrame().locator('#cardholder')`,
+    })
   })
 })

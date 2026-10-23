@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { Check, Copy } from '@lucide/vue'
 import { useStorage } from '@vueuse/core'
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { actionTitle } from '../lib/action'
 import { collectAriaTargets } from '../lib/snapshots'
 import { useLocatorPicker } from '../lib/useLocatorPicker'
@@ -55,7 +56,17 @@ const ariaTerms = computed(() => {
     .filter((term): term is string => typeof term === 'string' && term.length >= 2)
 })
 
-const { installInspector, setIframe } = useLocatorPicker(frameSrc)
+const { setIframe } = useLocatorPicker()
+
+const urlCopied = ref(false)
+
+async function copyUrl(): Promise<void> {
+  if (!pageUrl.value)
+    return
+  await navigator.clipboard.writeText(pageUrl.value)
+  urlCopied.value = true
+  setTimeout(() => (urlCopied.value = false), 1500)
+}
 
 function openSnapshot(): void {
   if (store.currentSnapshotUrl.value)
@@ -101,10 +112,19 @@ watch(frameSrc, () => {
             <span class="size-2.5 rounded-full bg-pass/70" />
           </div>
           <div class="ml-1 flex h-5 min-w-0 flex-1 items-center rounded-md border border-border/70 bg-background/60 px-2.5">
-            <TextTooltip :text="pageUrl || 'about:blank'" class="font-mono text-[11px] text-muted-foreground" />
+            <TextTooltip :text="pageUrl || 'about:blank'" class="min-w-0 flex-1 font-mono text-[11px] text-muted-foreground" />
+            <button
+              v-if="pageUrl"
+              type="button"
+              title="Copy URL"
+              class="-mr-1.5 ml-1 flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
+              @click="copyUrl"
+            >
+              <component :is="urlCopied ? Check : Copy" class="size-3" />
+            </button>
           </div>
         </div>
-        <div class="relative min-h-0 flex-1 bg-white">
+        <div class="relative min-h-0 flex-1 bg-muted/30">
           <img
             v-if="store.playbackFrameUrl.value"
             data-testid="playback-frame"
@@ -114,9 +134,9 @@ watch(frameSrc, () => {
           >
           <DomSnapshotView
             v-else-if="mode === 'dom'"
-            :set-iframe="setIframe"
             :src="frameSrc"
-            @loaded="installInspector"
+            :viewport="viewport"
+            @loaded="setIframe"
           />
           <AriaSnapshotView
             v-else
