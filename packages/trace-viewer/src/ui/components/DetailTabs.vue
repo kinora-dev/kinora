@@ -52,7 +52,7 @@ const tabs = computed<{ id: DetailTab, label: string, count?: number }[]>(() => 
         :key="t.id"
         type="button"
         :class="cn(
-          'relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+          'relative flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
           store.detailTab.value === t.id ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
         )"
         @click="store.setDetailTab(t.id)"

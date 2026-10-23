@@ -233,6 +233,29 @@ test('switches the snapshot between fit and actual size', async ({ page }) => {
   await expect.poll(async () => (await stage.boundingBox())!.width).toBeLessThanOrEqual((await container.boundingBox())!.width + 1)
 })
 
+test('docks the detail tabs to the right at full height', async ({ page }) => {
+  const details = page.getByTestId('details-panel')
+  const snapshot = page.getByTestId('snapshot-container')
+  const viewportHeight = page.viewportSize()!.height
+  expect((await details.boundingBox())!.y).toBeGreaterThan((await snapshot.boundingBox())!.y)
+
+  await page.getByRole('button', { name: 'Dock details to the right' }).click()
+  await expect.poll(async () => (await details.boundingBox())!.x).toBeGreaterThan((await snapshot.boundingBox())!.x)
+  // Everything below the top bar: the tabs no longer share their height with the snapshot.
+  expect((await details.boundingBox())!.height).toBeGreaterThan(viewportHeight * 0.85)
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Dock details to the bottom' })).toBeVisible()
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByTestId('net-row').filter({ hasText: 'style.css' }).click()
+  // The right column is too narrow to put the request details beside the table, so they go below it.
+  await expect(page.getByTestId('net-split')).toHaveAttribute('data-stacked', 'true')
+  expect((await page.getByTestId('net-detail').boundingBox())!.y).toBeGreaterThan((await page.getByTestId('net-row').first().boundingBox())!.y)
+
+  await page.getByRole('button', { name: 'Dock details to the bottom' }).click()
+  await expect.poll(async () => (await details.boundingBox())!.y).toBeGreaterThan((await snapshot.boundingBox())!.y)
+})
+
 test('escape cancels the locator picker', async ({ page }) => {
   const pick = page.getByRole('button', { name: 'Pick locator' })
   await pick.click()

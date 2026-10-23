@@ -18,7 +18,7 @@ import {
   tableFeatures,
   useTable,
 } from '@tanstack/vue-table'
-import { useStorage } from '@vueuse/core'
+import { useElementSize, useStorage } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { formatMs } from '../lib/format'
 import { allResources, bodyUrl, formatSize, NETWORK_SEARCH_FIELDS, networkMatches, RESOURCE_CATEGORIES, resourcesForAction, resourcesInWindow, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../lib/network'
@@ -31,6 +31,13 @@ const store = useTraceStore()
 
 // Persisted [table, detail] widths (percentages); applied only while a row is selected.
 const netCols = useStorage('kinora-tv-net-cols', [62, 38])
+const netRows = useStorage('kinora-tv-net-rows', [45, 55])
+
+// Too narrow for the table and the details side by side (e.g. details docked right): stack them.
+const root = ref<HTMLElement | null>(null)
+const { width: rootWidth } = useElementSize(root)
+const stacked = computed(() => rootWidth.value > 0 && rootWidth.value < 720)
+const split = computed(() => stacked.value ? netRows.value : netCols.value)
 
 type Scope = 'selected' | 'all'
 
@@ -198,6 +205,15 @@ const table = useTable({
 
 const selected = computed(() => rows.value.find(r => r.id === selectedId.value) ?? null)
 
+function saveSplit(sizes: number[]): void {
+  if (!selected.value)
+    return
+  if (stacked.value)
+    netRows.value = sizes
+  else
+    netCols.value = sizes
+}
+
 function toggleCat(cat: ResourceCategory): void {
   const next = new Set(activeCats.value)
   if (next.has(cat))
@@ -216,7 +232,7 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
+  <div ref="root" class="flex h-full flex-col">
     <!-- filters -->
     <div class="flex shrink-0 items-center gap-2 border-b border-border px-2 py-1.5">
       <div v-if="!store.timeRange.value" class="flex shrink-0 items-center rounded-md bg-muted/60 p-0.5">
@@ -287,12 +303,15 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
 
     <ResizablePanelGroup
       v-else
-      direction="horizontal"
+      :key="stacked ? 'stacked' : 'side'"
+      :direction="stacked ? 'vertical' : 'horizontal'"
+      data-testid="net-split"
+      :data-stacked="stacked || undefined"
       class="min-h-0 flex-1"
-      @layout="(s: number[]) => { if (selected) netCols = s }"
+      @layout="saveSplit"
     >
       <!-- table -->
-      <ResizablePanel id="net-table" :order="1" :default-size="selected ? netCols[0] : 100">
+      <ResizablePanel id="net-table" :order="1" :default-size="selected ? split[0] : 100">
         <div class="h-full overflow-auto">
           <table class="w-full table-fixed text-xs" :style="{ minWidth: `${table.getTotalSize()}px` }">
             <thead class="sticky top-0 z-10 bg-background">
@@ -380,7 +399,7 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
       <!-- detail -->
       <template v-if="selected">
         <ResizableHandle with-handle />
-        <ResizablePanel id="net-detail" :order="2" :default-size="netCols[1]" :min-size="20" :max-size="60">
+        <ResizablePanel id="net-detail" :order="2" :default-size="split[1]" :min-size="20" :max-size="stacked ? 80 : 60">
           <NetworkDetails :row="selected" @close="selectedId = null" />
         </ResizablePanel>
       </template>

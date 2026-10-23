@@ -2,7 +2,7 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@kinora/ui/resizable'
 import { ThemeToggle } from '@kinora/ui/theme-toggle'
 import { TooltipProvider } from '@kinora/ui/tooltip'
-import { Download, Loader2 } from '@lucide/vue'
+import { Download, Loader2, PanelBottom, PanelRight } from '@lucide/vue'
 import { useStorage } from '@vueuse/core'
 import { computed, onMounted } from 'vue'
 import ActionsList from './components/ActionsList.vue'
@@ -20,6 +20,9 @@ const unsupportedTraceVersion = computed(() => store.errorKind.value === 'unsupp
 // Persisted panel sizes (percentages).
 const cols = useStorage('kinora-tv-cols', [22, 78])
 const rows = useStorage('kinora-tv-rows', [62, 38])
+// Docked right, the detail tabs get the full height, which short windows need most.
+const dock = useStorage<'bottom' | 'right'>('kinora-tv-details-dock', 'bottom')
+const dockCols = useStorage('kinora-tv-dock-cols', [58, 42])
 
 useKeyboardNav()
 
@@ -93,6 +96,17 @@ onMounted(() => {
           >
             <Download class="size-4" />
           </button>
+          <button
+            v-if="store.status.value === 'ready'"
+            type="button"
+            data-testid="details-dock"
+            class="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            :title="dock === 'bottom' ? 'Dock details to the right' : 'Dock details to the bottom'"
+            :aria-label="dock === 'bottom' ? 'Dock details to the right' : 'Dock details to the bottom'"
+            @click="dock = dock === 'bottom' ? 'right' : 'bottom'"
+          >
+            <component :is="dock === 'bottom' ? PanelRight : PanelBottom" class="size-4" />
+          </button>
           <ThemeToggle />
         </div>
       </header>
@@ -137,9 +151,29 @@ onMounted(() => {
         </ResizablePanel>
         <ResizableHandle with-handle />
         <ResizablePanel :default-size="cols[1]">
-          <div class="grid h-full grid-rows-[auto_minmax(0,1fr)]">
+          <ResizablePanelGroup
+            v-if="dock === 'right'"
+            key="right"
+            direction="horizontal"
+            @layout="(s: number[]) => (dockCols = s)"
+          >
+            <ResizablePanel :default-size="dockCols[0]" :min-size="25">
+              <div class="grid h-full grid-rows-[auto_minmax(0,1fr)]">
+                <Timeline />
+                <SnapshotPlayer />
+              </div>
+            </ResizablePanel>
+            <ResizableHandle with-handle />
+            <ResizablePanel :default-size="dockCols[1]" :min-size="20">
+              <div data-testid="details-panel" class="h-full border-l border-border">
+                <DetailTabs />
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+          <div v-else class="grid h-full grid-rows-[auto_minmax(0,1fr)]">
             <Timeline />
             <ResizablePanelGroup
+              key="bottom"
               direction="vertical"
               @layout="(s: number[]) => (rows = s)"
             >
@@ -148,7 +182,9 @@ onMounted(() => {
               </ResizablePanel>
               <ResizableHandle with-handle />
               <ResizablePanel :default-size="rows[1]" :min-size="15">
-                <DetailTabs />
+                <div data-testid="details-panel" class="h-full">
+                  <DetailTabs />
+                </div>
               </ResizablePanel>
             </ResizablePanelGroup>
           </div>
