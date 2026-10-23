@@ -22,8 +22,11 @@ const loading = ref(false)
 const frame = computed<StackFrame | undefined>(() => frames.value[selectedFrame.value])
 const targetLine = computed(() => frame.value?.line ?? 0)
 const lang = computed(() => fileName(frame.value?.file ?? '').split('.').pop()?.toLowerCase() ?? '')
-const errors = computed(() => ((frame.value && store.model.value?.sources.get(frame.value.file)?.errors) ?? [])
-  .map(error => ({ line: error.line, message: stripAnsi(error.message) })))
+// Upstream only annotates action errors (`model.sources`); test-runner errors carry a location too,
+// and they are what CI traces mostly contain.
+const errors = computed(() => (store.model.value?.errorDescriptors ?? [])
+  .filter(error => !!frame.value && error.stack?.[0]?.file === frame.value.file)
+  .map(error => ({ line: error.stack![0].line, message: stripAnsi(error.message) })))
 
 const desktop = desktopBridge()
 const copied = ref(false)

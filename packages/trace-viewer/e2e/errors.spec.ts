@@ -18,6 +18,9 @@ test('Errors tab reveals the failing source line', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Source' })).toHaveClass(/text-foreground/)
   await expect(page.getByTestId('source-file-name')).toHaveText('demo.spec.ts')
   await expect(page.locator('.cm-targetLine')).toContainText('Pay now')
+  // Test-runner errors are annotated inline too, without ANSI codes.
+  await expect(page.locator('.cm-errorLine')).toHaveCount(1)
+  await expect(page.locator('.cm-errorMessage')).toContainText('expect(locator).toBeVisible() failed')
 })
 
 test('Timeline exposes error markers', async ({ page }) => {
