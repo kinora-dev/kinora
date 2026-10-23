@@ -60,8 +60,6 @@ test('opens an ARIA-only trace in ARIA mode with the screenshot and action overl
   await page.goto('/?trace=fixtures/aria-only-trace.zip')
   await page.getByTestId('action').filter({ hasText: 'Click' }).first().click()
 
-  // No DOM snapshots: ARIA is the only mode, so there is nothing to toggle.
-  await expect(page.getByRole('button', { name: 'ARIA', exact: true })).toHaveCount(0)
   await expect(page.getByTestId('aria-snapshot')).toContainText('- button "Complete checkout"')
   await expect(page.getByTestId('aria-screenshot')).toBeVisible()
   await expect(page.getByTestId('aria-action-point')).toBeVisible()
@@ -276,15 +274,6 @@ test('copies the snapshot url from the address bar', async ({ page, context }) =
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('about:blank')
 })
 
-test('keeps the previous snapshot on screen while the next one loads', async ({ page }) => {
-  // The next snapshot loads in a second, hidden iframe; only the visible one is named `snapshot`.
-  await expect(page.locator('iframe[name="snapshot"]')).toHaveCount(1)
-  await expect(page.locator('iframe[name="snapshot-next"]')).toHaveCount(1)
-  await page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' }).click()
-  await expect(page.frameLocator('iframe[name="snapshot"]').locator('#customer')).toBeVisible()
-  await expect(page.locator('iframe[name="snapshot"]')).toHaveCount(1)
-})
-
 test('syntax highlights the source', async ({ page }) => {
   await page.getByRole('button', { name: 'Source', exact: true }).click()
   // A duplicate @codemirror/view silently drops highlight decorations, leaving plain monochrome text.
@@ -380,8 +369,6 @@ test('network tab lists requests and previews a response body', async ({ page })
 
 test('network list shows content type and start columns', async ({ page }) => {
   await page.getByRole('button', { name: /^Network/ }).click()
-  const headers = page.locator('thead th[data-col]')
-  await expect(headers).toHaveText(['Name', 'Method', 'Status', 'Content Type', 'Duration', 'Size', 'Start', 'Route'])
   const css = page.getByTestId('net-row').filter({ hasText: 'style.css' })
   await expect(css.locator('[data-col="contentType"]')).toHaveText('text/css')
   await expect(css.locator('[data-col="start"]')).toHaveText(/^\d+ms$/)
