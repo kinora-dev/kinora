@@ -295,6 +295,34 @@ test('network tab lists requests and previews a response body', async ({ page })
   await expect(page.getByText('font-family')).toBeVisible()
 })
 
+test('network list shows content type and start columns', async ({ page }) => {
+  await page.getByRole('button', { name: /^Network/ }).click()
+  const headers = page.locator('thead th[data-col]')
+  await expect(headers).toHaveText(['Name', 'Method', 'Status', 'Content Type', 'Duration', 'Size', 'Start', 'Route'])
+  const css = page.getByTestId('net-row').filter({ hasText: 'style.css' })
+  await expect(css.locator('[data-col="contentType"]')).toHaveText('text/css')
+  await expect(css.locator('[data-col="start"]')).toHaveText(/^\d+ms$/)
+})
+
+test('network columns resize and keep their width', async ({ page }) => {
+  await page.getByRole('button', { name: /^Network/ }).click()
+  const name = page.locator('thead th').filter({ hasText: 'Name' })
+  const before = (await name.boundingBox())!.width
+  const handle = (await name.getByTestId('net-col-resizer').boundingBox())!
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(handle.x + 120, handle.y + handle.height / 2, { steps: 5 })
+  await page.mouse.up()
+  // The column follows the pointer one-to-one.
+  const moved = 120 - handle.width / 2
+  await expect.poll(async () => Math.abs((await name.boundingBox())!.width - before - moved)).toBeLessThanOrEqual(2)
+
+  const resized = (await name.boundingBox())!.width
+  await page.reload()
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await expect.poll(async () => Math.abs((await page.locator('thead th').filter({ hasText: 'Name' }).boundingBox())!.width - resized)).toBeLessThanOrEqual(2)
+})
+
 test('network tab can show all requests in the trace', async ({ page }) => {
   await page.getByTestId('action').first().click()
   await page.getByRole('button', { name: /^Network/ }).click()

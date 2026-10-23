@@ -7,6 +7,9 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@kinora/ui
 import { valueUpdater } from '@kinora/ui/table/utils'
 import { ChevronDown, ChevronUp, Copy, ListFilter } from '@lucide/vue'
 import {
+  columnResizingFeature,
+  columnSizingFeature,
+  columnVisibilityFeature,
   createSortedRowModel,
   rowSortingFeature,
   sortFn_alphanumeric,
@@ -18,7 +21,7 @@ import {
 import { useStorage } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { formatMs } from '../lib/format'
-import { allResources, bodyUrl, formatSize, isTextMime, NETWORK_SEARCH_FIELDS, networkMatches, prettyJson, RESOURCE_CATEGORIES, resourcesForAction, resourcesInWindow, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, toCurl, toFetch } from '../lib/network'
+import { allResources, bodyUrl, formatSize, isTextMime, NETWORK_SEARCH_FIELDS, networkMatches, prettyJson, RESOURCE_CATEGORIES, resourcesForAction, resourcesInWindow, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, statusLabel, toCurl, toFetch } from '../lib/network'
 import { useTraceStore } from '../store'
 import FilterInput from './FilterInput.vue'
 import TextTooltip from './TextTooltip.vue'
@@ -116,13 +119,15 @@ watch([query, searchesBodies], ([q, bodies]) => {
 })
 
 const scopedRows = computed(() => {
-  const resources = store.model.value?.resources ?? []
+  const model = store.model.value
+  const resources = model?.resources ?? []
+  const context = { ownerTitles: model?.resourceOwnerRefToTitle, startTime: model?.startTime }
   const range = store.timeRange.value
   return range
-    ? resourcesInWindow(resources, range)
+    ? resourcesInWindow(resources, range, context)
     : scope.value === 'all'
-      ? allResources(resources)
-      : resourcesForAction(resources, store.selectedAction.value)
+      ? allResources(resources, context)
+      : resourcesForAction(resources, store.selectedAction.value, context)
 })
 
 const matchesById = computed(() => {
@@ -146,28 +151,47 @@ const rows = computed(() => {
 })
 
 const features = tableFeatures({
+  columnResizingFeature,
+  columnSizingFeature,
+  columnVisibilityFeature,
   rowSortingFeature,
   sortedRowModel: createSortedRowModel(),
   sortFns: { basic: sortFn_basic, alphanumeric: sortFn_alphanumeric, text: sortFn_text },
 })
 
 const columns: ColumnDef<typeof features, NetworkRow>[] = [
-  { accessorKey: 'name', header: 'Name' },
-  { accessorKey: 'method', header: 'Method' },
-  { accessorKey: 'status', header: 'Status' },
-  { accessorKey: 'category', header: 'Type' },
-  { accessorKey: 'size', header: 'Size' },
-  { accessorKey: 'duration', header: 'Time' },
-  { accessorKey: 'route', header: 'Route' },
+  { accessorKey: 'source', header: 'Source', size: 70 },
+  { accessorKey: 'name', header: 'Name', size: 240 },
+  { accessorKey: 'method', header: 'Method', size: 70 },
+  { accessorKey: 'status', header: 'Status', size: 70 },
+  { accessorKey: 'contentType', header: 'Content Type', size: 150 },
+  { accessorKey: 'duration', header: 'Duration', size: 80 },
+  { accessorKey: 'size', header: 'Size', size: 80 },
+  { accessorFn: row => row.start ?? -1, id: 'start', header: 'Start', size: 80 },
+  { accessorKey: 'route', header: 'Route', size: 80 },
 ]
 
-const state = computed(() => ({ sorting: sorting.value }))
+const columnSizing = useStorage<Record<string, number>>('kinora-tv-net-col-sizes', {})
+const columnResizing = ref()
+// The Source column only tells requests apart when several pages or contexts issued them.
+const columnVisibility = computed(() => ({ source: new Set(scopedRows.value.map(r => r.source).filter(Boolean)).size > 1 }))
+const state = computed(() => ({
+  columnResizing: columnResizing.value,
+  columnSizing: columnSizing.value,
+  columnVisibility: columnVisibility.value,
+  sorting: sorting.value,
+}))
 
 const table = useTable({
   features,
   get data() { return rows.value },
   columns,
   state,
+  columnResizeMode: 'onChange',
+  onColumnResizingChange: updater => valueUpdater(updater, columnResizing),
+  onColumnSizingChange: (updater) => {
+    columnSizing.value = typeof updater === 'function' ? updater(columnSizing.value) : updater
+  },
   onSortingChange: updater => valueUpdater(updater, sorting),
 })
 
@@ -241,7 +265,7 @@ const emptyMessage = computed(() => {
   return scope.value === 'all' ? 'No network in this trace' : 'No network for this action'
 })
 
-const alignEnd = new Set(['size', 'duration', 'status'])
+const alignEnd = new Set(['size', 'duration', 'start', 'status'])
 </script>
 
 <template>
@@ -323,14 +347,16 @@ const alignEnd = new Set(['size', 'duration', 'status'])
       <!-- table -->
       <ResizablePanel id="net-table" :order="1" :default-size="selected ? netCols[0] : 100">
         <div class="h-full overflow-auto">
-          <table class="w-full text-xs">
-            <thead class="sticky top-0 bg-background">
+          <table class="w-full table-fixed text-xs" :style="{ minWidth: `${table.getTotalSize()}px` }">
+            <thead class="sticky top-0 z-10 bg-background">
               <tr class="border-b border-border">
                 <th
                   v-for="header in table.getHeaderGroups()[0].headers"
                   :key="header.id"
+                  :data-col="header.column.id"
+                  :style="{ width: `${header.getSize()}px` }"
                   :class="cn(
-                    'cursor-pointer px-3 py-1.5 font-medium text-muted-foreground select-none hover:text-foreground',
+                    'relative cursor-pointer truncate px-3 py-1.5 font-medium text-muted-foreground select-none hover:text-foreground',
                     alignEnd.has(header.column.id) ? 'text-right' : 'text-left',
                   )"
                   @click="header.column.toggleSorting()"
@@ -340,7 +366,17 @@ const alignEnd = new Set(['size', 'duration', 'status'])
                     <ChevronUp v-if="header.column.getIsSorted() === 'asc'" class="size-3" />
                     <ChevronDown v-else-if="header.column.getIsSorted() === 'desc'" class="size-3" />
                   </span>
+                  <div
+                    data-testid="net-col-resizer"
+                    :class="cn('absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none hover:bg-signal/40', header.column.getIsResizing() && 'bg-signal/60')"
+                    @click.stop
+                    @dblclick.stop="header.column.resetSize()"
+                    @mousedown="header.getResizeHandler()($event)"
+                    @touchstart="header.getResizeHandler()($event)"
+                  />
                 </th>
+                <!-- Takes the leftover width so resized columns keep exactly their size. -->
+                <th aria-hidden="true" class="p-0" />
               </tr>
             </thead>
             <tbody>
@@ -357,8 +393,13 @@ const alignEnd = new Set(['size', 'duration', 'status'])
                 )"
                 @click="selectedId = row.original.id"
               >
-                <td class="max-w-0 px-3 py-1 font-mono text-foreground/90">
-                  <div class="flex min-w-0 items-center gap-1.5">
+                <td
+                  v-for="cell in row.getVisibleCells()"
+                  :key="cell.id"
+                  :data-col="cell.column.id"
+                  :class="cn('truncate px-3 py-1', alignEnd.has(cell.column.id) && 'text-right font-mono tabular-nums')"
+                >
+                  <div v-if="cell.column.id === 'name'" class="flex min-w-0 items-center gap-1.5 font-mono text-foreground/90">
                     <TextTooltip :text="row.original.name" :tip="row.original.url" class="block min-w-0" />
                     <span
                       v-for="where in (matchesById.get(row.original.id) ?? []).filter(m => m !== 'url')"
@@ -367,25 +408,14 @@ const alignEnd = new Set(['size', 'duration', 'status'])
                       class="shrink-0 rounded bg-signal/15 px-1 font-sans text-[10px] text-signal"
                     >{{ where }}</span>
                   </div>
+                  <span v-else-if="cell.column.id === 'status'" :class="statusClass(row.original.status)">{{ statusLabel(row.original.status) }}</span>
+                  <span v-else-if="cell.column.id === 'size'" class="text-muted-foreground">{{ formatSize(row.original.size) }}</span>
+                  <span v-else-if="cell.column.id === 'duration'" class="text-muted-foreground">{{ formatMs(row.original.duration) }}</span>
+                  <span v-else-if="cell.column.id === 'start'" class="text-muted-foreground">{{ formatMs(row.original.start) }}</span>
+                  <span v-else-if="cell.column.id === 'route'" :class="row.original.route === 'aborted' ? 'text-fail' : 'text-info'">{{ row.original.route ?? '' }}</span>
+                  <span v-else class="text-muted-foreground" :title="String(cell.getValue() ?? '')">{{ cell.getValue() }}</span>
                 </td>
-                <td class="px-3 py-1 text-muted-foreground">
-                  {{ row.original.method }}
-                </td>
-                <td class="px-3 py-1 text-right font-mono tabular-nums" :class="statusClass(row.original.status)">
-                  {{ row.original.status || '-' }}
-                </td>
-                <td class="px-3 py-1 text-muted-foreground">
-                  {{ row.original.category }}
-                </td>
-                <td class="px-3 py-1 text-right font-mono tabular-nums text-muted-foreground">
-                  {{ formatSize(row.original.size) }}
-                </td>
-                <td class="px-3 py-1 text-right font-mono tabular-nums text-muted-foreground">
-                  {{ Math.round(row.original.duration) }}ms
-                </td>
-                <td class="px-3 py-1" :class="row.original.route === 'aborted' ? 'text-fail' : 'text-info'">
-                  {{ row.original.route ?? '' }}
-                </td>
+                <td class="p-0" />
               </tr>
             </tbody>
           </table>
@@ -401,7 +431,7 @@ const alignEnd = new Set(['size', 'duration', 'status'])
               <div class="min-w-0 flex-1">
                 <div class="mb-1 flex items-center gap-2">
                   <span class="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{{ selected.method }}</span>
-                  <span class="font-mono tabular-nums" :class="statusClass(selected.status)">{{ selected.status || '-' }}</span>
+                  <span class="font-mono tabular-nums" :class="statusClass(selected.status)">{{ statusLabel(selected.status) }}</span>
                   <span class="text-muted-foreground">{{ selected.resource.response?.statusText }}</span>
                 </div>
                 <div class="font-mono break-all text-foreground/90">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allResources, bodyUrl, formatSize, networkMatches, prettyJson, resourceAtUrl, resourceCategory, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, toCurl, toFetch } from '../src/ui/lib/network'
+import { allResources, bodyUrl, contentType, formatSize, networkMatches, prettyJson, resourceAtUrl, resourceCategory, resourceName, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, statusLabel, toCurl, toFetch } from '../src/ui/lib/network'
 
 type Res = Parameters<typeof resourceCategory>[0]
 
@@ -82,6 +82,41 @@ describe('allResources', () => {
     ])
     expect(rows.map(r => r.name)).toEqual(['a.js', 'not a url'])
     expect(rows.map(r => r.status)).toEqual([200, 404])
+  })
+})
+
+describe('network list columns', () => {
+  it('keeps the query string in the name', () => {
+    expect(resourceName('https://x/api/orders?page=2&sort=desc')).toBe('orders?page=2&sort=desc')
+    expect(resourceName('https://x/?q=1')).toBe('x?q=1')
+  })
+
+  it('drops the charset from the content type and names websockets', () => {
+    expect(contentType(res({ mime: 'text/html; charset=utf-8' }))).toBe('text/html')
+    expect(contentType(res({ mime: 'application/json' }))).toBe('application/json')
+    expect(contentType(res({ type: 'websocket', mime: '' }))).toBe('websocket')
+    expect(resourceCategory(res({ type: 'websocket' }))).toBe('WS')
+  })
+
+  it('labels canceled requests as failures', () => {
+    expect(statusLabel(-1)).toBe('canceled')
+    expect(statusClass(-1)).toBe('text-fail')
+    expect(statusLabel(0)).toBe('-')
+    expect(statusLabel(204)).toBe('204')
+  })
+
+  it('marks APIRequestContext calls as api', () => {
+    expect(routeOutcome({ ...res({}), _apiRequestRef: 'request@1' } as any)).toBe('api')
+  })
+
+  it('times rows from the trace start and names their source page', () => {
+    const [row] = allResources([{ ...res({ monotonicTime: 1250 }), pageref: 'page@a' } as any], {
+      ownerTitles: new Map([['page@a', 'page#1']]),
+      startTime: 1000,
+    })
+    expect(row.start).toBe(250)
+    expect(row.source).toBe('page#1')
+    expect(allResources([res({})])[0].source).toBe('')
   })
 })
 

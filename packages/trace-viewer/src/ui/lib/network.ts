@@ -1,11 +1,16 @@
 import type { ActionEntry } from '@isomorphic/trace/entries'
 import type { ResourceEntry } from '@isomorphic/trace/traceModel'
+import { resourceOwnerRef } from '@isomorphic/trace/traceModel'
 
-export type ResourceCategory = 'Fetch' | 'HTML' | 'JS' | 'CSS' | 'Font' | 'Image' | 'Other'
+export type ResourceCategory = 'Fetch' | 'HTML' | 'JS' | 'CSS' | 'Font' | 'Image' | 'WS' | 'Other'
 
-export const RESOURCE_CATEGORIES: ResourceCategory[] = ['Fetch', 'HTML', 'JS', 'CSS', 'Font', 'Image']
+export const RESOURCE_CATEGORIES: ResourceCategory[] = ['Fetch', 'HTML', 'JS', 'CSS', 'Font', 'Image', 'WS']
 
-export type RouteOutcome = 'fulfilled' | 'continued' | 'aborted'
+// `api` marks requests made through APIRequestContext rather than the page.
+export type RouteOutcome = 'fulfilled' | 'continued' | 'aborted' | 'api'
+
+// Status Playwright records for a request that never got a response.
+export const CANCELED_STATUS = -1
 
 export interface NetworkRow {
   id: string
@@ -14,10 +19,20 @@ export interface NetworkRow {
   method: string
   status: number
   category: ResourceCategory
+  contentType: string
   size: number
   duration: number
+  // Relative to the trace start; undefined when the request has no recorded time.
+  start?: number
+  // The page (page#1, ...) or service worker that issued the request.
+  source: string
   route?: RouteOutcome
   resource: ResourceEntry
+}
+
+export interface RowContext {
+  ownerTitles?: Map<string, string>
+  startTime?: number
 }
 
 export function routeOutcome(r: ResourceEntry): RouteOutcome | undefined {
@@ -27,12 +42,16 @@ export function routeOutcome(r: ResourceEntry): RouteOutcome | undefined {
     return 'aborted'
   if (r._wasContinued)
     return 'continued'
+  if (r._apiRequestRef)
+    return 'api'
   return undefined
 }
 
 export function resourceCategory(resource: ResourceEntry): ResourceCategory {
   const type = resource._resourceType?.toLowerCase()
   const mime = resource.response?.content?.mimeType?.toLowerCase() ?? ''
+  if (type === 'websocket')
+    return 'WS'
   if (type === 'document' || mime.includes('html'))
     return 'HTML'
   if (type === 'stylesheet' || mime.includes('css'))
@@ -63,18 +82,26 @@ function responseSize(r: ResourceEntry): number {
   return 0
 }
 
-function resourceName(url: string): string {
+// Last path segment plus the query string, like upstream's Name column.
+export function resourceName(url: string): string {
   try {
     const u = new URL(url)
     const last = u.pathname.split('/').filter(Boolean).pop()
-    return last || u.hostname
+    return (last || u.hostname) + u.search
   }
   catch {
     return url
   }
 }
 
-function toNetworkRow(r: ResourceEntry): NetworkRow {
+export function contentType(r: ResourceEntry): string {
+  if (r._resourceType === 'websocket')
+    return 'websocket'
+  return (r.response?.content?.mimeType ?? '').replace(/;\s*charset=.*$/i, '')
+}
+
+function toNetworkRow(r: ResourceEntry, context: RowContext = {}): NetworkRow {
+  const owner = resourceOwnerRef(r)
   return {
     id: r.id,
     name: resourceName(r.request.url),
@@ -82,8 +109,11 @@ function toNetworkRow(r: ResourceEntry): NetworkRow {
     method: r.request.method,
     status: r.response?.status ?? 0,
     category: resourceCategory(r),
+    contentType: contentType(r),
     size: responseSize(r),
     duration: r.time ?? 0,
+    start: r._monotonicTime === undefined ? undefined : r._monotonicTime - (context.startTime ?? 0),
+    source: (owner && context.ownerTitles?.get(owner)) || '',
     route: routeOutcome(r),
     resource: r,
   }
@@ -95,25 +125,27 @@ function toNetworkRow(r: ResourceEntry): NetworkRow {
 export function resourcesForAction(
   resources: ResourceEntry[],
   action: ActionEntry | undefined,
+  context?: RowContext,
 ): NetworkRow[] {
   if (!action)
     return []
   const end = action.endTime || action.startTime
-  return resources.filter(r => r._monotonicTime !== undefined && r._monotonicTime <= end).map(toNetworkRow)
+  return resources.filter(r => r._monotonicTime !== undefined && r._monotonicTime <= end).map(r => toNetworkRow(r, context))
 }
 
-export function allResources(resources: ResourceEntry[]): NetworkRow[] {
-  return resources.map(toNetworkRow)
+export function allResources(resources: ResourceEntry[], context?: RowContext): NetworkRow[] {
+  return resources.map(r => toNetworkRow(r, context))
 }
 
 // Network requests whose start falls inside a brushed time window.
 export function resourcesInWindow(
   resources: ResourceEntry[],
   range: { start: number, end: number },
+  context?: RowContext,
 ): NetworkRow[] {
   return resources
     .filter(r => r._monotonicTime !== undefined && r._monotonicTime >= range.start && r._monotonicTime <= range.end)
-    .map(toNetworkRow)
+    .map(r => toNetworkRow(r, context))
 }
 
 // The network resource a console/page URL most likely refers to: the matching
@@ -183,7 +215,15 @@ export function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+export function statusLabel(status: number): string {
+  if (status === CANCELED_STATUS)
+    return 'canceled'
+  return status > 0 ? String(status) : '-'
+}
+
 export function statusClass(status: number): string {
+  if (status === CANCELED_STATUS)
+    return 'text-fail'
   if (!status)
     return 'text-muted-foreground'
   if (status >= 500 || status >= 400)
