@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { cn } from '@kinora/ui'
-import { ChevronLeft, ChevronRight, Pause, Play, ZoomOut } from '@lucide/vue'
+import { ChevronLeft, ChevronRight, Pause, Play, Square, ZoomOut } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { actionDuration, actionStatus, actionTitle } from '../lib/action'
 import { formatMs } from '../lib/format'
-import { filmstripTiles, screencastFrames, xToTime } from '../lib/timeline'
+import { filmstripTiles, frameAt, pageScreencastFrames, rulerTicks, xToTime } from '../lib/timeline'
 import { useTraceStore } from '../store'
 
 const store = useTraceStore()
@@ -60,19 +60,51 @@ const cursor = computed(() => {
   }
 })
 
-const frames = computed(() => screencastFrames(store.model.value))
+const pages = computed(() => pageScreencastFrames(store.model.value))
 
 const FILMSTRIP_TILE_WIDTH = 58
 const filmstrip = ref<HTMLElement | null>(null)
 const { width: filmstripWidth } = useElementSize(filmstrip)
-const tiles = computed(() => {
+const rows = computed(() => {
   const { min, max } = bounds.value
   const count = Math.max(1, Math.floor(filmstripWidth.value / FILMSTRIP_TILE_WIDTH))
-  return filmstripTiles(frames.value, min, max, count).map(tile => ({
-    ...tile,
-    left: (((tile.time - min) / (max - min)) * 100) - (50 / count),
-    width: 100 / count,
+  return pages.value.map(page => ({
+    pageId: page.pageId,
+    frames: page.frames,
+    tiles: filmstripTiles(page.frames, min, max, count).map(tile => ({
+      ...tile,
+      left: (((tile.time - min) / (max - min)) * 100) - (50 / count),
+      width: 100 / count,
+    })),
   }))
+})
+
+// Large preview of the frame under the pointer, like upstream's film strip.
+const PREVIEW_WIDTH = 320
+const preview = ref<{ url: string, x: number, top: number } | null>(null)
+function onFilmstripMove(e: MouseEvent, frames: { url: string, timestamp: number }[]): void {
+  const strip = filmstrip.value
+  if (!strip)
+    return
+  const rect = strip.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const { min, span } = bounds.value
+  const frame = frameAt(frames, xToTime(x, rect.width, min, span))
+  const row = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  preview.value = frame ? { url: frame.url, x: Math.min(Math.max(x, PREVIEW_WIDTH / 2), rect.width - PREVIEW_WIDTH / 2), top: row.bottom - rect.top } : null
+}
+
+const track = ref<HTMLElement | null>(null)
+const { width: trackWidth } = useElementSize(track)
+const ticks = computed(() => rulerTicks(bounds.value.min, bounds.value.max, trackWidth.value, store.model.value?.startTime ?? bounds.value.min))
+
+const highlight = computed(() => {
+  const range = store.highlightedTime.value
+  const { min, max, span } = bounds.value
+  if (!range || range.end < min || range.start > max)
+    return undefined
+  const start = Math.max(range.start, min)
+  return { left: ((start - min) / span) * 100, width: ((Math.min(range.end, max) - start) / span) * 100 }
 })
 
 // Drag-to-zoom: brush a window on the action track to filter every tab.
@@ -165,9 +197,26 @@ const rangeLabel = computed(() => {
     return ''
   return `${formatMs(range.start - model.startTime)} - ${formatMs(range.end - model.startTime)}`
 })
+// The scrubber works in ms from the trace start, over the zoomed window when there is one.
+const scrubber = computed(() => {
+  const model = store.model.value
+  const origin = model?.startTime ?? 0
+  const range = store.timeRange.value
+  const min = (range?.start ?? origin) - origin
+  const max = (range?.end ?? model?.endTime ?? origin) - origin
+  const span = Math.max(1, max - min)
+  const marks = store.items.value
+    .map(item => item.action.startTime - origin)
+    .filter(t => t >= min && t <= max)
+    .map(t => ((t - min) / span) * 100)
+  return { max, min, marks }
+})
 const scrubberValue = computed({
-  get: () => Math.max(0, store.selectedIndex.value),
-  set: value => store.selectIndex(Number(value)),
+  get: () => {
+    const origin = store.model.value?.startTime ?? 0
+    return (store.playhead.value ?? store.selectedAction.value?.startTime ?? origin) - origin
+  },
+  set: value => store.scrubTo((store.model.value?.startTime ?? 0) + Number(value)),
 })
 
 // Select the action whose time window is closest to a screencast frame.
@@ -199,6 +248,16 @@ function seekToTime(t: number): void {
       >
         <Pause v-if="store.playing.value" class="size-4" />
         <Play v-else class="size-4" />
+      </button>
+      <button
+        type="button"
+        data-testid="stop"
+        class="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
+        title="Stop"
+        :disabled="!store.playing.value && store.playhead.value === null"
+        @click="store.stopPlay"
+      >
+        <Square class="size-3.5" />
       </button>
       <div class="flex items-center gap-0.5">
         <button
@@ -235,17 +294,26 @@ function seekToTime(t: number): void {
       <span v-if="cursor" data-testid="timeline-current-time" class="shrink-0 font-mono text-[11px] text-muted-foreground">
         {{ cursor.label }}
       </span>
-      <input
-        v-model.number="scrubberValue"
-        data-testid="action-scrubber"
-        type="range"
-        min="0"
-        :max="Math.max(0, store.items.value.length - 1)"
-        step="1"
-        class="h-1 w-32 shrink-0 cursor-pointer appearance-none rounded-full bg-muted accent-signal disabled:opacity-30"
-        title="Action scrubber"
-        :disabled="store.items.value.length <= 1"
-      >
+      <div class="relative flex w-40 shrink-0 items-center">
+        <span
+          v-for="(mark, i) in scrubber.marks"
+          :key="i"
+          data-testid="scrubber-mark"
+          class="pointer-events-none absolute top-1/2 h-2.5 w-px -translate-y-1/2 bg-muted-foreground/40"
+          :style="{ left: `${mark}%` }"
+        />
+        <input
+          v-model.number="scrubberValue"
+          data-testid="action-scrubber"
+          type="range"
+          :min="scrubber.min"
+          :max="scrubber.max"
+          step="1"
+          class="relative h-1 w-full cursor-pointer appearance-none rounded-full bg-muted/70 accent-signal disabled:opacity-30"
+          title="Scrub through the trace"
+          :disabled="!store.items.value.length"
+        >
+      </div>
       <button
         v-if="store.timeRange.value"
         type="button"
@@ -261,22 +329,53 @@ function seekToTime(t: number): void {
       </div>
     </div>
 
-    <!-- filmstrip -->
-    <div v-if="frames.length" class="relative h-12 shrink-0 border-b border-border bg-muted/10">
-      <div ref="filmstrip" class="absolute inset-x-2 inset-y-1.5">
+    <!-- filmstrip: one row per page -->
+    <div v-if="rows.length" class="relative shrink-0 border-b border-border bg-muted/10 px-2 py-1.5" @mouseleave="preview = null">
+      <div ref="filmstrip" class="relative flex flex-col gap-1">
         <div
-          v-for="tile in tiles"
-          :key="tile.time"
-          data-testid="filmstrip-tile"
-          class="absolute top-0 h-full px-px"
-          :style="{ left: `${tile.left}%`, width: `${tile.width}%` }"
+          v-for="row in rows"
+          :key="row.pageId"
+          data-testid="filmstrip-row"
+          class="relative h-9"
+          @mousemove="onFilmstripMove($event, row.frames)"
         >
-          <img
-            :src="tile.frame.url"
-            alt=""
-            class="size-full cursor-pointer rounded-sm border border-border object-cover object-top transition-transform hover:z-10 hover:scale-110"
-            @click="seekToTime(tile.time)"
+          <div
+            v-for="tile in row.tiles"
+            :key="tile.time"
+            data-testid="filmstrip-tile"
+            class="absolute top-0 h-full px-px"
+            :style="{ left: `${tile.left}%`, width: `${tile.width}%` }"
           >
+            <img
+              :src="tile.frame.url"
+              alt=""
+              class="size-full cursor-pointer rounded-sm border border-border object-cover object-top"
+              @click="seekToTime(tile.time)"
+            >
+          </div>
+        </div>
+        <img
+          v-if="preview"
+          data-testid="filmstrip-preview"
+          :src="preview.url"
+          alt=""
+          class="pointer-events-none absolute z-40 mt-1 -translate-x-1/2 rounded-md border border-border bg-background shadow-xl"
+          :style="{ left: `${preview.x}px`, top: `${preview.top}px`, width: `${PREVIEW_WIDTH}px` }"
+        >
+      </div>
+    </div>
+
+    <!-- ruler -->
+    <div class="relative h-4 shrink-0 bg-muted/20">
+      <div ref="track" class="absolute inset-x-2 inset-y-0">
+        <div
+          v-for="tick in ticks"
+          :key="tick.time"
+          data-testid="ruler-tick"
+          class="absolute bottom-0 h-full border-l border-border/80 pl-1 font-mono text-[9px] leading-4 text-muted-foreground/80"
+          :style="{ left: `${tick.left}%` }"
+        >
+          {{ tick.label }}
         </div>
       </div>
     </div>
@@ -306,6 +405,12 @@ function seekToTime(t: number): void {
           @dblclick.stop="store.zoomToAction(store.items.value.find(item => item.id === seg.id)!.action)"
           @mouseenter="store.setHoveredAction(seg.id)"
           @mouseleave="store.setHoveredAction(null)"
+        />
+        <div
+          v-if="highlight"
+          data-testid="timeline-highlight"
+          class="pointer-events-none absolute -inset-y-1 z-10 min-w-0.5 rounded-sm bg-info/30 ring-1 ring-info"
+          :style="{ left: `${highlight.left}%`, width: `${highlight.width}%` }"
         />
         <div
           v-if="cursor"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { actionInWindow, filmstripTiles, inWindow, normalizeRange, screencastFrames, xToTime } from '../src/ui/lib/timeline'
+import { actionInWindow, filmstripTiles, frameAt, inWindow, normalizeRange, pageScreencastFrames, rulerTicks, screencastFrames, xToTime } from '../src/ui/lib/timeline'
 
 describe('normalizeRange', () => {
   it('orders the endpoints', () => {
@@ -89,5 +89,51 @@ describe('filmstripTiles', () => {
 
   it('leaves out tiles before the first frame', () => {
     expect(filmstripTiles(frames, 0, 1000, 20)[0].time).toBe(125)
+  })
+})
+
+describe('rulerTicks', () => {
+  it('picks a round step about every 90px, labelled from the trace start', () => {
+    const ticks = rulerTicks(1000, 2000, 900, 1000)
+    expect(ticks.map(t => t.label)).toEqual(['0ms', '100ms', '200ms', '300ms', '400ms', '500ms', '600ms', '700ms', '800ms', '900ms', '1.0s'])
+    expect(ticks[1].left).toBeCloseTo(10)
+  })
+
+  it('starts on the first round tick inside a zoomed window', () => {
+    const ticks = rulerTicks(1130, 1180, 500, 1000)
+    expect(ticks.map(t => t.label)).toEqual(['130ms', '140ms', '150ms', '160ms', '170ms', '180ms'])
+  })
+
+  it('uses 2 and 5 steps between powers of ten', () => {
+    expect(rulerTicks(0, 1000, 450, 0).map(t => t.label).slice(0, 3)).toEqual(['0ms', '200ms', '400ms'])
+    expect(rulerTicks(0, 5000, 900, 0).map(t => t.label).slice(0, 3)).toEqual(['0ms', '500ms', '1.0s'])
+  })
+
+  it('is empty without a span or width', () => {
+    expect(rulerTicks(5, 5, 100, 0)).toEqual([])
+    expect(rulerTicks(0, 10, 0, 0)).toEqual([])
+  })
+})
+
+describe('frameAt', () => {
+  const frames = [{ timestamp: 10 }, { timestamp: 20 }, { timestamp: 30 }]
+  it('shows the last frame painted at that time, or the first one before any', () => {
+    expect(frameAt(frames, 25)).toBe(frames[1])
+    expect(frameAt(frames, 30)).toBe(frames[2])
+    expect(frameAt(frames, 5)).toBe(frames[0])
+    expect(frameAt([], 5)).toBeUndefined()
+  })
+})
+
+describe('pageScreencastFrames', () => {
+  it('keeps one sorted row per page that has frames', () => {
+    const model = {
+      createRelativeUrl: (p: string) => `/${p}`,
+      pages: [
+        { pageId: 'a', screencastFrames: [{ file: 'a2', timestamp: 2 }, { file: 'a1', timestamp: 1 }] },
+        { pageId: 'b', screencastFrames: [] },
+      ],
+    } as any
+    expect(pageScreencastFrames(model)).toEqual([{ pageId: 'a', frames: [{ url: '/file/a1', timestamp: 1 }, { url: '/file/a2', timestamp: 2 }] }])
   })
 })

@@ -19,7 +19,7 @@ import {
   useTable,
 } from '@tanstack/vue-table'
 import { useElementSize, useStorage } from '@vueuse/core'
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { formatMs } from '../lib/format'
 import { allResources, bodyUrl, formatSize, NETWORK_SEARCH_FIELDS, networkMatches, RESOURCE_CATEGORIES, resourcesForAction, resourcesInWindow, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../lib/network'
 import { useTraceStore } from '../store'
@@ -28,6 +28,8 @@ import NetworkDetails from './NetworkDetails.vue'
 import TextTooltip from './TextTooltip.vue'
 
 const store = useTraceStore()
+// A hovered row leaves no mouseleave behind when the tab closes under the pointer.
+onBeforeUnmount(() => store.setHighlightedTime(null))
 
 // Persisted [table, detail] widths (percentages); applied only while a row is selected.
 const netCols = useStorage('kinora-tv-net-cols', [62, 38])
@@ -214,6 +216,12 @@ function saveSplit(sizes: number[]): void {
     netCols.value = sizes
 }
 
+// Shows when the hovered request ran on the timeline.
+function highlightRow(row: NetworkRow): void {
+  const start = row.resource._monotonicTime
+  store.setHighlightedTime(start === undefined ? null : { start, end: start + row.duration })
+}
+
 function toggleCat(cat: ResourceCategory): void {
   const next = new Set(activeCats.value)
   if (next.has(cat))
@@ -366,6 +374,8 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
                     : row.original.route ? 'bg-info/10 hover:bg-info/15' : 'hover:bg-muted/40',
                 )"
                 @click="selectedId = row.original.id"
+                @mouseenter="highlightRow(row.original)"
+                @mouseleave="store.setHighlightedTime(null)"
               >
                 <td
                   v-for="cell in row.getVisibleCells()"

@@ -1,4 +1,5 @@
 import type { TraceModel } from '@isomorphic/trace/traceModel'
+import { formatMs } from './format'
 
 export interface TimeRange {
   start: number
@@ -61,4 +62,58 @@ export function filmstripTiles<T extends { timestamp: number }>(frames: readonly
       out.push({ frame: frames[i], time })
   }
   return out
+}
+
+export interface PageFrames {
+  pageId: string
+  frames: ScreencastFrame[]
+}
+
+// One film strip row per page that recorded frames, like upstream.
+export function pageScreencastFrames(model: TraceModel | null): PageFrames[] {
+  if (!model)
+    return []
+  return model.pages
+    .filter(page => page.screencastFrames.length)
+    .map(page => ({
+      pageId: page.pageId,
+      frames: page.screencastFrames
+        .map(f => ({ url: model.createRelativeUrl(`file/${f.file}`), timestamp: f.timestamp }))
+        .sort((a, b) => a.timestamp - b.timestamp),
+    }))
+}
+
+// The last frame shown at or before `time` (the first one before the page painted anything).
+export function frameAt<T extends { timestamp: number }>(frames: readonly T[], time: number): T | undefined {
+  let found: T | undefined
+  for (const frame of frames) {
+    if (frame.timestamp > time)
+      break
+    found = frame
+  }
+  return found ?? frames[0]
+}
+
+export interface RulerTick {
+  time: number
+  left: number
+  label: string
+}
+
+const TICK_STEPS = [1, 2, 5]
+
+// Evenly spaced ticks on round durations (1, 2, 5 × 10ⁿ ms), roughly `spacing` pixels apart.
+export function rulerTicks(min: number, max: number, width: number, origin: number, spacing = 90): RulerTick[] {
+  const span = max - min
+  if (span <= 0 || width <= 0)
+    return []
+  const target = (span * spacing) / width
+  const magnitude = 10 ** Math.floor(Math.log10(target))
+  const step = (TICK_STEPS.find(s => s * magnitude >= target) ?? 10) * magnitude
+  const ticks: RulerTick[] = []
+  for (let offset = Math.ceil((min - origin) / step) * step; origin + offset <= max; offset += step) {
+    const time = origin + offset
+    ticks.push({ time, left: ((time - min) / span) * 100, label: formatMs(offset) })
+  }
+  return ticks
 }

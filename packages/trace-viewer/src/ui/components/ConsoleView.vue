@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ConsoleEntry } from '../lib/console'
 import { cn } from '@kinora/ui'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { consoleEntries } from '../lib/console'
 import { formatMs } from '../lib/format'
 import { resourceAtUrl } from '../lib/network'
@@ -9,6 +9,8 @@ import { inWindow } from '../lib/timeline'
 import { useTraceStore } from '../store'
 
 const store = useTraceStore()
+// A hovered row leaves no mouseleave behind when the tab closes under the pointer.
+onBeforeUnmount(() => store.setHighlightedTime(null))
 type Scope = 'selected' | 'all'
 const scope = ref<Scope>('selected')
 
@@ -103,6 +105,8 @@ const levelClass: Record<string, string> = {
         :title="`Select the action running at ${formatMs(entry.time - (store.model.value?.startTime ?? 0))}`"
         :class="cn('cursor-pointer border-l-2 px-3 py-2 font-mono text-xs hover:bg-muted/40', levelClass[entry.level])"
         @click="store.selectAtTime(entry.time)"
+        @mouseenter="store.setHighlightedTime({ start: entry.time, end: entry.time })"
+        @mouseleave="store.setHighlightedTime(null)"
       >
         <div class="mb-1 flex items-center gap-2 text-[10px] text-muted-foreground">
           <span class="rounded bg-muted px-1.5 py-0.5 uppercase tracking-wide">{{ entry.label }}</span>

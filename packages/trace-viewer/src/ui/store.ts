@@ -67,6 +67,8 @@ const playbackSpeed = computed(() => PLAYBACK_SPEEDS[playbackSpeedIndex.value])
 const playhead = ref<number | null>(null)
 // When set, a brushed time window that filters/zooms every tab; null = follow the selected action.
 const timeRange = ref<TimeRange | null>(null)
+// A span another tab is pointing at (hovered console or network row), drawn on the timeline.
+const highlightedTime = ref<TimeRange | null>(null)
 const PENDING_LOAD_KEY = 'kinora.traceViewer.pendingLoad'
 const SW_RELOAD_ATTEMPTS_KEY = 'kinora.traceViewer.swReloadAttempts'
 
@@ -314,8 +316,9 @@ function expandOrChild(): void {
     select(items.value[index + 1].id)
 }
 
-// Selects what was running at `time`: the innermost action covering it, else the last one started before.
-function selectAtTime(time: number): void {
+// What was running at `time`: the innermost action covering it, else the last one started before,
+// else (before anything started) the first action.
+function actionAt(time: number): ActionItem | undefined {
   let best: ActionItem | undefined
   let fallback: ActionItem | undefined
   for (const item of items.value) {
@@ -327,9 +330,17 @@ function selectAtTime(time: number): void {
     if ((!endTime || endTime >= time) && (!best || startTime >= best.action.startTime))
       best = item
   }
-  const target = best ?? fallback
+  return best ?? fallback ?? items.value.reduce<ActionItem | undefined>((first, item) => !first || item.action.startTime < first.action.startTime ? item : first, undefined)
+}
+
+function selectAtTime(time: number): void {
+  const target = actionAt(time)
   if (target)
     select(target.id)
+}
+
+function setHighlightedTime(range: TimeRange | null): void {
+  highlightedTime.value = range
 }
 
 function revealConsole(id: string): void {
@@ -388,21 +399,41 @@ const playbackFrameUrl = computed(() => {
   return t === null ? undefined : frames[indexAt(frames, t, frame => frame.timestamp)]?.url
 })
 
-function stopPlay(): void {
-  playing.value = false
-  playhead.value = null
+function cancelFrame(): void {
   if (playFrame !== undefined)
     cancelAnimationFrame(playFrame)
   playFrame = undefined
+}
+
+// Stop rewinds: the playhead goes away and the selected action's own snapshot shows again.
+function stopPlay(): void {
+  playing.value = false
+  playhead.value = null
+  cancelFrame()
+}
+
+// Pause keeps the playhead, so Play resumes from there and the screencast frame stays on screen.
+function pausePlay(): void {
+  playing.value = false
+  cancelFrame()
 }
 
 function cyclePlaybackSpeed(): void {
   playbackSpeedIndex.value = (playbackSpeedIndex.value + 1) % PLAYBACK_SPEEDS.length
 }
 
+// Moves the playhead to `time` (the scrubber), following the action running there.
+function scrubTo(time: number): void {
+  pausePlay()
+  playhead.value = time
+  const item = actionAt(time)
+  if (item && item.id !== selectedId.value)
+    showSelection(item.id)
+}
+
 function togglePlay(): void {
   if (playing.value) {
-    stopPlay()
+    pausePlay()
     return
   }
   const list = playbackItems.value
@@ -412,7 +443,8 @@ function togglePlay(): void {
   const start = timeRange.value?.start ?? m.startTime
   const end = timeRange.value?.end ?? m.endTime
   const current = list.findIndex(item => item.id === selectedId.value)
-  let t = current >= 0 && current < list.length - 1 ? Math.max(start, list[current].action.startTime) : start
+  const resume = playhead.value !== null && playhead.value >= start && playhead.value < end ? playhead.value : undefined
+  let t = resume ?? (current >= 0 && current < list.length - 1 ? Math.max(start, list[current].action.startTime) : start)
   let last: number | undefined
   playing.value = true
   const tick = (now: number): void => {
@@ -473,6 +505,10 @@ export function useTraceStore() {
     revealAttachment,
     revealConsole,
     selectAtTime,
+    highlightedTime,
+    setHighlightedTime,
+    scrubTo,
+    stopPlay,
     snapshotTab,
     snapshots,
     currentSnapshot,
