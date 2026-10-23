@@ -17,6 +17,7 @@ const isomorphicFiles = [
   'cssTokenizer.ts',
   'locatorGenerators.ts',
   'lruCache.ts',
+  'mimeType.ts',
   'protocolFormatter.ts',
   'protocolMetainfo.ts',
   'selectorParser.ts',
@@ -52,6 +53,11 @@ const downloads = [
   {
     upstream: 'packages/protocol/src/structs.d.ts',
     local: 'packages/trace-viewer/src/core/protocol/structs.d.ts',
+  },
+  // "Copy as Playwright" request codegen (JS, Python, Java, C#); it only imports vendored types.
+  {
+    upstream: 'packages/trace-viewer/src/ui/codegen.ts',
+    local: 'packages/trace-viewer/src/core/ui/codegen.ts',
   },
 ]
 

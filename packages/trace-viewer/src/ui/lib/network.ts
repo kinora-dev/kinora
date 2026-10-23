@@ -1,5 +1,6 @@
 import type { ActionEntry } from '@isomorphic/trace/entries'
 import type { ResourceEntry } from '@isomorphic/trace/traceModel'
+import { isJsonMimeType, isXmlMimeType } from '@isomorphic/mimeType'
 import { resourceOwnerRef } from '@isomorphic/trace/traceModel'
 
 export type ResourceCategory = 'Fetch' | 'HTML' | 'JS' | 'CSS' | 'Font' | 'Image' | 'WS' | 'Other'
@@ -266,13 +267,64 @@ export function bodyUrl(model: { createRelativeUrl: (p: string) => string } | nu
 }
 
 // null when not JSON or unparseable, so callers fall back to the raw text.
-export function prettyJson(text: string, mime: string): string | null {
-  if (!mime.includes('json') && !/^\s*[[{]/.test(text))
-    return null
-  try {
-    return JSON.stringify(JSON.parse(text), null, 2)
+
+// CodeView language for a body of this mime type.
+export function bodyLang(mime: string): string {
+  const m = mime.toLowerCase()
+  if (isJsonMimeType(m) || m.includes('javascript') || m.includes('ecmascript'))
+    return 'js'
+  if (m.includes('css'))
+    return 'css'
+  if (m.includes('html'))
+    return 'html'
+  if (isXmlMimeType(m))
+    return 'xml'
+  return 'text'
+}
+
+const INLINE_TAG = /<[^>]+>[^<]*<\//
+
+export function formatXml(source: string, indent = '  '): string {
+  let depth = 0
+  const lines: string[] = []
+  for (const token of source.replace(/>\s*</g, '>\n<').split('\n')) {
+    const trimmed = token.trim()
+    if (!trimmed)
+      continue
+    if (trimmed.startsWith('</'))
+      depth = Math.max(depth - 1, 0)
+    lines.push(indent.repeat(depth) + trimmed)
+    if (trimmed.startsWith('<') && !trimmed.startsWith('</') && !trimmed.endsWith('/>') && !trimmed.startsWith('<?') && !INLINE_TAG.test(trimmed))
+      depth++
   }
-  catch {
-    return null
+  return lines.join('\n')
+}
+
+// JSON.parse rounds integers beyond MAX_SAFE_INTEGER, so keep each number's source text when the runtime allows it.
+function formatJson(source: string): string {
+  const rawJSON = (JSON as { rawJSON?: (text: string) => unknown }).rawJSON
+  const reviver = rawJSON && ((_key: string, value: unknown, context?: { source?: string }) =>
+    typeof value === 'number' && context?.source !== undefined ? rawJSON(context.source) : value)
+  return JSON.stringify(JSON.parse(source, reviver as never), null, 2)
+}
+
+// Pretty-printed body like upstream's network details; throws when the body does not parse.
+export function formatBody(body: string, mime: string): string {
+  const m = mime.toLowerCase()
+  if (!body.trim() || !m)
+    return body
+  if (isJsonMimeType(m))
+    return formatJson(body)
+  if (isXmlMimeType(m))
+    return formatXml(body)
+  if (m.includes('application/x-www-form-urlencoded'))
+    return decodeURIComponent(body.replace(/\+/g, ' '))
+  // Kinora extra: JSON served with a generic type (text/plain...) still gets formatted.
+  if (/^\s*[[{]/.test(body)) {
+    try {
+      return formatJson(body)
+    }
+    catch {}
   }
+  return body
 }

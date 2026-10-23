@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allResources, bodyUrl, contentType, formatSize, networkMatches, prettyJson, resourceAtUrl, resourceCategory, resourceName, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, statusLabel, toCurl, toFetch } from '../src/ui/lib/network'
+import { allResources, bodyLang, bodyUrl, contentType, formatBody, formatSize, formatXml, networkMatches, resourceAtUrl, resourceCategory, resourceName, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, statusLabel, toCurl, toFetch } from '../src/ui/lib/network'
 
 type Res = Parameters<typeof resourceCategory>[0]
 
@@ -171,21 +171,41 @@ describe('bodyUrl', () => {
   })
 })
 
-describe('prettyJson', () => {
-  it('indents JSON when the mime is json', () => {
-    expect(prettyJson('{"a":1}', 'application/json')).toBe('{\n  "a": 1\n}')
+describe('formatBody', () => {
+  it('pretty-prints JSON and keeps big integers exact', () => {
+    expect(formatBody('{"a":1}', 'application/json')).toBe('{\n  "a": 1\n}')
+    const big = formatBody('{"id":12345678901234567890}', 'application/json; charset=utf-8')
+    if ('rawJSON' in JSON)
+      expect(big).toContain('12345678901234567890')
   })
 
-  it('sniffs JSON by shape when the mime lies', () => {
-    expect(prettyJson('  [1,2]', 'text/plain')).toBe('[\n  1,\n  2\n]')
+  it('formats JSON sent with a generic type, and leaves other text alone', () => {
+    expect(formatBody('  [1,2]', 'text/plain')).toBe('[\n  1,\n  2\n]')
+    expect(formatBody('hello', 'text/plain')).toBe('hello')
+    expect(formatBody('{bad', 'text/plain')).toBe('{bad')
   })
 
-  it('returns null for non-JSON text', () => {
-    expect(prettyJson('hello', 'text/plain')).toBeNull()
+  it('throws on a malformed JSON body so the UI can flag it', () => {
+    expect(() => formatBody('{bad', 'application/json')).toThrow()
   })
 
-  it('returns null for JSON-mime bodies that do not parse', () => {
-    expect(prettyJson('{bad', 'application/json')).toBeNull()
+  it('decodes form bodies', () => {
+    expect(formatBody('plan=Pro+plan&seats=2%2B1', 'application/x-www-form-urlencoded')).toBe('plan=Pro plan&seats=2+1')
+  })
+
+  it('indents XML', () => {
+    expect(formatXml('<a><b>1</b><c/></a>')).toBe('<a>\n  <b>1</b>\n  <c/>\n</a>')
+    expect(formatBody('<a><b>1</b></a>', 'application/xml')).toBe('<a>\n  <b>1</b>\n</a>')
+  })
+})
+
+describe('bodyLang', () => {
+  it('picks the highlighter from the mime type', () => {
+    expect(bodyLang('application/json')).toBe('js')
+    expect(bodyLang('text/css')).toBe('css')
+    expect(bodyLang('text/html; charset=utf-8')).toBe('html')
+    expect(bodyLang('text/xml')).toBe('xml')
+    expect(bodyLang('text/plain')).toBe('text')
   })
 })
 

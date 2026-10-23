@@ -12,6 +12,7 @@ plus kinora's own UI on top.
   - `protocol/channels.ts` - minimal hand-written subset of `@protocol/channels`
     (only the types the engine references; not vendored verbatim)
   - `protocol/structs.d.ts` - vendored protocol structs referenced by upstream trace helpers
+  - `ui/codegen.ts` - upstream's "Copy as Playwright" request codegen (`trace-viewer/src/ui`), used by the network details
 - `src/sw/` - **vendored** service worker that serves trace resources into the
   snapshot iframe (`trace-viewer/src/sw`)
 - `src/ui/` - **ours**. The Vue UI (to build). This is the part we own.

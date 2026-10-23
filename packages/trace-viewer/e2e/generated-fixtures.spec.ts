@@ -55,12 +55,52 @@ test('generated network fixture covers post bodies and error statuses', async ({
   await expect(page.getByText('500')).toBeVisible()
 
   await page.getByTestId('net-row').filter({ hasText: 'checkout' }).click()
-  await expect(page.getByText('Request body')).toBeVisible()
-  await expect(page.getByText('Response body')).toBeVisible()
-  await expect(page.getByText('"plan": "Pro"')).toBeVisible()
-  await expect(page.getByText('"ok": true')).toBeVisible()
-  await expect(page.getByText('x-demo:')).toBeVisible()
-  await expect(page.getByText('checkout', { exact: true })).toBeVisible()
+  const detail = page.getByTestId('net-detail')
+  await expect(detail.getByTestId('net-section-response-headers')).toContainText('x-demo')
+  await expect(detail.getByTestId('net-section-general')).toContainText('/api/checkout')
+
+  await detail.getByTestId('net-tab-payload').click()
+  await expect(detail.getByText('Request body')).toBeVisible()
+  await expect(detail.getByTestId('net-request-body')).toContainText('"plan": "Pro"')
+
+  await detail.getByTestId('net-tab-response').click()
+  await expect(detail.getByText('Response body')).toBeVisible()
+  await expect(detail.getByTestId('net-response-body')).toContainText('"ok": true')
+})
+
+test('network detail copies the request as Playwright code', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await page.getByTestId('net-row').filter({ hasText: 'checkout' }).click()
+
+  await page.getByTestId('net-detail').getByRole('button', { name: 'Copy' }).click()
+  await page.getByRole('menuitem', { name: 'Copy as Playwright' }).click()
+  const code = await page.evaluate(() => navigator.clipboard.readText())
+  expect(code).toContain(`await page.request.post('https://demo.kinora.dev/api/checkout'`)
+  expect(code).toContain(`"plan":"Pro"`)
+  expect(code).toContain(`'content-type': 'application/json'`)
+})
+
+test('network detail toggles pretty printing and remembers its tab', async ({ page }) => {
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await page.getByTestId('net-row').filter({ hasText: 'checkout' }).click()
+  const detail = page.getByTestId('net-detail')
+  await detail.getByTestId('net-tab-payload').click()
+  await expect(detail.getByTestId('net-request-body')).toContainText('"plan": "Pro"')
+
+  await detail.getByRole('button', { name: 'Pretty print' }).click()
+  await expect(detail.getByTestId('net-request-body')).toContainText('"plan":"Pro"')
+
+  // Another request opens on the same tab, a GET without body says so.
+  await page.getByTestId('net-row').filter({ hasText: 'cart' }).click()
+  await expect(detail.getByText('No payload for this request.')).toBeVisible()
+
+  await detail.getByRole('button', { name: 'Close' }).click()
+  await expect(detail).toHaveCount(0)
 })
 
 test('generated console fixture renders typed messages and args', async ({ page }) => {

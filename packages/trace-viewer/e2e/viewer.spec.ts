@@ -350,8 +350,9 @@ test('network tab lists requests and previews a response body', async ({ page })
   const rows = page.getByTestId('net-row')
   await expect(rows.first()).toBeVisible()
   await rows.filter({ hasText: 'style.css' }).click()
+  await page.getByTestId('net-tab-response').click()
   await expect(page.getByText('Response body')).toBeVisible()
-  await expect(page.getByText('font-family')).toBeVisible()
+  await expect(page.getByTestId('net-response-body')).toContainText('font-family')
 })
 
 test('network list shows content type and start columns', async ({ page }) => {

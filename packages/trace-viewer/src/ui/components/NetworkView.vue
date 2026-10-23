@@ -2,10 +2,10 @@
 import type { ColumnDef, SortingState } from '@tanstack/vue-table'
 import type { NetworkMatch, NetworkRow, ResourceCategory } from '../lib/network'
 import { cn } from '@kinora/ui'
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@kinora/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@kinora/ui/dropdown-menu'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@kinora/ui/resizable'
 import { valueUpdater } from '@kinora/ui/table/utils'
-import { ChevronDown, ChevronUp, Copy, ListFilter } from '@lucide/vue'
+import { ChevronDown, ChevronUp, ListFilter } from '@lucide/vue'
 import {
   columnResizingFeature,
   columnSizingFeature,
@@ -21,9 +21,10 @@ import {
 import { useStorage } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { formatMs } from '../lib/format'
-import { allResources, bodyUrl, formatSize, isTextMime, NETWORK_SEARCH_FIELDS, networkMatches, prettyJson, RESOURCE_CATEGORIES, resourcesForAction, resourcesInWindow, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, statusLabel, toCurl, toFetch } from '../lib/network'
+import { allResources, bodyUrl, formatSize, NETWORK_SEARCH_FIELDS, networkMatches, RESOURCE_CATEGORIES, resourcesForAction, resourcesInWindow, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../lib/network'
 import { useTraceStore } from '../store'
 import FilterInput from './FilterInput.vue'
+import NetworkDetails from './NetworkDetails.vue'
 import TextTooltip from './TextTooltip.vue'
 
 const store = useTraceStore()
@@ -196,60 +197,6 @@ const table = useTable({
 })
 
 const selected = computed(() => rows.value.find(r => r.id === selectedId.value) ?? null)
-
-interface Body { kind: 'image' | 'text' | 'download' | 'none', url?: string, text?: string, raw?: string, canPretty?: boolean }
-const requestBody = ref<Body>({ kind: 'none' })
-const responseBody = ref<Body>({ kind: 'none' })
-const showRawRequest = ref(false)
-const showRawResponse = ref(false)
-const requestBodyText = computed(() => showRawRequest.value && requestBody.value.raw ? requestBody.value.raw : requestBody.value.text)
-const responseBodyText = computed(() => showRawResponse.value && responseBody.value.raw ? responseBody.value.raw : responseBody.value.text)
-
-function headerValue(headers: { name: string, value: string }[] | undefined, name: string): string {
-  return headers?.find(h => h.name.toLowerCase() === name.toLowerCase())?.value ?? ''
-}
-
-async function loadBody(file: string | undefined, mime: string, inlineText = ''): Promise<Body> {
-  const url = bodyUrl(store.model.value, file)
-  if (mime.startsWith('image/') && url)
-    return { kind: 'image', url }
-  if (!isTextMime(mime))
-    return url ? { kind: 'download', url } : { kind: 'none' }
-
-  try {
-    const raw = (inlineText || (url ? await (await fetch(url)).text() : '')).slice(0, 200_000)
-    if (!raw)
-      return url ? { kind: 'download', url } : { kind: 'none' }
-    const pretty = prettyJson(raw, mime)
-    return { kind: 'text', url, text: (pretty ?? raw).slice(0, 50_000), raw: raw.slice(0, 50_000), canPretty: pretty !== null }
-  }
-  catch {
-    return url ? { kind: 'download', url } : { kind: 'none' }
-  }
-}
-
-watch(selected, async (sel) => {
-  requestBody.value = { kind: 'none' }
-  responseBody.value = { kind: 'none' }
-  showRawRequest.value = false
-  showRawResponse.value = false
-  if (!sel)
-    return
-
-  const postData = sel.resource.request.postData
-  requestBody.value = await loadBody(
-    postData?._file,
-    postData?.mimeType ?? headerValue(sel.resource.request.headers, 'content-type'),
-    postData?.text,
-  )
-
-  const content = sel.resource.response?.content
-  responseBody.value = await loadBody(content?._file, content?.mimeType ?? '')
-})
-
-function copy(text: string): void {
-  void navigator.clipboard.writeText(text)
-}
 
 function toggleCat(cat: ResourceCategory): void {
   const next = new Set(activeCats.value)
@@ -434,131 +381,7 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
       <template v-if="selected">
         <ResizableHandle with-handle />
         <ResizablePanel id="net-detail" :order="2" :default-size="netCols[1]" :min-size="20" :max-size="60">
-          <div data-testid="net-detail" class="h-full overflow-auto p-3 text-xs">
-            <div class="mb-3 flex items-start gap-2">
-              <div class="min-w-0 flex-1">
-                <div class="mb-1 flex items-center gap-2">
-                  <span class="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{{ selected.method }}</span>
-                  <span class="font-mono tabular-nums" :class="statusClass(selected.status)">{{ statusLabel(selected.status) }}</span>
-                  <span class="text-muted-foreground">{{ selected.resource.response?.statusText }}</span>
-                </div>
-                <div class="font-mono break-all text-foreground/90">
-                  {{ selected.url }}
-                </div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  class="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title="Copy"
-                >
-                  <Copy class="size-3.5" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem @click="copy(selected.url)">
-                    Copy URL
-                  </DropdownMenuItem>
-                  <DropdownMenuItem @click="copy(toCurl(selected.resource))">
-                    Copy as cURL
-                  </DropdownMenuItem>
-                  <DropdownMenuItem @click="copy(toFetch(selected.resource))">
-                    Copy as fetch
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            <div class="mb-4 grid grid-cols-2 gap-2 rounded-md border border-border bg-muted/20 p-2 text-muted-foreground">
-              <div>
-                <span class="uppercase tracking-wide">Type</span>
-                <div class="font-mono text-foreground/90">
-                  {{ selected.category }}
-                </div>
-              </div>
-              <div>
-                <span class="uppercase tracking-wide">Duration</span>
-                <div class="font-mono text-foreground/90">
-                  {{ Math.round(selected.duration) }}ms
-                </div>
-              </div>
-              <div>
-                <span class="uppercase tracking-wide">Size</span>
-                <div class="font-mono text-foreground/90">
-                  {{ formatSize(selected.size) }}
-                </div>
-              </div>
-              <div v-if="selected.route">
-                <span class="uppercase tracking-wide">Route</span>
-                <div class="font-mono text-info">
-                  {{ selected.route }}
-                </div>
-              </div>
-              <div v-if="selected.resource._monotonicTime !== undefined">
-                <span class="uppercase tracking-wide">Started</span>
-                <div data-testid="net-started" class="font-mono text-foreground/90">
-                  {{ formatMs(selected.resource._monotonicTime - (store.model.value?.startTime ?? 0)) }}
-                </div>
-              </div>
-            </div>
-
-            <section v-if="requestBody.kind !== 'none' || requestBody.url" class="mb-4">
-              <div class="mb-1 flex items-center gap-2">
-                <span class="font-semibold tracking-wide text-muted-foreground uppercase">
-                  Request body
-                </span>
-                <button
-                  v-if="requestBody.canPretty"
-                  type="button"
-                  class="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-                  @click="showRawRequest = !showRawRequest"
-                >
-                  {{ showRawRequest ? 'Pretty' : 'Raw' }}
-                </button>
-              </div>
-              <pre v-if="requestBody.kind === 'text'" class="max-h-56 overflow-auto rounded bg-muted/40 p-2 font-mono whitespace-pre-wrap">{{ requestBodyText }}</pre>
-              <a v-else-if="requestBody.url" :href="requestBody.url" download class="text-muted-foreground hover:text-foreground">download body</a>
-            </section>
-
-            <section v-if="responseBody.kind !== 'none' || responseBody.url" class="mb-4">
-              <div class="mb-1 flex items-center gap-2">
-                <span class="font-semibold tracking-wide text-muted-foreground uppercase">
-                  Response body
-                </span>
-                <button
-                  v-if="responseBody.canPretty"
-                  type="button"
-                  class="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-                  @click="showRawResponse = !showRawResponse"
-                >
-                  {{ showRawResponse ? 'Pretty' : 'Raw' }}
-                </button>
-              </div>
-              <img v-if="responseBody.kind === 'image'" :src="responseBody.url" class="max-h-48 rounded border border-border">
-              <pre v-else-if="responseBody.kind === 'text'" class="max-h-56 overflow-auto rounded bg-muted/40 p-2 font-mono whitespace-pre-wrap">{{ responseBodyText }}</pre>
-              <a v-else-if="responseBody.url" :href="responseBody.url" download class="text-muted-foreground hover:text-foreground">download body</a>
-            </section>
-
-            <section class="mb-4">
-              <div class="mb-1 font-semibold tracking-wide text-muted-foreground uppercase">
-                Request headers
-              </div>
-              <div class="flex flex-col gap-0.5 font-mono">
-                <div v-for="(h, i) in selected.resource.request?.headers ?? []" :key="i" class="break-all">
-                  <span class="text-muted-foreground">{{ h.name }}:</span> {{ h.value }}
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <div class="mb-1 font-semibold tracking-wide text-muted-foreground uppercase">
-                Response headers
-              </div>
-              <div class="flex flex-col gap-0.5 font-mono">
-                <div v-for="(h, i) in selected.resource.response?.headers ?? []" :key="i" class="break-all">
-                  <span class="text-muted-foreground">{{ h.name }}:</span> {{ h.value }}
-                </div>
-              </div>
-            </section>
-          </div>
+          <NetworkDetails :row="selected" @close="selectedId = null" />
         </ResizablePanel>
       </template>
     </ResizablePanelGroup>

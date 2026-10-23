@@ -471,12 +471,21 @@ importers:
 
   packages/trace-viewer:
     dependencies:
+      '@codemirror/lang-css':
+        specifier: ^6.3.1
+        version: 6.3.1
+      '@codemirror/lang-html':
+        specifier: ^6.4.12
+        version: 6.4.12
       '@codemirror/lang-javascript':
         specifier: ^6.2.5
         version: 6.2.5
       '@codemirror/lang-markdown':
         specifier: ^6.5.2
         version: 6.5.2
+      '@codemirror/lang-xml':
+        specifier: ^6.1.0
+        version: 6.1.0
       '@codemirror/language':
         specifier: ^6.13.1
         version: 6.13.1
@@ -1265,6 +1274,9 @@ packages:
 
   '@codemirror/lang-markdown@6.5.2':
     resolution: {integrity: sha512-AwBOdkWYuA//WcM0xO5PfHPUcmz/O2i5o0Nsg1U69SII/loCJlFI1Romd9xp2HYb1kYJRGZotyqRghuHH5n8Kw==}
+
+  '@codemirror/lang-xml@6.1.0':
+    resolution: {integrity: sha512-3z0blhicHLfwi2UgkZYRPioSgVTo9PV5GP5ducFH6FaHy0IAJRg+ixj5gTR1gnT/glAIC8xv4w2VL1LoZfs+Jg==}
 
   '@codemirror/language@6.13.1':
     resolution: {integrity: sha512-zfvU2r3TyylQLMj/te+5CnQ0rSqZi8B1oTCBbQkagcLW4Xc6imab6qN+pEJhsuNOLaJqiRyBXp9UhWA1DhVvDw==}
@@ -2056,6 +2068,9 @@ packages:
 
   '@lezer/markdown@1.8.1':
     resolution: {integrity: sha512-M5YmEcKWO4mJ45Y1hECwqyu8cLv25EiXOK554PVOvDOWOP0olwelHHQUWr9sjF+d1bENVhy0nfJ8E57XZUTiXg==}
+
+  '@lezer/xml@1.0.6':
+    resolution: {integrity: sha512-CdDwirL0OEaStFue/66ZmFSeppuL6Dwjlk8qk153mSQwiSH/Dlri4GNymrNWnUmPl2Um7QfV1FO9KFUyX3Twww==}
 
   '@lucide/vue@1.61.0':
     resolution: {integrity: sha512-XYclbwUQ6Mvf0UskBG9gJH91BdF3VK4Tt6Pv8PSntwPwNnf357PCQnma4TrzOEdwD49UYCtsTafpfytRIxm1cQ==}
@@ -8311,6 +8326,15 @@ snapshots:
       '@lezer/common': 1.5.3
       '@lezer/markdown': 1.8.1
 
+  '@codemirror/lang-xml@6.1.0':
+    dependencies:
+      '@codemirror/autocomplete': 6.20.3
+      '@codemirror/language': 6.13.1
+      '@codemirror/state': 6.7.6
+      '@codemirror/view': 6.43.15
+      '@lezer/common': 1.5.3
+      '@lezer/xml': 1.0.6
+
   '@codemirror/language@6.13.1':
     dependencies:
       '@codemirror/state': 6.7.6
@@ -9015,6 +9039,12 @@ snapshots:
     dependencies:
       '@lezer/common': 1.5.3
       '@lezer/highlight': 1.2.5
+
+  '@lezer/xml@1.0.6':
+    dependencies:
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
+      '@lezer/lr': 1.4.11
 
   '@lucide/vue@1.61.0(vue@3.5.44(typescript@6.0.3))':
     dependencies:

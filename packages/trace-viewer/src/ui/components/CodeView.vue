@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { DecorationSet } from '@codemirror/view'
+import { css } from '@codemirror/lang-css'
+import { html } from '@codemirror/lang-html'
 import { javascript } from '@codemirror/lang-javascript'
 import { markdown } from '@codemirror/lang-markdown'
+import { xml } from '@codemirror/lang-xml'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { EditorState, StateField } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
@@ -69,6 +72,14 @@ const theme = EditorView.theme({
 function langExtension() {
   if (props.lang === 'md')
     return markdown()
+  if (props.lang === 'css')
+    return css()
+  if (props.lang === 'html')
+    return html()
+  if (props.lang === 'xml')
+    return xml()
+  if (props.lang === 'text')
+    return []
   const ts = props.lang === 'ts' || props.lang === 'tsx'
   const jsx = props.lang === 'tsx' || props.lang === 'jsx'
   return javascript({ typescript: ts, jsx })
