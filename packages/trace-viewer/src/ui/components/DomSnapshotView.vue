@@ -4,6 +4,8 @@ import { useElementSize } from '@vueuse/core'
 import { computed, onMounted, ref, watch } from 'vue'
 
 const props = defineProps<{
+  // Actual size scrolls the page at 100% instead of shrinking it to fit the panel.
+  actualSize?: boolean
   src: string
   viewport?: { width: number, height: number }
 }>()
@@ -52,6 +54,8 @@ const { width, height } = useElementSize(container)
 // Render at the recorded viewport, shrunk to fit, so responsive pages look as they did in the test.
 const stage = computed<CSSProperties>(() => {
   const vp = props.viewport
+  if (vp?.width && vp.height && props.actualSize)
+    return { height: `${vp.height}px`, margin: '0 auto', position: 'relative', width: `${vp.width}px` }
   if (!vp?.width || !vp.height || !width.value || !height.value)
     return { inset: '0', position: 'absolute' }
   const scale = Math.min(width.value / vp.width, height.value / vp.height, 1)
@@ -68,7 +72,7 @@ const stage = computed<CSSProperties>(() => {
 </script>
 
 <template>
-  <div ref="container" data-testid="snapshot-container" class="absolute inset-0 overflow-hidden">
+  <div ref="container" data-testid="snapshot-container" class="absolute inset-0" :class="[actualSize ? 'overflow-auto' : 'overflow-hidden']">
     <div data-testid="snapshot-stage" class="bg-white" :style="stage">
       <iframe
         v-for="(frame, i) in frames"

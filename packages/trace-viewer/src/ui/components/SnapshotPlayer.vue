@@ -15,6 +15,7 @@ type SnapshotMode = 'dom' | 'aria'
 
 const store = useTraceStore()
 const ariaSetting = useStorage('kinora-tv-aria-mode', false)
+const actualSize = useStorage('kinora-tv-snapshot-actual-size', false)
 // A trace with ARIA data but no DOM snapshots can only be shown in ARIA mode.
 const canToggleAria = computed(() => !!store.model.value?.hasDomSnapshots && !!store.model.value?.hasAriaSnapshots)
 const mode = computed<SnapshotMode>(() => {
@@ -91,6 +92,7 @@ watch(frameSrc, () => {
 <template>
   <div class="flex h-full flex-col bg-background">
     <SnapshotToolbar
+      :actual-size="actualSize"
       :mode="mode"
       :selected-tab="store.snapshotTab.value"
       :has-snapshot="hasSnapshot && mode === 'dom'"
@@ -101,6 +103,7 @@ watch(frameSrc, () => {
       @set-mode="setMode"
       @toggle-inspector="toggleInspector"
       @open-snapshot="openSnapshot"
+      @toggle-actual-size="actualSize = !actualSize"
     />
 
     <div class="flex min-h-0 flex-1 flex-col p-3">
@@ -134,6 +137,7 @@ watch(frameSrc, () => {
           >
           <DomSnapshotView
             v-else-if="mode === 'dom'"
+            :actual-size="actualSize"
             :src="frameSrc"
             :viewport="viewport"
             @loaded="setIframe"

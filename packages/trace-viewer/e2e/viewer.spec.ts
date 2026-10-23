@@ -214,6 +214,25 @@ test('renders the snapshot at the recorded viewport, scaled to fit', async ({ pa
   expect(stage.width / stage.height).toBeCloseTo(1280 / 720, 1)
 })
 
+test('switches the snapshot between fit and actual size', async ({ page }) => {
+  const zoom = page.getByTestId('snapshot-zoom')
+  const stage = page.getByTestId('snapshot-stage')
+  const container = page.getByTestId('snapshot-container')
+  await expect(zoom).toHaveText('Fit')
+
+  await zoom.click()
+  await expect(zoom).toHaveText('100%')
+  await expect.poll(async () => Math.round((await stage.boundingBox())!.width)).toBe(1280)
+  // At 100% the page overflows the panel and scrolls instead of shrinking.
+  expect(await container.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true)
+
+  await page.reload()
+  await expect(zoom).toHaveText('100%')
+  await zoom.click()
+  await expect(zoom).toHaveText('Fit')
+  await expect.poll(async () => (await stage.boundingBox())!.width).toBeLessThanOrEqual((await container.boundingBox())!.width + 1)
+})
+
 test('escape cancels the locator picker', async ({ page }) => {
   const pick = page.getByRole('button', { name: 'Pick locator' })
   await pick.click()

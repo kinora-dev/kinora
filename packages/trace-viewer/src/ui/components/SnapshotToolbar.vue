@@ -6,6 +6,7 @@ import { ExternalLink, Monitor, Target } from '@lucide/vue'
 type SnapshotMode = 'dom' | 'aria'
 
 defineProps<{
+  actualSize: boolean
   mode: SnapshotMode
   selectedTab: SnapshotTab
   canToggleAria: boolean
@@ -16,6 +17,7 @@ defineProps<{
 
 const emit = defineEmits<{
   openSnapshot: []
+  toggleActualSize: []
   setMode: [mode: SnapshotMode]
   setTab: [tab: SnapshotTab]
   toggleInspector: []
@@ -71,6 +73,16 @@ const tabs: { id: SnapshotTab, label: string }[] = [
       </div>
       <Monitor class="size-3.5" />
       <span v-if="viewport" class="font-mono tabular-nums">{{ viewport.width }}×{{ viewport.height }}</span>
+      <button
+        v-if="viewport && mode === 'dom'"
+        type="button"
+        data-testid="snapshot-zoom"
+        class="rounded px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        :title="actualSize ? 'Showing at 100%. Click to fit the panel' : 'Fitted to the panel. Click to show at 100%'"
+        @click="emit('toggleActualSize')"
+      >
+        {{ actualSize ? '100%' : 'Fit' }}
+      </button>
       <button
         type="button"
         :class="cn(
