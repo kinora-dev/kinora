@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@kinora/ui/dropdown-menu'
+import type { ColorMode } from '@kinora/ui/theme'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@kinora/ui/dropdown-menu'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@kinora/ui/resizable'
-import { ThemeToggle } from '@kinora/ui/theme-toggle'
+import { colorMode } from '@kinora/ui/theme'
 import { TooltipProvider } from '@kinora/ui/tooltip'
-import { Download, Loader2, PanelBottom, PanelRight, Settings } from '@lucide/vue'
+import { Download, Loader2, Monitor, Moon, PanelBottom, PanelRight, Settings, Sun } from '@lucide/vue'
 import { useStorage } from '@vueuse/core'
 import { computed, onMounted } from 'vue'
 import ActionsList from './components/ActionsList.vue'
@@ -17,6 +18,13 @@ import { useTraceStore } from './store'
 
 const store = useTraceStore()
 const unsupportedTraceVersion = computed(() => store.errorKind.value === 'unsupported-trace-version')
+// Same storage as the dashboard's theme toggle, so both stay in sync.
+const THEMES = [
+  { value: 'auto', label: 'System', icon: Monitor },
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+] as const
+
 const loadPercent = computed(() => {
   const progress = store.loadProgress.value
   return progress?.total ? Math.round((progress.done / progress.total) * 100) : undefined
@@ -121,6 +129,15 @@ onMounted(() => {
               <Settings class="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" class="w-60">
+              <DropdownMenuLabel>Theme</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuRadioGroup :model-value="colorMode" @update:model-value="(value) => (colorMode = value as ColorMode)">
+                <DropdownMenuRadioItem v-for="theme in THEMES" :key="theme.value" :value="theme.value" class="gap-2">
+                  <component :is="theme.icon" class="size-3.5 text-muted-foreground" />
+                  {{ theme.label }}
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
               <DropdownMenuLabel>Snapshots</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem v-model="store.canvasFromScreenshot.value">
@@ -128,7 +145,6 @@ onMounted(() => {
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <ThemeToggle />
         </div>
       </header>
 

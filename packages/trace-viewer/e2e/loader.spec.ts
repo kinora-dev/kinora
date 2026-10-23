@@ -60,3 +60,20 @@ test('display canvas content asks the snapshot renderer to paint canvases', asyn
   await expect(page.getByTestId('action').first()).toBeVisible()
   await expect.poll(snapshotUrl).toContain('shouldPopulateCanvasFromScreenshot=1')
 })
+
+test('settings switch the theme, shared with the dashboard', async ({ page }) => {
+  await page.goto('/?trace=fixtures/demo.zip')
+  await expect(page.getByTestId('action').first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark' }).click()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+  expect(await page.evaluate(() => localStorage.getItem('kinora-theme'))).toBe('dark')
+
+  await page.reload()
+  await expect(page.locator('html')).toHaveClass(/dark/)
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await expect(page.getByRole('menuitemradio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true')
+  await page.getByRole('menuitemradio', { name: 'Light' }).click()
+  await expect(page.locator('html')).not.toHaveClass(/dark/)
+})
