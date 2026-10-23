@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@kinora/ui/dropdown-menu'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@kinora/ui/resizable'
 import { ThemeToggle } from '@kinora/ui/theme-toggle'
 import { TooltipProvider } from '@kinora/ui/tooltip'
-import { Download, Loader2, PanelBottom, PanelRight } from '@lucide/vue'
+import { Download, Loader2, PanelBottom, PanelRight, Settings } from '@lucide/vue'
 import { useStorage } from '@vueuse/core'
 import { computed, onMounted } from 'vue'
 import ActionsList from './components/ActionsList.vue'
@@ -16,6 +17,10 @@ import { useTraceStore } from './store'
 
 const store = useTraceStore()
 const unsupportedTraceVersion = computed(() => store.errorKind.value === 'unsupported-trace-version')
+const loadPercent = computed(() => {
+  const progress = store.loadProgress.value
+  return progress?.total ? Math.round((progress.done / progress.total) * 100) : undefined
+})
 
 // Persisted panel sizes (percentages).
 const cols = useStorage('kinora-tv-cols', [22, 78])
@@ -107,15 +112,44 @@ onMounted(() => {
           >
             <component :is="dock === 'bottom' ? PanelRight : PanelBottom" class="size-4" />
           </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              class="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+              title="Settings"
+              aria-label="Settings"
+            >
+              <Settings class="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-60">
+              <DropdownMenuLabel>Snapshots</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem v-model="store.canvasFromScreenshot.value">
+                Display canvas content
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ThemeToggle />
         </div>
       </header>
 
       <!-- empty / loading / error -->
       <TraceDropZone v-if="store.status.value === 'idle'" />
-      <div v-else-if="store.status.value === 'loading'" class="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 class="size-4 animate-spin" />
-        Loading trace…
+      <div v-else-if="store.status.value === 'loading'" class="flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+        <div class="flex items-center gap-2">
+          <Loader2 class="size-4 animate-spin" />
+          Loading trace…
+        </div>
+        <div
+          v-if="loadPercent !== undefined"
+          data-testid="load-progress"
+          role="progressbar"
+          :aria-valuenow="loadPercent"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          class="h-1 w-56 overflow-hidden rounded-full bg-muted"
+        >
+          <div class="h-full rounded-full bg-signal transition-[width]" :style="{ width: `${loadPercent}%` }" />
+        </div>
       </div>
       <div v-else-if="store.status.value === 'error'" class="flex flex-col items-center justify-center p-8">
         <div class="max-w-md rounded-lg border border-fail/30 bg-fail/5 p-4 text-sm text-fail">

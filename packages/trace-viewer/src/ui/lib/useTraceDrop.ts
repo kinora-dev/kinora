@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import { useEventListener } from '@vueuse/core'
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useTraceStore } from '../store'
 
 // Window-level drag & drop so a trace can be dropped anywhere, not just on the
@@ -44,5 +44,33 @@ export function useTraceDrop(): { isDragging: Ref<boolean> } {
     void store.loadFile(file)
   })
 
+  // Pasting a trace zip opens it, like upstream.
+  useEventListener(document, 'paste', (e: ClipboardEvent) => {
+    const files = [...(e.clipboardData?.files ?? [])]
+    if (!files.length || !files.every(isZip))
+      return
+    e.preventDefault()
+    void store.loadFile(files[0])
+  })
+
+  // Embedding API, same as upstream: a parent or opener posts `{ method: 'load', params: { trace: Blob } }`
+  // and hears `{ method: 'ready' }` once the viewer listens.
+  useEventListener(window, 'message', (e: MessageEvent) => {
+    const { method, params } = e.data ?? {}
+    if (method === 'load' && params?.trace instanceof Blob)
+      void store.loadFile(new File([params.trace], 'trace.zip', { type: 'application/zip' }))
+  })
+  onMounted(() => {
+    window.opener?.postMessage({ method: 'ready' }, '*')
+    if (window.parent !== window)
+      window.parent.postMessage({ method: 'ready' }, '*')
+  })
+
   return { isDragging }
+}
+
+const ZIP_TYPES = ['application/zip', 'application/x-zip-compressed']
+
+function isZip(file: File): boolean {
+  return ZIP_TYPES.includes(file.type) || file.name.toLowerCase().endsWith('.zip')
 }

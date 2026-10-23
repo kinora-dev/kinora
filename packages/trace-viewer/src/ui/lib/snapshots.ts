@@ -77,7 +77,7 @@ export function collectAriaTargets(model: TraceModel | null, action: ActionEntry
   return collectPhaseTargets(action, (callId, phase) => !!model.screenshotForCall(callId, phase) || !!model.ariaSnapshotForCall(callId, phase))
 }
 
-export function snapshotUrl(traceUri: string, snapshot: Snapshot | undefined): string | undefined {
+export function snapshotUrl(traceUri: string, snapshot: Snapshot | undefined, options: { canvasFromScreenshot?: boolean } = {}): string | undefined {
   if (!snapshot)
     return undefined
   const params = new URLSearchParams()
@@ -87,6 +87,8 @@ export function snapshotUrl(traceUri: string, snapshot: Snapshot | undefined): s
     params.set('pointX', String(snapshot.point.x))
     params.set('pointY', String(snapshot.point.y))
   }
+  if (options.canvasFromScreenshot)
+    params.set('shouldPopulateCanvasFromScreenshot', '1')
   return new URL(`snapshot/${encodeURIComponent(snapshot.callId)}?${params.toString()}`, location.href).toString()
 }
 

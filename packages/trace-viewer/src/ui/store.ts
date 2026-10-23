@@ -3,7 +3,8 @@ import type { StackFrame } from '@trace/trace'
 import type { Snapshot, SnapshotTab } from './lib/snapshots'
 import type { TimeRange } from './lib/timeline'
 import { buildActionTree, TraceModel } from '@isomorphic/trace/traceModel'
-import { computed, ref, shallowRef } from 'vue'
+import { useStorage } from '@vueuse/core'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { advance, indexAt } from './lib/playback'
 import { collectSnapshots, snapshotInfoUrl, snapshotUrl } from './lib/snapshots'
 import { actionInWindow, screencastFrames as buildScreencastFrames, normalizeRange } from './lib/timeline'
@@ -27,6 +28,7 @@ export interface PickedLocator {
 
 export const DETAIL_TABS = ['source', 'call', 'locator', 'log', 'network', 'attachments', 'errors', 'console', 'metadata', 'annotations'] as const
 export type DetailTab = typeof DETAIL_TABS[number]
+const DETAIL_TAB_KEY = 'kinora-tv-detail-tab'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
 type LoadErrorKind = 'generic' | 'unsupported-trace-version'
@@ -55,6 +57,11 @@ const hoveredActionId = ref<string | null>(null)
 const snapshotTab = ref<SnapshotTab>('action')
 const snapshotInfo = ref<SnapshotInfo>({})
 const detailTab = ref<DetailTab>(initialDetailTab())
+watch(detailTab, tab => globalThis.localStorage?.setItem(DETAIL_TAB_KEY, tab))
+// Service-worker progress while a trace downloads and unzips; null when not reported yet.
+const loadProgress = ref<{ done: number, total: number } | null>(null)
+// Paints recorded <canvas> elements from the action screenshot (upstream "Display canvas content").
+const canvasFromScreenshot = useStorage('kinora-tv-canvas-from-screenshot', false)
 const sourceReveal = ref<SourceReveal | null>(null)
 const networkReveal = ref<NetworkReveal | null>(null)
 const attachmentReveal = ref<{ callId: string, version: number } | null>(null)
@@ -82,8 +89,9 @@ let sourceRevealVersion = 0
 let networkRevealVersion = 0
 let attachmentRevealVersion = 0
 
+// `?tab=` wins (links from the dashboard), then the tab picked last time.
 function initialDetailTab(): DetailTab {
-  const tab = new URLSearchParams(globalThis.location?.search ?? '').get('tab')
+  const tab = new URLSearchParams(globalThis.location?.search ?? '').get('tab') ?? globalThis.localStorage?.getItem(DETAIL_TAB_KEY)
   return DETAIL_TABS.find(id => id === tab) ?? 'source'
 }
 
@@ -103,6 +111,10 @@ function flatten(m: TraceModel): ActionItem[] {
 async function registerServiceWorker(uri: string, name: string): Promise<void> {
   if (!navigator.serviceWorker)
     throw new Error('Service workers unavailable. Serve over https or localhost.')
+  navigator.serviceWorker.onmessage = (event: MessageEvent) => {
+    if (event.data?.method === 'progress')
+      loadProgress.value = event.data.params
+  }
   const registration = await navigator.serviceWorker.register('sw.bundle.js', { updateViaCache: 'none' })
   await registration.update()
   if (!navigator.serviceWorker.controller) {
@@ -141,6 +153,7 @@ function consumePendingLoad(): PendingLoad | null {
 async function load(uri: string, name = ''): Promise<void> {
   stopPlay()
   status.value = 'loading'
+  loadProgress.value = null
   errorKind.value = 'generic'
   traceUri.value = uri
   traceName.value = name
@@ -241,7 +254,7 @@ const activeAction = computed<ActionEntry | undefined>(() =>
   (hoveredActionId.value && items.value.find(i => i.id === hoveredActionId.value)?.action) || selectedAction.value)
 const snapshots = computed(() => collectSnapshots(model.value, activeAction.value))
 const currentSnapshot = computed<Snapshot | undefined>(() => snapshots.value[snapshotTab.value])
-const currentSnapshotUrl = computed(() => snapshotUrl(traceUri.value, currentSnapshot.value))
+const currentSnapshotUrl = computed(() => snapshotUrl(traceUri.value, currentSnapshot.value, { canvasFromScreenshot: canvasFromScreenshot.value }))
 
 const boundaries = computed(() => {
   const m = model.value
@@ -505,6 +518,8 @@ export function useTraceStore() {
     revealAttachment,
     revealConsole,
     selectAtTime,
+    loadProgress,
+    canvasFromScreenshot,
     highlightedTime,
     setHighlightedTime,
     scrubTo,
