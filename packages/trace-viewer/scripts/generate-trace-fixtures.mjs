@@ -156,6 +156,7 @@ async function generateScenarioTraces() {
   await generateTraceFixture('popup-trace.zip', popupSpec())
   await generateTraceFixture('network-rich-trace.zip', networkRichSpec())
   await generateTraceFixture('console-rich-trace.zip', consoleRichSpec())
+  await generateTraceFixture('console-format-trace.zip', consoleFormatSpec())
   await generateTraceFixture('annotations-trace.zip', annotationsSpec())
   await generateTraceFixture('error-trace.zip', errorSpec(), { file: 'demo.spec.ts', fails: true })
   await generateTraceFixture('aria-trace.zip', ariaSpec('{ dom: true, aria: true, screen: true }'))
@@ -352,6 +353,21 @@ test('library error', async ({ browser }, testInfo) => {
   await page.getByRole('button', { name: 'Pay now' }).click({ timeout: 500 }).catch(() => {})
   await context.tracing.stop({ path: testInfo.outputPath('trace.zip') })
   await context.close()
+})
+`
+}
+
+// Runner stdio with ANSI colours, %c / %s formatting, a repeated message and an uncaught page error.
+function consoleFormatSpec() {
+  return String.raw`
+import { expect, test } from '@playwright/test'
+
+test('console formatting', async ({ page }) => {
+  console.log('\x1b[32mrunner ready\x1b[39m')
+  console.error('runner warning on stderr')
+  await page.setContent('<button id="go">Go</button><script>document.getElementById("go").onclick = () => { console.log("%cstyled%c plain %s", "color: rgb(255, 0, 0); font-weight: bold", "", "value"); for (let i = 0; i < 3; i++) console.log("repeated message"); setTimeout(() => { throw new Error("boom from page") }, 0); setTimeout(() => { document.title = "done" }, 50) }<\/script>')
+  await page.getByRole('button', { name: 'Go' }).click()
+  await expect(page).toHaveTitle('done')
 })
 `
 }

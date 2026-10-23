@@ -314,6 +314,24 @@ function expandOrChild(): void {
     select(items.value[index + 1].id)
 }
 
+// Selects what was running at `time`: the innermost action covering it, else the last one started before.
+function selectAtTime(time: number): void {
+  let best: ActionItem | undefined
+  let fallback: ActionItem | undefined
+  for (const item of items.value) {
+    const { startTime, endTime } = item.action
+    if (startTime > time)
+      continue
+    if (!fallback || startTime >= fallback.action.startTime)
+      fallback = item
+    if ((!endTime || endTime >= time) && (!best || startTime >= best.action.startTime))
+      best = item
+  }
+  const target = best ?? fallback
+  if (target)
+    select(target.id)
+}
+
 function revealConsole(id: string): void {
   select(id)
   detailTab.value = 'console'
@@ -454,6 +472,7 @@ export function useTraceStore() {
     expandOrChild,
     revealAttachment,
     revealConsole,
+    selectAtTime,
     snapshotTab,
     snapshots,
     currentSnapshot,

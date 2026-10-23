@@ -117,6 +117,42 @@ test('generated console fixture renders typed messages and args', async ({ page 
   await expect(page.getByText('error', { exact: true })).toBeVisible()
 })
 
+test('console shows runner output, formatting, repeats and page errors', async ({ page }) => {
+  await openTrace(page, 'console-format-trace.zip')
+  await page.getByRole('button', { name: /^Console/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  const entry = (text: string) => page.getByTestId('console-entry').filter({ hasText: text })
+
+  // Runner stdio sits next to page messages, so every line says where it came from.
+  await expect(entry('runner ready').getByTestId('console-source')).toHaveText('test')
+  // `\x1b[32m` renders in the theme's green.
+  const pass = await page.evaluate(() => {
+    const probe = document.body.appendChild(document.createElement('span'))
+    probe.style.color = 'var(--pass)'
+    const color = getComputedStyle(probe).color
+    probe.remove()
+    return color
+  })
+  await expect(entry('runner ready').getByTestId('console-body').locator('span')).toHaveCSS('color', pass)
+  await expect(entry('runner warning on stderr')).toHaveAttribute('data-level', 'error')
+  await expect(entry('repeated message').getByTestId('console-source')).toHaveText('page#1')
+
+  const styled = entry('styled').getByTestId('console-body').locator('span').first()
+  await expect(styled).toHaveText('styled')
+  await expect(styled).toHaveCSS('color', 'rgb(255, 0, 0)')
+  await expect(styled).toHaveCSS('font-weight', '700')
+  await expect(entry('styled').getByTestId('console-body')).toHaveText('styled plain value')
+
+  await expect(entry('repeated message')).toHaveCount(1)
+  await expect(entry('repeated message').getByTestId('console-repeat')).toHaveText('3')
+
+  await expect(entry('boom from page')).toContainText('page error')
+  await expect(entry('boom from page').getByTestId('console-stack')).toContainText('Error: boom from page')
+
+  await entry('repeated message').click()
+  await expect(page.getByTestId('current-action')).toHaveText('Click')
+})
+
 test('generated annotations fixture renders trace annotations', async ({ page }) => {
   await openTrace(page, 'annotations-trace.zip')
 

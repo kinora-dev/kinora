@@ -22,7 +22,7 @@ const consoleCount = computed(() => {
   const action = store.activeAction.value
   if (!action)
     return 0
-  return store.model.value?.eventsForAction(action).filter(e => e.type === 'console').length ?? 0
+  return store.model.value?.eventsForAction(action).filter(e => e.type === 'console' || e.method === 'pageError').length ?? 0
 })
 const networkCount = computed(() =>
   resourcesForAction(store.model.value?.resources ?? [], store.activeAction.value).length,
