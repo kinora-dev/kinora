@@ -91,6 +91,56 @@ test('shows the test source code', async ({ page }) => {
   await expect(page.getByText(/testInfo\.attach\('screenshot'/)).toBeVisible()
 })
 
+test('source tab toolbar names the file and copies it', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' }).click()
+  await page.getByRole('button', { name: 'Source', exact: true }).click()
+
+  await expect(page.getByTestId('source-file-name')).toHaveText('demo.spec.ts')
+  await expect(page.getByTestId('source-file-name')).toHaveAttribute('title', /\/demo\.spec\.ts$/)
+  // A single frame has nothing to pick from, so the frame list stays hidden.
+  await expect(page.getByTestId('stack-frames')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open in VS Code' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Copy filename' }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('demo.spec.ts')
+})
+
+test('source tab opens the frame through the desktop app', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __opened: unknown[], __kinoraDesktop: unknown }
+    w.__opened = []
+    w.__kinoraDesktop = {
+      openInEditor: async (file: string, line: number, column: number) => {
+        w.__opened.push([file, line, column])
+        return w.__opened.length > 1 ? { error: `${file} is not on this machine` } : {}
+      },
+    }
+  })
+  await page.reload()
+  await page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' }).click()
+  await page.getByRole('button', { name: 'Source', exact: true }).click()
+
+  const open = page.getByRole('button', { name: 'Open in editor' })
+  await open.click()
+  const [[file, line, column]] = await page.evaluate(() => (window as unknown as { __opened: [string, number, number][] }).__opened)
+  expect(file).toMatch(/\/demo\.spec\.ts$/)
+  expect(line).toBeGreaterThan(0)
+  expect(column).toBeGreaterThan(0)
+  await expect(page.getByTestId('open-in-editor-error')).toHaveCount(0)
+
+  await open.click()
+  await expect(page.getByTestId('open-in-editor-error')).toContainText('is not on this machine')
+})
+
+test('source tab annotates the failing line of a library trace', async ({ page }) => {
+  await page.goto('/?trace=fixtures/library-error-trace.zip')
+  await page.getByTestId('action').filter({ hasText: 'Click' }).first().click()
+  await page.getByRole('button', { name: 'Source', exact: true }).click()
+  await expect(page.locator('.cm-errorLine')).toHaveCount(1)
+  await expect(page.locator('.cm-errorMessage')).toContainText('Timeout 500ms exceeded')
+})
+
 test('locator tab shows the selected action locator', async ({ page }) => {
   await page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' }).click()
   await page.getByRole('button', { name: 'Locator', exact: true }).click()

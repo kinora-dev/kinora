@@ -160,6 +160,7 @@ async function generateScenarioTraces() {
   await generateTraceFixture('error-trace.zip', errorSpec(), { file: 'demo.spec.ts', fails: true })
   await generateTraceFixture('aria-trace.zip', ariaSpec('{ dom: true, aria: true, screen: true }'))
   await generateTraceFixture('aria-only-trace.zip', ariaSpec('{ aria: true, screen: true }'))
+  await generateTraceFixture('library-error-trace.zip', libraryErrorSpec())
 }
 
 async function generateTraceFixture(name, spec, { file = 'fixture.spec.ts', fails = false } = {}) {
@@ -330,6 +331,25 @@ test('aria checkout', async ({ browser }, testInfo) => {
   await page.getByLabel('Customer email').fill('alex@example.com')
   await page.getByRole('button', { name: 'Complete checkout' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Order complete')
+  await context.tracing.stop({ path: testInfo.outputPath('trace.zip') })
+  await context.close()
+})
+`
+}
+
+// Library traces (no test runner) are the ones whose action errors annotate the Source tab.
+function libraryErrorSpec() {
+  return String.raw`
+import { test } from '@playwright/test'
+
+test.use({ trace: 'off' })
+
+test('library error', async ({ browser }, testInfo) => {
+  const context = await browser.newContext()
+  await context.tracing.start({ snapshots: true, sources: true })
+  const page = await context.newPage()
+  await page.setContent('<main><h1>Checkout</h1><button>Add to cart</button></main>')
+  await page.getByRole('button', { name: 'Pay now' }).click({ timeout: 500 }).catch(() => {})
   await context.tracing.stop({ path: testInfo.outputPath('trace.zip') })
   await context.close()
 })

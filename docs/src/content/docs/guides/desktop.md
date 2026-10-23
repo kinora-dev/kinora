@@ -42,6 +42,10 @@ Three ways, no account needed:
 - **Drag-drop** a `.zip` onto the window.
 - Pass a path as an argument, or open a `.zip` file with the app.
 
+In the viewer's **Source** tab, **Open in editor** opens the selected frame with the same editor
+command, as long as the file exists at the path the trace recorded (typically traces you recorded on
+this machine).
+
 ## Signing in
 
 The app signs in with the OAuth device flow: it shows a code, you approve it at

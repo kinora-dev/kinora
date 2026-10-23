@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import type { ChildProcess } from 'node:child_process'
 import type { AgentChange, GitSnapshot } from './agent'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import * as Sentry from '@sentry/electron/main'
@@ -282,6 +283,19 @@ function registerIpc(): void {
     }
     catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'Could not open editor' }
+    }
+  })
+
+  // The viewer only knows the path the trace was recorded at, so it opens when that file exists here.
+  ipcMain.handle('kinora:viewer-open-in-editor', async (_e, input: { file: string, line: number, column: number }) => {
+    if (!path.isAbsolute(input.file) || !existsSync(input.file))
+      return { error: `${input.file} is not on this machine` }
+    try {
+      await openInEditor(input.file, input.line, input.column)
+      return {}
+    }
+    catch (err) {
+      return { error: err instanceof Error ? err.message : 'Could not open editor' }
     }
   })
 

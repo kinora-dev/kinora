@@ -17,5 +17,9 @@ window.addEventListener('drop', (e) => {
     ipcRenderer.send('kinora:open-trace', p)
 })
 
-// Marker so the headless probe can confirm the preload loaded.
-contextBridge.exposeInMainWorld('__kinoraDesktop', { ready: true })
+// `ready` lets the headless probe confirm the preload loaded; the viewer's Source tab
+// feature-detects `openInEditor`.
+contextBridge.exposeInMainWorld('__kinoraDesktop', {
+  ready: true,
+  openInEditor: (file: string, line: number, column: number) => ipcRenderer.invoke('kinora:viewer-open-in-editor', { file, line, column }),
+})
