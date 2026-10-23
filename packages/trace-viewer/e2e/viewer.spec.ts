@@ -19,9 +19,9 @@ test('replays the DOM snapshot in the iframe', async ({ page }) => {
   await expect(frame.getByText('Order complete')).toBeVisible()
 })
 
-test('shows ARIA snapshot mode empty state', async ({ page }) => {
-  await page.getByRole('button', { name: 'ARIA' }).click()
-  await expect(page.getByText('No ARIA snapshot captured for this phase')).toBeVisible()
+test('hides the ARIA toggle when the trace has no ARIA snapshots', async ({ page }) => {
+  await expect(page.getByRole('button', { name: 'DOM', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'ARIA', exact: true })).toHaveCount(0)
 })
 
 test('renders a recorded ARIA snapshot as YAML', async ({ page }) => {
@@ -44,6 +44,46 @@ test('renders a recorded ARIA snapshot as YAML', async ({ page }) => {
   await expect(snapshot).toContainText('- heading "Checkout" [level=1]')
   await expect(snapshot).toContainText('- button "Complete checkout"')
   await expect(snapshot).not.toContainText('[box=')
+})
+
+test('remembers ARIA mode across reloads', async ({ page }) => {
+  await page.goto('/?trace=fixtures/aria-trace.zip')
+  await page.getByRole('button', { name: 'ARIA', exact: true }).click()
+  await expect(page.getByTestId('aria-snapshot')).toBeVisible()
+  await page.reload()
+  await expect(page.getByTestId('aria-snapshot')).toBeVisible()
+  await page.getByRole('button', { name: 'DOM', exact: true }).click()
+  await expect(page.getByTestId('aria-snapshot')).toHaveCount(0)
+})
+
+test('opens an ARIA-only trace in ARIA mode with the screenshot and action overlays', async ({ page }) => {
+  await page.goto('/?trace=fixtures/aria-only-trace.zip')
+  await page.getByTestId('action').filter({ hasText: 'Click' }).first().click()
+
+  // No DOM snapshots: ARIA is the only mode, so there is nothing to toggle.
+  await expect(page.getByRole('button', { name: 'ARIA', exact: true })).toHaveCount(0)
+  await expect(page.getByTestId('aria-snapshot')).toContainText('- button "Complete checkout"')
+  await expect(page.getByTestId('aria-screenshot')).toBeVisible()
+  await expect(page.getByTestId('aria-action-point')).toBeVisible()
+  const actionBox = await page.getByTestId('aria-action-box').boundingBox()
+
+  // The clicked button's line highlights the same area as the action box.
+  await page.getByTestId('aria-line').filter({ hasText: 'button "Complete checkout"' }).hover()
+  const hovered = await page.getByTestId('aria-hovered-box').boundingBox()
+  expect(actionBox && hovered).toBeTruthy()
+  for (const key of ['x', 'y', 'width', 'height'] as const)
+    expect(Math.abs(hovered![key] - actionBox![key])).toBeLessThan(2)
+
+  await page.getByRole('button', { name: 'After', exact: true }).click()
+  await expect(page.getByTestId('aria-phase')).toHaveText('after')
+  await expect(page.getByTestId('aria-action-box')).toHaveCount(0)
+})
+
+test('falls back to the after ARIA snapshot when an action has no action phase', async ({ page }) => {
+  await page.goto('/?trace=fixtures/aria-only-trace.zip')
+  await page.getByTestId('action').filter({ hasText: 'Set content' }).first().click()
+  await expect(page.getByTestId('aria-phase')).toHaveText('after')
+  await expect(page.getByTestId('aria-snapshot')).toContainText('- heading "Checkout" [level=1]')
 })
 
 test('shows the test source code', async ({ page }) => {

@@ -17,42 +17,64 @@ export interface Snapshots {
 
 export type SnapshotTab = 'before' | 'action' | 'after'
 
-function createSnapshot(model: TraceModel, action: ActionTraceEvent | undefined, phase: ActionPhase): Snapshot | undefined {
-  if (!action || !model.hasDomSnapshotForCall(action.callId, phase))
-    return undefined
-  return { callId: action.callId, phase, point: action.point }
+export interface PhaseTarget {
+  action: ActionTraceEvent
+  phase: ActionPhase
 }
 
-export function collectSnapshots(model: TraceModel | null, action: ActionEntry | undefined): Snapshots {
-  if (!model || !action)
-    return {}
+export interface PhaseTargets {
+  action?: PhaseTarget
+  before?: PhaseTarget
+  after?: PhaseTarget
+}
 
-  let before = createSnapshot(model, action, 'before')
+// Picks what each Before/Action/After tab shows, falling back to neighbouring actions
+// when `has` says the action recorded nothing for that phase (same rules as upstream).
+export function collectPhaseTargets(action: ActionTraceEvent | undefined, has: (callId: string, phase: ActionPhase) => boolean): PhaseTargets {
+  if (!action)
+    return {}
+  const target = (a: ActionTraceEvent, phase: ActionPhase): PhaseTarget | undefined => has(a.callId, phase) ? { action: a, phase } : undefined
+
+  let before = target(action, 'before')
   if (!before) {
     for (let a = previousActionByEndTime(action); a; a = previousActionByEndTime(a)) {
       if (a.endTime <= action.startTime) {
-        before = createSnapshot(model, a, 'after')
+        before = target(a, 'after')
         if (before)
           break
       }
     }
   }
 
-  let after = createSnapshot(model, action, 'after')
+  let after = target(action, 'after')
   if (!after) {
     let last: ActionTraceEvent | undefined
     for (let a = nextActionByStartTime(action); a && a.startTime <= action.endTime; a = nextActionByStartTime(a)) {
-      if (a.endTime > action.endTime || !model.hasDomSnapshotForCall(a.callId, 'after'))
+      if (a.endTime > action.endTime || !has(a.callId, 'after'))
         continue
       if (last && last.endTime > a.endTime)
         continue
       last = a
     }
-    after = last ? createSnapshot(model, last, 'after') : before
+    after = last ? { action: last, phase: 'after' } : before
   }
 
-  const action_ = createSnapshot(model, action, 'action') ?? after
-  return { action: action_, before, after }
+  return { action: target(action, 'action') ?? after, before, after }
+}
+
+export function collectSnapshots(model: TraceModel | null, action: ActionEntry | undefined): Snapshots {
+  if (!model)
+    return {}
+  const targets = collectPhaseTargets(action, (callId, phase) => model.hasDomSnapshotForCall(callId, phase))
+  const toSnapshot = (t: PhaseTarget | undefined): Snapshot | undefined => t && { callId: t.action.callId, phase: t.phase, point: t.action.point }
+  return { action: toSnapshot(targets.action), before: toSnapshot(targets.before), after: toSnapshot(targets.after) }
+}
+
+// ARIA mode counts a phase as recorded when it has a screenshot or an ARIA snapshot.
+export function collectAriaTargets(model: TraceModel | null, action: ActionEntry | undefined): PhaseTargets {
+  if (!model)
+    return {}
+  return collectPhaseTargets(action, (callId, phase) => !!model.screenshotForCall(callId, phase) || !!model.ariaSnapshotForCall(callId, phase))
 }
 
 export function snapshotUrl(traceUri: string, snapshot: Snapshot | undefined): string | undefined {

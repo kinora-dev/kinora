@@ -158,7 +158,8 @@ async function generateScenarioTraces() {
   await generateTraceFixture('console-rich-trace.zip', consoleRichSpec())
   await generateTraceFixture('annotations-trace.zip', annotationsSpec())
   await generateTraceFixture('error-trace.zip', errorSpec(), { file: 'demo.spec.ts', fails: true })
-  await generateTraceFixture('aria-trace.zip', ariaSpec())
+  await generateTraceFixture('aria-trace.zip', ariaSpec('{ dom: true, aria: true, screen: true }'))
+  await generateTraceFixture('aria-only-trace.zip', ariaSpec('{ aria: true, screen: true }'))
 }
 
 async function generateTraceFixture(name, spec, { file = 'fixture.spec.ts', fails = false } = {}) {
@@ -307,7 +308,7 @@ test('completes a purchase', async ({ page }) => {
 `
 }
 
-function ariaSpec() {
+function ariaSpec(snapshots) {
   return String.raw`
 import { expect, test } from '@playwright/test'
 
@@ -316,7 +317,7 @@ test.use({ trace: 'off' })
 
 test('aria checkout', async ({ browser }, testInfo) => {
   const context = await browser.newContext()
-  await context.tracing.start({ snapshots: { dom: true, aria: true }, sources: true })
+  await context.tracing.start({ snapshots: ${snapshots}, sources: true })
   const page = await context.newPage()
   await page.setContent([
     '<main>',

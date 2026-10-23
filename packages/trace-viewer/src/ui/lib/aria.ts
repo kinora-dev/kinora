@@ -8,26 +8,44 @@ export interface AriaToken {
   text: string
 }
 
+export interface AriaBox { x: number, y: number, width: number, height: number }
+
+export interface AriaLine {
+  box?: AriaBox
+  text: string
+}
+
 // Trace ARIA snapshots are JSON since Playwright 1.63; anything else is shown as recorded.
-export function ariaSnapshotText(raw: string): string {
+export function ariaSnapshotLines(raw: string): AriaLine[] {
   let snapshot: unknown
   try {
     snapshot = JSON.parse(raw)
   }
-  catch {
-    return raw
-  }
+  catch {}
   if (!Array.isArray(snapshot))
-    return raw
-  return renderAriaSnapshotAsYaml((snapshot as AriaSnapshotJSON).map(withoutBoxes))
-}
+    return raw.trimEnd().split('\n').map(text => ({ text }))
 
-// Boxes would otherwise render as `[box=x,y,w,h]` on every line.
-function withoutBoxes(node: AriaNodeJSON): AriaNodeJSON {
-  const { box: _box, children, ...rest } = node
-  return children
-    ? { ...rest, children: children.map(child => typeof child === 'string' ? child : withoutBoxes(child)) }
-    : rest
+  // Boxes move to the lines (rendered, they would read `[box=x,y,w,h]`), in page coordinates.
+  const boxes = new Map<AriaNodeJSON, AriaBox>()
+  const extractBoxes = (node: AriaNodeJSON | string, offset: { x: number, y: number }): void => {
+    if (typeof node === 'string')
+      return
+    if (node.box)
+      boxes.set(node, { ...node.box, x: node.box.x + offset.x, y: node.box.y + offset.y })
+    const childOffset = node.role === 'iframe' && node.box ? { x: offset.x + node.box.x, y: offset.y + node.box.y } : offset
+    for (const child of node.children ?? [])
+      extractBoxes(child, childOffset)
+    delete node.box
+  }
+  for (const node of snapshot as AriaSnapshotJSON)
+    extractBoxes(node, { x: 0, y: 0 })
+
+  const lineToNode = new Map<number, AriaNodeJSON>()
+  const text = renderAriaSnapshotAsYaml(snapshot as AriaSnapshotJSON, { lineToNode })
+  return text.trimEnd().split('\n').map((line, index) => {
+    const node = lineToNode.get(index)
+    return { box: node ? boxes.get(node) : undefined, text: line }
+  })
 }
 
 const tokenRegex = /("(?:[^"\\]|\\.)*")|(\/(?:[^/\\]|\\.)*\/)|(\[[^\]]*\])/g

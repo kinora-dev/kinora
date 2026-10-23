@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { useStorage } from '@vueuse/core'
+import { computed, watch } from 'vue'
 import { actionTitle } from '../lib/action'
+import { collectAriaTargets } from '../lib/snapshots'
 import { useLocatorPicker } from '../lib/useLocatorPicker'
 import { useTraceStore } from '../store'
 import AriaSnapshotView from './AriaSnapshotView.vue'
@@ -11,23 +13,38 @@ import TextTooltip from './TextTooltip.vue'
 type SnapshotMode = 'dom' | 'aria'
 
 const store = useTraceStore()
-const mode = ref<SnapshotMode>('dom')
+const ariaSetting = useStorage('kinora-tv-aria-mode', false)
+// A trace with ARIA data but no DOM snapshots can only be shown in ARIA mode.
+const canToggleAria = computed(() => !!store.model.value?.hasDomSnapshots && !!store.model.value?.hasAriaSnapshots)
+const mode = computed<SnapshotMode>(() => {
+  const aria = canToggleAria.value ? ariaSetting.value : !!store.model.value?.hasAriaSnapshots
+  return aria ? 'aria' : 'dom'
+})
 const viewport = computed(() => store.snapshotInfo.value.viewport)
 const pageUrl = computed(() => store.snapshotInfo.value.url ?? '')
 const frameSrc = computed(() => store.currentSnapshotUrl.value ?? 'about:blank')
 const hasSnapshot = computed(() => !!store.currentSnapshotUrl.value)
+const ariaTarget = computed(() => collectAriaTargets(store.model.value, store.selectedAction.value)[store.snapshotTab.value])
 const ariaEvent = computed(() => {
-  const snapshot = store.currentSnapshot.value
-  const model = store.model.value
-  if (!snapshot || !model)
-    return undefined
-  return model.ariaSnapshotForCall(snapshot.callId, snapshot.phase)
+  const target = ariaTarget.value
+  return target && store.model.value?.ariaSnapshotForCall(target.action.callId, target.phase)
 })
-const ariaUrl = computed(() => {
-  const model = store.model.value
-  const event = ariaEvent.value
-  return event?.file && model ? model.createRelativeUrl(`file/${event.file}`) : undefined
+const ariaUrl = computed(() => fileUrl(ariaEvent.value?.file))
+const screenshotUrl = computed(() => {
+  const target = ariaTarget.value
+  return fileUrl(target && store.model.value?.screenshotForCall(target.action.callId, target.phase)?.file)
 })
+const actionPhase = computed(() => store.snapshotTab.value === 'action' ? store.selectedAction.value : undefined)
+
+function fileUrl(file: string | undefined): string | undefined {
+  const model = store.model.value
+  return file && model ? model.createRelativeUrl(`file/${file}`) : undefined
+}
+
+function setMode(value: SnapshotMode): void {
+  ariaSetting.value = value === 'aria'
+}
+
 const ariaTerms = computed(() => {
   const action = store.selectedAction.value
   if (!action)
@@ -46,9 +63,14 @@ function openSnapshot(): void {
 }
 
 function toggleInspector(): void {
-  mode.value = 'dom'
   store.setInspectingLocator(!store.inspectingLocator.value)
 }
+
+// The picker needs the DOM snapshot.
+watch(mode, (value) => {
+  if (value === 'aria' && store.inspectingLocator.value)
+    store.setInspectingLocator(false)
+})
 
 watch(frameSrc, () => {
   void store.refreshSnapshotInfo()
@@ -60,11 +82,12 @@ watch(frameSrc, () => {
     <SnapshotToolbar
       :mode="mode"
       :selected-tab="store.snapshotTab.value"
-      :has-snapshot="hasSnapshot"
+      :has-snapshot="hasSnapshot && mode === 'dom'"
+      :can-toggle-aria="canToggleAria"
       :inspecting="store.inspectingLocator.value"
       :viewport="viewport"
       @set-tab="store.setTab"
-      @set-mode="value => mode = value"
+      @set-mode="setMode"
       @toggle-inspector="toggleInspector"
       @open-snapshot="openSnapshot"
     />
@@ -98,8 +121,11 @@ watch(frameSrc, () => {
           <AriaSnapshotView
             v-else
             :url="ariaUrl"
-            :call-id="ariaEvent?.callId"
-            :phase="ariaEvent?.phase"
+            :screenshot-url="screenshotUrl"
+            :point="actionPhase?.point"
+            :box="actionPhase?.box"
+            :call-id="ariaTarget?.action.callId"
+            :phase="ariaTarget?.phase"
             :file="ariaEvent?.file"
             :terms="ariaTerms"
           />

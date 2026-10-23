@@ -8,6 +8,7 @@ type SnapshotMode = 'dom' | 'aria'
 defineProps<{
   mode: SnapshotMode
   selectedTab: SnapshotTab
+  canToggleAria: boolean
   hasSnapshot: boolean
   inspecting: boolean
   viewport?: { width: number, height: number }
@@ -46,7 +47,7 @@ const tabs: { id: SnapshotTab, label: string }[] = [
       </button>
     </div>
     <div class="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-      <div class="flex items-center gap-0.5 rounded-md bg-muted/60 p-0.5">
+      <div v-if="canToggleAria" class="flex items-center gap-0.5 rounded-md bg-muted/60 p-0.5">
         <button
           type="button"
           :class="cn(
