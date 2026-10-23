@@ -159,9 +159,29 @@ test('call tab highlights action details', async ({ page }) => {
   await expect(page.getByTestId('call-title')).toHaveText('Fill "alex@example.com"')
   await expect(page.getByTestId('call-method')).toHaveText('Frame.fill')
   await expect(page.getByText('Key details')).toBeVisible()
-  await expect(page.getByText('selector')).toBeVisible()
-  await expect(page.getByText('#customer', { exact: true })).toBeVisible()
-  await expect(page.getByText('alex@example.com', { exact: true })).toBeVisible()
+  // The selector reads as a locator in the trace's language, like upstream's Call tab.
+  await expect(page.getByRole('cell', { name: 'locator', exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: `locator('#customer')`, exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'alex@example.com', exact: true })).toBeVisible()
+  await expect(page.getByTestId('call-start')).toHaveText(/^\d+(?:\.\d)?m?s$/)
+  await expect(page.getByTestId('call-duration')).toHaveText(/^\d+(?:\.\d)?m?s$/)
+})
+
+test('call tab copies a single value', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' }).click()
+  await page.getByRole('button', { name: 'Call', exact: true }).click()
+  const row = page.getByTestId('call-row').filter({ hasText: 'locator' })
+  await row.hover()
+  await row.getByRole('button', { name: 'Copy locator' }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`locator('#customer')`)
+})
+
+test('log tab shows how long each step took', async ({ page }) => {
+  await page.getByTestId('action').filter({ hasText: 'Click' }).first().click()
+  await page.getByRole('button', { name: 'Log', exact: true }).click()
+  await expect(page.getByTestId('log-line').first()).toBeVisible()
+  await expect(page.getByTestId('log-duration').first()).toHaveText(/^\d+(?:\.\d)?m?s$/)
 })
 
 test('call tab formats expect details', async ({ page }) => {

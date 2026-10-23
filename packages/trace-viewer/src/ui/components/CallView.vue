@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { cn } from '@kinora/ui'
-import { Copy } from '@lucide/vue'
-import { computed } from 'vue'
+import { Check, Copy } from '@lucide/vue'
+import { computed, ref } from 'vue'
 import { callSummary } from '../lib/call'
 import { useTraceStore } from '../store'
 
@@ -9,8 +9,29 @@ const store = useTraceStore()
 
 const summary = computed(() => {
   const action = store.selectedAction.value
-  return action ? callSummary(action) : null
+  const model = store.model.value
+  return action ? callSummary(action, { sdkLanguage: model?.sdkLanguage, startTime: model?.startTime }) : null
 })
+
+// Key details and the return value only show when they have rows; params always show.
+const sections = computed(() => summary.value
+  ? [
+      { id: 'primary', label: 'Key details', rows: summary.value.primary },
+      { id: 'params', label: 'All params', rows: summary.value.params },
+      { id: 'result', label: 'Return value', rows: summary.value.result },
+    ].filter(section => section.id === 'params' || section.rows.length)
+  : [])
+
+const copiedKey = ref<string>()
+
+async function copyValue(id: string, value: string): Promise<void> {
+  await navigator.clipboard.writeText(value)
+  copiedKey.value = id
+  setTimeout(() => {
+    if (copiedKey.value === id)
+      copiedKey.value = undefined
+  }, 1500)
+}
 
 const allParamsText = computed(() => JSON.stringify(store.selectedAction.value?.params ?? {}, null, 2))
 
@@ -48,10 +69,16 @@ const statusClass = computed(() => {
             {{ summary.status }}
           </span>
         </div>
-        <div class="grid grid-cols-2 gap-2 text-muted-foreground">
+        <div class="grid grid-cols-3 gap-2 text-muted-foreground">
+          <div>
+            <span class="uppercase tracking-wide">Start</span>
+            <div data-testid="call-start" class="font-mono text-foreground/90">
+              {{ summary.start }}
+            </div>
+          </div>
           <div>
             <span class="uppercase tracking-wide">Duration</span>
-            <div class="font-mono text-foreground/90">
+            <div data-testid="call-duration" class="font-mono text-foreground/90">
               {{ summary.duration }}
             </div>
           </div>
@@ -73,28 +100,11 @@ const statusClass = computed(() => {
         </div>
       </section>
 
-      <section v-if="summary.primary.length">
-        <div class="mb-1 font-semibold tracking-wide text-muted-foreground uppercase">
-          Key details
-        </div>
-        <table class="w-full overflow-hidden rounded-md border border-border text-xs">
-          <tbody>
-            <tr v-for="row in summary.primary" :key="row.key" class="border-b border-border/40 last:border-0">
-              <td class="w-36 bg-muted/30 px-2 py-1.5 align-top font-mono text-muted-foreground">
-                {{ row.key }}
-              </td>
-              <td class="px-2 py-1.5 align-top font-mono whitespace-pre-wrap break-all text-foreground/90">
-                {{ row.value }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section>
+      <section v-for="section in sections" :key="section.id">
         <div class="mb-1 flex items-center gap-2">
-          <span class="font-semibold tracking-wide text-muted-foreground uppercase">All params</span>
+          <span class="font-semibold tracking-wide text-muted-foreground uppercase">{{ section.label }}</span>
           <button
+            v-if="section.id === 'params'"
             type="button"
             class="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             @click="copyParams"
@@ -103,28 +113,32 @@ const statusClass = computed(() => {
             Copy
           </button>
         </div>
-        <div v-if="!summary.params.length" class="rounded-md border border-border bg-muted/20 p-2 text-muted-foreground">
+        <div v-if="!section.rows.length" class="rounded-md border border-border bg-muted/20 p-2 text-muted-foreground">
           No additional params
         </div>
         <table v-else class="w-full overflow-hidden rounded-md border border-border text-xs">
           <tbody>
-            <tr v-for="row in summary.params" :key="row.key" class="border-b border-border/40 last:border-0">
+            <tr v-for="row in section.rows" :key="row.key" data-testid="call-row" class="group border-b border-border/40 last:border-0">
               <td class="w-36 bg-muted/30 px-2 py-1.5 align-top font-mono text-muted-foreground">
                 {{ row.key }}
               </td>
               <td class="px-2 py-1.5 align-top font-mono whitespace-pre-wrap break-all text-foreground/90">
                 {{ row.value }}
               </td>
+              <td class="w-7 px-1 py-1 align-top">
+                <button
+                  v-if="row.copyable"
+                  type="button"
+                  :title="`Copy ${row.key}`"
+                  class="flex size-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100"
+                  @click="copyValue(`${section.id}:${row.key}`, row.value)"
+                >
+                  <component :is="copiedKey === `${section.id}:${row.key}` ? Check : Copy" class="size-3" />
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
-      </section>
-
-      <section v-if="summary.result">
-        <div class="mb-1 font-semibold tracking-wide text-muted-foreground uppercase">
-          Result
-        </div>
-        <pre class="rounded-md border border-border bg-muted/20 p-2 font-mono whitespace-pre-wrap">{{ summary.result }}</pre>
       </section>
     </div>
   </div>
