@@ -13,6 +13,7 @@ import SnapshotPlayer from './components/SnapshotPlayer.vue'
 import Timeline from './components/Timeline.vue'
 import TraceDropZone from './components/TraceDropZone.vue'
 import { useKeyboardNav } from './lib/useKeyboardNav'
+import { loadInjected } from './lib/useLocatorPicker'
 import { useTraceDrop } from './lib/useTraceDrop'
 import { useTraceStore } from './store'
 
@@ -65,6 +66,7 @@ async function downloadTrace(): Promise<void> {
 const { isDragging } = useTraceDrop()
 
 onMounted(() => {
+  void loadInjected()
   // No ?trace= means someone landed on the viewer directly (the public
   // kinora.dev entry point), so offer the drop zone rather than guess a trace.
   const param = new URLSearchParams(location.search).get('trace')

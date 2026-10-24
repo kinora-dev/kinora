@@ -1,12 +1,15 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker"],
+    // ESNext.Temporal: the vendored injected script feature-detects `window.Temporal` (upstream compiles with ESNext).
+    "lib": ["ES2023", "ESNext.Temporal", "DOM", "DOM.Iterable", "WebWorker"],
     // Aliases kept identical to upstream so vendored files compile unedited
     // and re-syncing from microsoft/playwright stays a plain re-copy.
     "paths": {
       "@trace/*": ["./src/core/trace/*"],
       "@isomorphic/*": ["./src/core/isomorphic/*"],
+      "@injected/*": ["./src/core/injected/*"],
+      "@recorder/*": ["./src/core/recorder/*"],
       "@protocol/*": ["./src/core/protocol/*"],
       "@/*": ["./src/*"]
     },

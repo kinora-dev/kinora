@@ -19,8 +19,8 @@ test('picks a locator inside a nested iframe', async ({ page }) => {
   await page.frameLocator('iframe[name="snapshot"]').frameLocator('iframe[title="Payment frame"]').locator('#cardholder').click()
 
   await expect(page.getByTestId('locator-source')).toHaveText('Snapshot picker')
-  await expect(page.getByTestId('locator-value')).toContainText(`.contentFrame().`)
-  await expect(page.getByTestId('selector-value')).toHaveText(/ >> internal:control=enter-frame >> #cardholder$/)
+  await expect(page.getByTestId('locator-value')).toHaveText(`locator('iframe[title="Payment frame"]').contentFrame().getByRole('textbox', { name: 'Card holder' })`)
+  await expect(page.getByTestId('selector-value')).toHaveText('iframe[title="Payment frame"] >> internal:control=enter-frame >> internal:role=textbox[name="Card holder"i]')
 })
 
 test('generated popup fixture exposes popup actions', async ({ page }) => {

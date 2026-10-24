@@ -16,6 +16,7 @@ const isomorphicFiles = [
   'cssParser.ts',
   'cssTokenizer.ts',
   'locatorGenerators.ts',
+  'locatorParser.ts',
   'lruCache.ts',
   'mimeType.ts',
   'protocolFormatter.ts',
@@ -41,7 +42,24 @@ const swFiles = [
   'traceLoaderBackends.ts',
 ]
 
+// Upstream path aliases, so imports between vendored files can be followed.
+const ALIASES = {
+  '@injected/': 'packages/injected/src/',
+  '@isomorphic/': 'packages/isomorphic/',
+  '@recorder/': 'packages/recorder/src/',
+}
+
+// The injected script and recorder power the snapshot picker, locator highlighting and the console API.
+const injectedFiles = [
+  'injectedScript.ts',
+  'recorder/recorder.ts',
+]
+
 const downloads = [
+  ...injectedFiles.map(file => ({
+    upstream: `packages/injected/src/${file}`,
+    local: `packages/trace-viewer/src/core/injected/${file}`,
+  })),
   ...isomorphicFiles.map(file => ({
     upstream: `packages/isomorphic/${file}`,
     local: `packages/trace-viewer/src/core/isomorphic/${file}`,
@@ -85,17 +103,17 @@ const stale = []
 // The lists above are the entry points. Upstream regularly splits code into new files (1.64's
 // service worker started importing `@isomorphic/istanbulCoverage`), so follow the imports of
 // everything downloaded and fetch whatever is missing, instead of trusting a fixed list.
-const queue = [...downloads]
+const queue = downloads.map(item => ({ ...item, candidates: [item.upstream] }))
 const seen = new Set(queue.map(item => item.upstream))
 for (let item = queue.shift(); item; item = queue.shift()) {
-  const content = await fetchText(`${baseUrl}/${item.upstream}`)
-  await handleFile(item.local, content)
-  for (const upstream of importedFiles(item.upstream, content)) {
-    if (seen.has(upstream))
+  const { upstream, content } = await fetchFirst(item.candidates)
+  await handleFile(localPathOf(upstream) ?? item.local, content)
+  for (const candidates of importedFiles(upstream, content)) {
+    if (seen.has(candidates[0]))
       continue
-    seen.add(upstream)
-    queue.push({ upstream, local: localPathOf(upstream) })
-    console.log(`  + ${upstream} (imported by ${item.upstream})`)
+    seen.add(candidates[0])
+    queue.push({ candidates, local: localPathOf(candidates[0]) })
+    console.log(`  + ${candidates[0]} (imported by ${upstream})`)
   }
 }
 
@@ -118,30 +136,47 @@ else {
   console.log(`Synced Playwright trace viewer vendored code from ${tag}.`)
 }
 
-// Upstream .ts files a vendored file imports, limited to the two trees we vendor. Other aliases
+// Upstream files a vendored file imports, limited to the trees we vendor. Other aliases
 // (`@protocol`, `@trace`, npm packages) are covered by the explicit downloads and generated shims.
+// Each import resolves to candidate paths: a bare specifier may be a `.ts` or a type-only `.d.ts`.
 function importedFiles(upstream, content) {
   const files = []
-  for (const [, specifier] of content.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)) {
-    let target
-    if (specifier.startsWith('@isomorphic/'))
-      target = `packages/isomorphic/${specifier.slice('@isomorphic/'.length)}`
-    else if (specifier.startsWith('.'))
-      target = path.posix.join(path.posix.dirname(upstream), specifier)
-    if (target && localPathOf(target))
-      files.push(/\.(?:ts|d\.ts)$/.test(target) ? target : `${target}.ts`)
+  for (const [, raw] of content.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)) {
+    // `?inline` (and other Vite queries) only change how the file is bundled.
+    const specifier = raw.replace(/\?.*$/, '')
+    const alias = Object.keys(ALIASES).find(prefix => specifier.startsWith(prefix))
+    const target = alias
+      ? ALIASES[alias] + specifier.slice(alias.length)
+      : specifier.startsWith('.') ? path.posix.join(path.posix.dirname(upstream), specifier) : undefined
+    if (!target || !localPathOf(target))
+      continue
+    files.push(/\.\w+$/.test(target) && !target.endsWith('.d') ? [target] : [`${target}.ts`, `${target}.d.ts`])
   }
   return files
 }
 
+async function fetchFirst(candidates) {
+  for (const [i, upstream] of candidates.entries()) {
+    try {
+      return { upstream, content: await fetchText(`${baseUrl}/${upstream}`) }
+    }
+    catch (error) {
+      if (i === candidates.length - 1)
+        throw error
+    }
+  }
+  throw new Error('No candidate path')
+}
+
 function localPathOf(upstream) {
-  const isomorphic = 'packages/isomorphic/'
-  const sw = 'packages/trace-viewer/src/sw/'
-  if (upstream.startsWith(isomorphic))
-    return `packages/trace-viewer/src/core/isomorphic/${upstream.slice(isomorphic.length)}`
-  if (upstream.startsWith(sw))
-    return `packages/trace-viewer/src/sw/${upstream.slice(sw.length)}`
-  return undefined
+  const roots = [
+    ['packages/isomorphic/', 'packages/trace-viewer/src/core/isomorphic/'],
+    ['packages/injected/src/', 'packages/trace-viewer/src/core/injected/'],
+    ['packages/recorder/src/', 'packages/trace-viewer/src/core/recorder/'],
+    ['packages/trace-viewer/src/sw/', 'packages/trace-viewer/src/sw/'],
+  ]
+  const root = roots.find(([from]) => upstream.startsWith(from))
+  return root && root[1] + upstream.slice(root[0].length)
 }
 
 async function handleFile(local, content) {

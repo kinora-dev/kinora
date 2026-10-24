@@ -198,7 +198,8 @@ test('picks a locator from the snapshot', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Locator', exact: true })).toHaveClass(/text-foreground/)
   await expect(page.getByTestId('locator-source')).toHaveText('Snapshot picker')
   await expect(page.getByTestId('locator-value')).toContainText(/getByRole\('button', \{ name: 'Complete checkout' \}\)/)
-  await expect(page.getByTestId('selector-value')).toHaveText('#complete')
+  // Playwright's own selector generator, so the pick matches what codegen would write.
+  await expect(page.getByTestId('selector-value')).toHaveText('internal:role=button[name="Complete checkout"i]')
 })
 
 test('renders the snapshot at the recorded viewport, scaled to fit', async ({ page }) => {

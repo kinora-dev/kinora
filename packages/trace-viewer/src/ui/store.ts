@@ -24,6 +24,8 @@ export interface SnapshotInfo {
 export interface PickedLocator {
   selector: string
   locator: string
+  // ARIA snapshot of the picked element, from the injected script.
+  ariaSnapshot?: string
 }
 
 export const DETAIL_TABS = ['source', 'call', 'locator', 'log', 'network', 'attachments', 'errors', 'console', 'metadata', 'annotations'] as const

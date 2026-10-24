@@ -16,6 +16,8 @@ const release = `kinora-trace-viewer@${pkg.version}`
 const alias = {
   '@trace': path.resolve(import.meta.dirname, 'src/core/trace'),
   '@isomorphic': path.resolve(import.meta.dirname, 'src/core/isomorphic'),
+  '@injected': path.resolve(import.meta.dirname, 'src/core/injected'),
+  '@recorder': path.resolve(import.meta.dirname, 'src/core/recorder'),
   '@protocol': path.resolve(import.meta.dirname, 'src/core/protocol'),
   '@': path.resolve(import.meta.dirname, 'src'),
 }
