@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { ActionEntry } from '@isomorphic/trace/entries'
 import type { ActionGroup } from '../store'
 import { cn } from '@kinora/ui'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@kinora/ui/dropdown-menu'
@@ -12,7 +11,7 @@ import TextTooltip from './TextTooltip.vue'
 
 const store = useTraceStore()
 const filter = store.actionFilter
-const hiddenGroups = store.hiddenGroups
+const shownGroups = store.shownGroups
 
 const groupLabels: Record<ActionGroup, string> = {
   getter: 'Getters',
@@ -22,27 +21,16 @@ const groupLabels: Record<ActionGroup, string> = {
 
 const filtering = computed(() => filter.value.trim().length > 0)
 
-function groupFor(action: ActionEntry): ActionGroup | undefined {
-  return ACTION_GROUPS.find(group => group === action.group)
-}
-
-function actionPassesGroup(action: ActionEntry): boolean {
-  const group = groupFor(action)
-  return !group || !hiddenGroups.value.includes(group)
-}
-
 function setGroup(group: ActionGroup, checked: boolean): void {
-  const rest = hiddenGroups.value.filter(g => g !== group)
-  hiddenGroups.value = checked ? rest : [...rest, group]
+  const rest = shownGroups.value.filter(g => g !== group)
+  shownGroups.value = checked ? [...rest, group] : rest
 }
-
-const hiddenByGroupCount = computed(() => store.items.value.filter(item => !actionPassesGroup(item.action)).length)
 
 const groupRows = computed(() => ACTION_GROUPS.map(group => ({
   group,
   label: groupLabels[group],
   count: store.model.value?.actionCounters.get(group) ?? 0,
-  checked: !hiddenGroups.value.includes(group),
+  checked: shownGroups.value.includes(group),
 })))
 
 const rows = computed(() => {
@@ -106,7 +94,7 @@ const countLabel = computed(() => {
       <div class="flex items-baseline gap-2">
         <span class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Actions</span>
         <span class="font-mono text-[11px] text-muted-foreground/70">{{ countLabel }}</span>
-        <span v-if="hiddenByGroupCount" class="font-mono text-[11px] text-muted-foreground/70">{{ hiddenByGroupCount }} hidden</span>
+        <span v-if="store.hiddenActionCount.value" class="font-mono text-[11px] text-muted-foreground/70">{{ store.hiddenActionCount.value }} hidden</span>
       </div>
     </div>
 
@@ -137,12 +125,15 @@ const countLabel = computed(() => {
       </DropdownMenu>
     </div>
 
-    <div ref="list" data-action-list class="min-h-0 flex-1 overflow-y-auto py-1">
+    <div ref="list" data-action-list role="tree" aria-label="Actions" class="min-h-0 flex-1 overflow-y-auto py-1">
       <div
         v-for="row in rows"
         :key="row.item.id"
-        role="button"
+        role="treeitem"
         tabindex="0"
+        :aria-level="row.item.depth + 1"
+        :aria-expanded="row.item.hasChildren && !filtering && !store.timeRange.value ? !store.collapsed.value.has(row.item.id) : undefined"
+        :aria-selected="store.selectedId.value === row.item.id"
         data-testid="action"
         :data-context="row.context || undefined"
         :data-selected="store.selectedId.value === row.item.id || undefined"
@@ -170,7 +161,8 @@ const countLabel = computed(() => {
             v-if="!filtering && !store.timeRange.value && row.item.hasChildren"
             data-testid="action-expander"
             class="flex cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-            @click.stop="store.toggleCollapse(row.item.id)"
+            :title="store.collapsed.value.has(row.item.id) ? 'Expand (Alt+click: all steps inside)' : 'Collapse (Alt+click: all steps inside)'"
+            @click.stop="store.toggleCollapse(row.item.id, $event.altKey)"
           >
             <ChevronRight :class="cn('size-3.5 transition-transform', !store.collapsed.value.has(row.item.id) && 'rotate-90', row.status === 'error' && 'text-fail')" />
           </span>

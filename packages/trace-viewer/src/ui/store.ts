@@ -56,7 +56,7 @@ export type DetailTab = typeof DETAIL_TABS[number]
 const DETAIL_TAB_KEY = 'kinora-tv-detail-tab'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
-type LoadErrorKind = 'generic' | 'unsupported-trace-version'
+type LoadErrorKind = 'generic' | 'unsupported-trace-version' | 'file-url'
 
 interface SourceReveal {
   stack: StackFrame[]
@@ -75,7 +75,6 @@ const traceUri = ref('')
 // Display name for a trace opened from disk; remote traces show their URL instead.
 const traceName = ref('')
 const model = shallowRef<TraceModel | null>(null)
-const items = shallowRef<ActionItem[]>([])
 const collapsed = ref<Set<string>>(new Set())
 const selectedId = ref<string | null>(null)
 const hoveredActionId = ref<string | null>(null)
@@ -86,7 +85,8 @@ watch(detailTab, tab => safeStorage()?.setItem(DETAIL_TAB_KEY, tab))
 const actionFilter = ref('')
 const consoleScope = ref<ListScope>('selected')
 const networkScope = ref<ListScope>('selected')
-const hiddenGroups = useStorage<ActionGroup[]>('kinora-tv-hidden-action-groups', [])
+// Action groups to show, like upstream's `actionsFilter`: getters, routes and configuration start hidden.
+const shownGroups = useStorage<ActionGroup[]>('kinora-tv-action-groups', [])
 // Service-worker progress while a trace downloads and unzips; null when not reported yet.
 const loadProgress = ref<{ done: number, total: number } | null>(null)
 // Paints recorded <canvas> elements from the action screenshot (upstream "Display canvas content").
@@ -120,6 +120,32 @@ interface PendingLoad {
   name: string
 }
 
+// Every tab, the timeline and playback work on the actions of the shown groups only, like upstream.
+const items = computed<ActionItem[]>(() => model.value ? flatten(model.value, shownGroups.value) : [])
+const hiddenActionCount = computed(() => (model.value?.actions.length ?? 0) - (model.value?.filteredActions(shownGroups.value).length ?? 0))
+
+// The failed action, else the last action with a snapshot (most representative page state), else the first.
+function defaultSelection(): string | null {
+  const m = model.value
+  if (!m)
+    return null
+  const failed = m.failedAction()
+  if (failed && items.value.some(item => item.id === failed.callId))
+    return failed.callId
+  const lastWithPage = [...items.value].reverse().find(i =>
+    m.hasDomSnapshotForCall(i.action.callId, 'after')
+    || m.hasDomSnapshotForCall(i.action.callId, 'action')
+    || m.hasDomSnapshotForCall(i.action.callId, 'before'),
+  )
+  return lastWithPage?.id ?? items.value[0]?.id ?? null
+}
+
+// Hiding the group of the selected action moves the selection to the default one.
+watch(items, (list) => {
+  if (selectedId.value && model.value && !list.some(item => item.id === selectedId.value))
+    selectedId.value = defaultSelection()
+})
+
 let playFrame: number | undefined
 let pingTimer: ReturnType<typeof setInterval> | undefined
 let loadGeneration = 0
@@ -144,8 +170,8 @@ function initialDetailTab(): DetailTab {
   return DETAIL_TABS.find(id => id === tab) ?? 'source'
 }
 
-function flatten(m: TraceModel): ActionItem[] {
-  const { rootItem } = buildActionTree(m.actions)
+function flatten(m: TraceModel, groups: ActionGroup[]): ActionItem[] {
+  const { rootItem } = buildActionTree(m.filteredActions(groups))
   const out: ActionItem[] = []
   const visit = (node: typeof rootItem, depth: number): void => {
     for (const child of node.children) {
@@ -179,9 +205,12 @@ async function registerServiceWorker(): Promise<void> {
   const registration = await navigator.serviceWorker.register('sw.bundle.js', { updateViaCache: 'none' })
   await registration.update()
   if (!navigator.serviceWorker.controller) {
+    // A fresh install claims the page once it activates. An already active worker that does not
+    // control the page (a hard reload) never will, so only a reload helps there.
+    const alreadyActive = !!registration.active && !registration.installing && !registration.waiting
     await Promise.race([
       new Promise<void>((resolve) => { navigator.serviceWorker.oncontrollerchange = () => resolve() }),
-      new Promise(resolve => setTimeout(resolve, 1500)),
+      new Promise(resolve => setTimeout(resolve, alreadyActive ? 500 : 10_000)),
     ])
   }
   if (!navigator.serviceWorker.controller) {
@@ -224,17 +253,18 @@ async function load(uri: string, name = ''): Promise<void> {
   traceUri.value = uri
   traceName.value = name
   try {
+    // The page cannot fetch file:// URLs (a trace link opened from disk), like upstream.
+    if (uri.startsWith('file:')) {
+      errorKind.value = 'file-url'
+      throw new Error(`Cannot open ${uri}: the viewer reads traces over http(s).`)
+    }
     await ensureServiceWorker()
-    const res = await fetch(`contexts?trace=${encodeURIComponent(uri)}`)
-    if (!res.ok)
-      throw new Error(await parseErrorResponse(res))
-    const contexts = await res.json() as ContextEntry[]
+    const contexts = await fetchContexts(uri)
     // A newer load (drop, paste) started meanwhile: it owns the state now.
     if (generation !== loadGeneration)
       return
     const m = new TraceModel(uri, contexts)
     model.value = m
-    items.value = flatten(m)
     collapsed.value = new Set()
     timeRange.value = null
     sourceReveal.value = null
@@ -243,15 +273,7 @@ async function load(uri: string, name = ''): Promise<void> {
     editedLocator.value = null
     editedAriaSnapshot.value = null
     inspectingLocator.value = false
-    // Default selection: failed action, else the last page action with a
-    // snapshot (most representative page state), else the first action.
-    const failed = m.failedAction()
-    const lastWithPage = [...items.value].reverse().find(i =>
-      m.hasDomSnapshotForCall(i.action.callId, 'after')
-      || m.hasDomSnapshotForCall(i.action.callId, 'action')
-      || m.hasDomSnapshotForCall(i.action.callId, 'before'),
-    )
-    selectedId.value = (failed?.callId ?? lastWithPage?.id ?? items.value[0]?.id) ?? null
+    selectedId.value = defaultSelection()
     sessionStorage.removeItem(PENDING_LOAD_KEY)
     status.value = 'ready'
   }
@@ -259,9 +281,24 @@ async function load(uri: string, name = ''): Promise<void> {
     if (generation !== loadGeneration)
       return
     errorMessage.value = err?.message ?? String(err)
-    errorKind.value = isUnsupportedTraceVersion(errorMessage.value) ? 'unsupported-trace-version' : 'generic'
+    if (errorKind.value !== 'file-url')
+      errorKind.value = isUnsupportedTraceVersion(errorMessage.value) ? 'unsupported-trace-version' : 'generic'
     status.value = 'error'
   }
+}
+
+async function fetchContexts(uri: string, retried = false): Promise<ContextEntry[]> {
+  const res = await fetch(`contexts?trace=${encodeURIComponent(uri)}`)
+  if (res.ok)
+    return await res.json() as ContextEntry[]
+  const error = await parseErrorResponse(res)
+  // Chrome only shows the Local Network Access prompt for a fetch from the page, not from the
+  // service worker: fetch the trace once from here, then retry (upstream workbenchLoader).
+  if (!retried && error.includes('Local Network Access')) {
+    await fetch(uri, { method: 'HEAD', headers: { 'x-pw-serviceworker': 'skip' } }).catch(() => {})
+    return fetchContexts(uri, true)
+  }
+  throw new Error(error)
 }
 
 async function parseErrorResponse(res: Response): Promise<string> {
@@ -288,7 +325,18 @@ async function loadFile(file: File): Promise<void> {
   if (objectUrl)
     URL.revokeObjectURL(objectUrl)
   objectUrl = URL.createObjectURL(file)
+  // Like upstream: a reload must not bring back the trace that was open before the drop, and Back
+  // returns to it. A `blob:` trace param is ignored on load, since it dies with the page.
+  const url = new URL(location.href)
+  url.searchParams.set('trace', objectUrl)
+  history.pushState({}, '', url)
   await load(objectUrl, file.name)
+}
+
+// The `?trace=` to open on boot or on history navigation.
+function traceParam(): string | null {
+  const param = new URLSearchParams(location.search).get('trace')
+  return param && !param.startsWith('blob:') ? param : null
 }
 
 // Hide descendants of collapsed nodes: skip rows deeper than the last collapsed one.
@@ -306,29 +354,38 @@ const visibleItems = computed<ActionItem[]>(() => {
   return out
 })
 
-function toggleCollapse(id: string): void {
+// `deep` (Alt+click, upstream) applies the same state to every step underneath.
+function toggleCollapse(id: string, deep = false): void {
   const next = new Set(collapsed.value)
-  if (next.has(id))
-    next.delete(id)
-  else
-    next.add(id)
+  const collapse = !next.has(id)
+  const index = items.value.findIndex(item => item.id === id)
+  const ids = [id]
+  if (deep && index !== -1) {
+    const depth = items.value[index].depth
+    for (let i = index + 1; i < items.value.length && items.value[i].depth > depth; i++) {
+      if (items.value[i].hasChildren)
+        ids.push(items.value[i].id)
+    }
+  }
+  for (const target of ids) {
+    if (collapse)
+      next.add(target)
+    else
+      next.delete(target)
+  }
   collapsed.value = next
 }
 
-// The rows the action list shows: collapsed steps, the text filter, hidden groups and the zoomed window.
+// The rows the action list shows: collapsed steps, the text filter and the zoomed window.
 const listedRows = computed<ListedRow[]>(() => {
   const f = actionFilter.value.trim().toLowerCase()
   const range = timeRange.value
   const sdkLanguage = model.value?.sdkLanguage
-  const passesGroup = (action: ActionEntry): boolean => !action.group || !hiddenGroups.value.includes(action.group as ActionGroup)
-  if (!f && !range) {
-    return visibleItems.value
-      .filter(item => passesGroup(item.action))
-      .map(item => ({ item, context: false }))
-  }
+  if (!f && !range)
+    return visibleItems.value.map(item => ({ item, context: false }))
   // Filtering or zoomed: keep the steps leading to each match so the tree keeps its shape.
   return filterTree(items.value, (item) => {
-    if (!passesGroup(item.action) || (range && !actionInWindow(item.action, range)))
+    if (range && !actionInWindow(item.action, range))
       return false
     if (!f)
       return true
@@ -664,7 +721,8 @@ export function useTraceStore() {
     networkScope,
     scopedConsoleEntries,
     scopedNetworkRows,
-    hiddenGroups,
+    shownGroups,
+    hiddenActionCount,
     canStep,
     collapsed,
     toggleCollapse,
@@ -710,6 +768,7 @@ export function useTraceStore() {
     loadFile,
     ensureServiceWorker,
     consumePendingLoad,
+    traceParam,
     select,
     selectIndex,
     step,

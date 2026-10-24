@@ -80,7 +80,7 @@ test('stepping from a step folded away continues after its parent', async ({ pag
   await expect(action(page, 'Fixture "browser"')).toBeHidden()
 
   await page.keyboard.press('ArrowDown')
-  await expect(page.getByTestId('current-action')).toHaveText('Route requests')
+  await expect(page.getByTestId('current-action')).toHaveText('Set content')
 })
 
 test('arrow keys in another panel leave the selected action alone', async ({ page }) => {
@@ -93,4 +93,18 @@ test('arrow keys in another panel leave the selected action alone', async ({ pag
   await action(page, 'Fill "alex@example.com"').click()
   await page.keyboard.press('ArrowDown')
   await expect(page.getByTestId('current-action')).not.toHaveText('Fill "alex@example.com"')
+})
+
+test('Alt+click on a chevron folds every step inside', async ({ page }) => {
+  const hooks = action(page, 'Before Hooks')
+  await hooks.getByTestId('action-expander').click({ modifiers: ['Alt'] })
+  await expect(action(page, 'Fixture "browser"')).toBeHidden()
+
+  await hooks.getByTestId('action-expander').click()
+  await expect(action(page, 'Fixture "browser"')).toHaveAttribute('aria-expanded', 'false')
+  await expect(action(page, 'Launch browser')).toBeHidden()
+
+  await hooks.getByTestId('action-expander').click({ modifiers: ['Alt'] })
+  await hooks.getByTestId('action-expander').click({ modifiers: ['Alt'] })
+  await expect(action(page, 'Launch browser')).toBeVisible()
 })

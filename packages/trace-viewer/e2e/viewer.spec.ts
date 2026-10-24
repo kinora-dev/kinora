@@ -283,28 +283,33 @@ test('syntax highlights the source', async ({ page }) => {
   expect(await tokens.count()).toBeGreaterThan(20)
 })
 
-test('action group filters hide noisy actions', async ({ page }) => {
+test('noisy action groups start hidden, like upstream', async ({ page }) => {
+  // 4 network routes plus getters and configuration calls.
+  await expect(page.getByText('10 hidden')).toBeVisible()
+  await expect(page.getByTestId('action').filter({ hasText: 'Route requests' })).toHaveCount(0)
+  await expect(page.locator('[data-testid="action-segment"][aria-label^="Route requests"]')).toHaveCount(0)
+
   const before = await page.getByTestId('action').count()
   await page.getByRole('button', { name: 'Filter actions' }).click()
   await page.getByRole('menuitemcheckbox', { name: /Network routes/ }).click()
-
-  await expect(page.getByText('4 hidden')).toBeVisible()
-  expect(await page.getByTestId('action').count()).toBe(before - 4)
+  await expect(page.getByText('6 hidden')).toBeVisible()
+  expect(await page.getByTestId('action').count()).toBe(before + 4)
+  await expect(page.getByTestId('action').filter({ hasText: 'Route requests' }).first()).toBeAttached()
 })
 
-test('remembers hidden action groups across reloads', async ({ page }) => {
+test('remembers shown action groups across reloads', async ({ page }) => {
   const before = await page.getByTestId('action').count()
   await page.getByRole('button', { name: 'Filter actions' }).click()
   await page.getByRole('menuitemcheckbox', { name: /Network routes/ }).click()
-  await expect(page.getByText('4 hidden')).toBeVisible()
+  await expect(page.getByText('6 hidden')).toBeVisible()
 
   await page.reload()
   await expect(page.getByTestId('action').first()).toBeVisible()
-  await expect(page.getByText('4 hidden')).toBeVisible()
-  expect(await page.getByTestId('action').count()).toBe(before - 4)
+  await expect(page.getByText('6 hidden')).toBeVisible()
+  expect(await page.getByTestId('action').count()).toBe(before + 4)
 
   await page.getByRole('button', { name: 'Filter actions' }).click()
-  await expect(page.getByRole('menuitemcheckbox', { name: /Network routes/ })).toHaveAttribute('aria-checked', 'false')
+  await expect(page.getByRole('menuitemcheckbox', { name: /Network routes/ })).toHaveAttribute('aria-checked', 'true')
 })
 
 test('marks requests a route handled', async ({ page }) => {

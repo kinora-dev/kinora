@@ -77,3 +77,30 @@ test('settings switch the theme, shared with the dashboard', async ({ page }) =>
   await page.getByRole('menuitemradio', { name: 'Light' }).click()
   await expect(page.locator('html')).not.toHaveClass(/dark/)
 })
+
+test('a pasted trace replaces ?trace= in the history, and Back reopens the previous one', async ({ page }) => {
+  await page.goto('/?trace=fixtures/demo.zip')
+  await expect(page.getByText('checkout flow demo')).toBeVisible()
+  await page.evaluate(async () => {
+    const blob = await (await fetch('fixtures/popup-trace.zip')).blob()
+    const data = new DataTransfer()
+    data.items.add(new File([blob], 'popup-trace.zip', { type: 'application/zip' }))
+    document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data }))
+  })
+  await expect(page.getByText('popup-trace.zip')).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('trace')).toMatch(/^blob:/)
+
+  await page.goBack()
+  await expect(page.getByText('checkout flow demo')).toBeVisible()
+
+  // The in-memory trace is gone after a reload: the drop zone shows instead of a fetch error.
+  await page.goForward()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Choose trace.zip' })).toBeVisible()
+  await expect(page.getByText('Failed to load trace')).toHaveCount(0)
+})
+
+test('a file:// trace URL explains how to open it', async ({ page }) => {
+  await page.goto('/?trace=file:///tmp/trace.zip')
+  await expect(page.getByTestId('file-url-help')).toBeVisible()
+})

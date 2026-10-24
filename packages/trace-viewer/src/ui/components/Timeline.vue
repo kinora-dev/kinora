@@ -16,7 +16,8 @@ const bounds = computed(() => {
     return { min: 0, max: 1, span: 1 }
   const r = store.timeRange.value
   const min = r ? r.start : m.startTime
-  const max = r ? r.end : m.endTime
+  // Unzoomed, leave 5% free on the right so the last actions don't touch the edge (upstream).
+  const max = r ? r.end : m.endTime + (m.endTime - m.startTime) / 20
   return { min, max, span: Math.max(1, max - min) }
 })
 
