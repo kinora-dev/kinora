@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer'
+import { readdir } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../src/app'
@@ -113,8 +114,10 @@ describe('artifact upload', () => {
   })
 })
 
-async function postArtifact(runId: string, apiKey: string | null, opts: { testKey?: string, body?: string } = {}) {
+async function postArtifact(runId: string, apiKey: string | null, opts: { testKey?: string, body?: string, idempotencyKey?: string } = {}) {
   const headers: Record<string, string> = {}
+  if (opts.idempotencyKey)
+    headers['Idempotency-Key'] = opts.idempotencyKey
   if (apiKey)
     headers.Authorization = `Bearer ${apiKey}`
   let body: string | FormData | undefined = opts.body
@@ -191,6 +194,38 @@ describe('artifact upload - access + linking', () => {
 
     const res = await postArtifact(run.id, apiKey, { body: JSON.stringify({ not: 'multipart' }) })
     expect(res.status).toBe(400)
+  })
+
+  it('returns the stored artifact, without reading the body, when an upload is retried with the same key', async () => {
+    const user = await createUser()
+    const apiKey = await createApiKey(user.id)
+    await ingest(apiKey)
+    const run = (await db.query.run.findMany())[0]
+
+    const first = await postArtifact(run.id, apiKey, { idempotencyKey: 'trace-1' })
+    expect(first.status).toBe(201)
+    // A body that is not multipart would be a 400 if it were read.
+    const replay = await postArtifact(run.id, apiKey, { idempotencyKey: 'trace-1', body: 'ignored' })
+    expect(replay.status).toBe(200)
+
+    const pathOf = async (res: Response) => ((await res.json()) as { url: string }).url.split('?')[0]
+    expect(await pathOf(replay)).toBe(await pathOf(first))
+    expect(await db.query.artifact.findMany()).toHaveLength(1)
+  })
+
+  it('keeps one artifact and one blob when two attempts with the same key race', async () => {
+    const user = await createUser()
+    const apiKey = await createApiKey(user.id)
+    await ingest(apiKey)
+    const run = (await db.query.run.findMany())[0]
+
+    const [a, b] = await Promise.all([
+      postArtifact(run.id, apiKey, { idempotencyKey: 'race-1' }),
+      postArtifact(run.id, apiKey, { idempotencyKey: 'race-1' }),
+    ])
+    expect([a.status, b.status].sort()).toEqual([200, 201])
+    expect(await db.query.artifact.findMany()).toHaveLength(1)
+    expect(await readdir(resolve(root, run.projectId, run.id))).toHaveLength(1)
   })
 
   it('returns 503 without recording an artifact when object storage throttles', async () => {

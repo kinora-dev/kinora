@@ -116,6 +116,8 @@ summaries, and under `meta` in a full report.
 
 Upload a `trace.zip` (or other binary) for a run, as `multipart/form-data`. Send the file part
 plus a `testKey` field to link it to a test, and an optional `name` field.
+An `Idempotency-Key` header works as on runs: a retry with the same key for the same run returns
+the stored artifact's URL with a `200`, without reading the body again.
 
 Response `201`:
 

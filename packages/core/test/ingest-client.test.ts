@@ -87,6 +87,29 @@ describe('createIngestClient retries', () => {
     expect(new Set(keys).size).toBe(1)
   })
 
+  it('keeps one idempotency key per artifact across its retries', async () => {
+    const keys: (string | null)[] = []
+    const client = createIngestClient({
+      baseUrl: 'http://test',
+      token: 't',
+      retryDelays: [0],
+      fetch: async (_url, init) => {
+        keys.push(new Headers(init?.headers).get('idempotency-key'))
+        if (keys.length % 2 === 1)
+          return new Response('down', { status: 503 })
+        return new Response(JSON.stringify({ url: 'http://test/a.zip' }), { status: 201 })
+      },
+    })
+    const artifact = { runId: 'r', testKey: 'k', name: 'trace', contentType: 'application/zip', body: new Uint8Array([1]) }
+    await client.uploadArtifact(artifact)
+    await client.uploadArtifact(artifact)
+
+    expect(keys[0]).toBeTruthy()
+    expect(keys[1]).toBe(keys[0])
+    expect(keys[3]).toBe(keys[2])
+    expect(keys[2]).not.toBe(keys[0])
+  })
+
   it('sends a new idempotency key for each run', async () => {
     const keys: (string | null)[] = []
     const client = createIngestClient({

@@ -103,9 +103,12 @@ export const artifact = pgTable('artifact', {
   storageKey: text('storage_key').notNull(),
   sha1: text('sha1'),
   size: integer('size'),
+  // Same role as run.idempotencyKey: a retried upload whose response was lost maps back here.
+  idempotencyKey: text('idempotency_key'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, table => [
   index('artifact_runId_idx').on(table.runId),
+  uniqueIndex('artifact_run_idempotency_uniq').on(table.runId, table.idempotencyKey).where(sql`idempotency_key is not null`),
   index('artifact_projectId_idx').on(table.projectId),
   index('artifact_testId_idx').on(table.testId),
 ])

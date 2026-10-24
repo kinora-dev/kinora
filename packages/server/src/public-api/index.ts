@@ -26,6 +26,7 @@ import { insertTests, isGrouped, landShard, refillsLandedSlot } from './shards'
 const BEARER_PREFIX = 'Bearer '
 const INGEST_MAX_JSON_MB = 25
 const IDEMPOTENCY_KEY_MAX_LENGTH = 255
+const idempotencyKeyError = { error: `Idempotency-Key longer than ${IDEMPOTENCY_KEY_MAX_LENGTH} characters` }
 // Matches the /api/v1 bodyLimit; busboy truncates the file part past this so RAM/disk stay bounded.
 const MAX_ARTIFACT_BYTES = 100 * 1024 * 1024
 
@@ -62,9 +63,9 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
   // Backfill only suppresses alerts (anti-spam); what is billed is decided by `history` below.
   const backfill = c.req.query('backfill') === '1'
   // Grouped shard uploads are already idempotent: a re-sent shard refills its slot.
-  const idempotencyKey = isGrouped(input.run) ? undefined : c.req.header('Idempotency-Key')?.trim() || undefined
-  if (idempotencyKey && idempotencyKey.length > IDEMPOTENCY_KEY_MAX_LENGTH)
-    return c.json({ error: `Idempotency-Key longer than ${IDEMPOTENCY_KEY_MAX_LENGTH} characters` }, 400)
+  const idempotencyKey = isGrouped(input.run) ? undefined : idempotencyKeyOf(c)
+  if (idempotencyKey === null)
+    return c.json(idempotencyKeyError, 400)
 
   const entitlements = await getEntitlements(orgId)
   const existing = await db.query.project.findFirst({
@@ -236,6 +237,12 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
   }, result.replayed ? 200 : 201)
 })
 
+// undefined = no key sent; null = invalid.
+function idempotencyKeyOf(c: Context): string | undefined | null {
+  const key = c.req.header('Idempotency-Key')?.trim() || undefined
+  return key && key.length > IDEMPOTENCY_KEY_MAX_LENGTH ? null : key
+}
+
 async function findIdempotentRun(projectId: string, key: string, tx: Pick<typeof db, 'query'> = db) {
   return tx.query.run.findFirst({
     where: and(eq(run.projectId, projectId), eq(run.idempotencyKey, key)),
@@ -357,6 +364,14 @@ publicApi.post('/runs/:runId/artifacts', async (c) => {
   if (!owner)
     return c.json({ error: 'Run not found' }, 404)
 
+  const idempotencyKey = idempotencyKeyOf(c)
+  if (idempotencyKey === null)
+    return c.json(idempotencyKeyError, 400)
+  // A replay answers before the body is read, so a retried trace.zip is not streamed again.
+  const prior = idempotencyKey ? await findIdempotentArtifact(runId, idempotencyKey) : undefined
+  if (prior)
+    return c.json({ url: await storage.url(prior.storageKey) }, 200)
+
   // One usage read per upload, reused after streaming to judge the artifact that just landed.
   const entitlements = await getEntitlements(orgId)
   const usedBytes = Number.isFinite(entitlements.storageBytes) ? await storageBytes(orgId) : 0
@@ -394,7 +409,7 @@ publicApi.post('/runs/:runId/artifacts', async (c) => {
       })
     : undefined
 
-  await db.insert(artifact).values({
+  const inserted = await db.insert(artifact).values({
     id: randomUUID(),
     projectId: r.projectId,
     runId,
@@ -403,7 +418,23 @@ publicApi.post('/runs/:runId/artifacts', async (c) => {
     contentType: uploaded.contentType,
     storageKey: uploaded.key,
     size: uploaded.size,
-  })
+    idempotencyKey,
+  }).onConflictDoNothing().returning({ id: artifact.id })
+  if (inserted.length === 0) {
+    // A concurrent attempt with the same key committed first: keep its blob, drop ours.
+    await storage.delete(uploaded.key).catch(error => logger.error({ error, key: uploaded.key }, 'duplicate artifact cleanup failed'))
+    const winner = await findIdempotentArtifact(runId, idempotencyKey!)
+    if (!winner)
+      throw new Error('idempotent artifact conflict without a stored artifact')
+    return c.json({ url: await storage.url(winner.storageKey) }, 200)
+  }
 
   return c.json({ url: await storage.url(uploaded.key) }, 201)
 })
+
+async function findIdempotentArtifact(runId: string, key: string) {
+  return db.query.artifact.findFirst({
+    where: and(eq(artifact.runId, runId), eq(artifact.idempotencyKey, key)),
+    columns: { storageKey: true },
+  })
+}

@@ -171,6 +171,7 @@ export function createIngestClient(opts: IngestClientOptions) {
       // Cast the typed-array generic so this compiles under both node and DOM libs.
       const blob = input.body instanceof Blob ? input.body : new Blob([input.body as Uint8Array<ArrayBuffer>], { type: input.contentType })
       const url = `${base}/api/v1/runs/${encodeURIComponent(input.runId)}/artifacts`
+      const idempotencyKey = globalThis.crypto.randomUUID()
       return withRetry(async () => {
         const form = new FormData()
         form.set('file', blob, input.name)
@@ -179,7 +180,7 @@ export function createIngestClient(opts: IngestClientOptions) {
         // No content-type header: fetch sets the multipart boundary.
         const res = await doFetch(url, {
           method: 'POST',
-          headers: { authorization: auth },
+          headers: { 'authorization': auth, 'idempotency-key': idempotencyKey },
           body: form,
         })
         if (!res.ok)
