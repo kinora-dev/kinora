@@ -12,8 +12,10 @@ test('Errors tab offers Copy prompt for a trace with error-context', async ({ pa
   await expect(page.getByRole('button', { name: 'Copy prompt' })).toBeVisible()
 })
 
-test('Errors tab reveals the failing source line', async ({ page }) => {
-  await page.getByRole('button', { name: 'Reveal in source' }).click()
+test('Errors tab links the failing source line and keeps message colours', async ({ page }) => {
+  // Upstream keeps the ANSI colours of expect messages.
+  await expect(page.getByTestId('error-message').locator('span[style*="color"]').first()).toBeAttached()
+  await page.getByTestId('error-location').click()
 
   await expect(page.getByRole('button', { name: 'Source' })).toHaveClass(/text-foreground/)
   await expect(page.getByTestId('source-file-name')).toHaveText('demo.spec.ts')
@@ -29,4 +31,10 @@ test('Timeline exposes error markers', async ({ page }) => {
   await marker.click()
 
   await expect(page.getByTestId('current-action')).toContainText('Expect')
+})
+
+test('an error raised by an action names it', async ({ page }) => {
+  await page.goto('/?trace=fixtures/library-error-trace.zip&tab=errors')
+  await expect(page.getByTestId('error-action')).toContainText('Click')
+  await expect(page.getByTestId('error-location')).toHaveText('@ fixture.spec.ts:11')
 })

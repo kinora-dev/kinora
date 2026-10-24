@@ -3,7 +3,6 @@ import type { ActionEntry } from '@isomorphic/trace/entries'
 import type { SerializedValue } from '@protocol/structs'
 import { asLocator } from '@isomorphic/locatorGenerators'
 import { actionDuration, actionStatus, actionTitle } from './action'
-import { stripAnsi } from './ansi'
 import { formatMs } from './format'
 
 export interface CallRow {
@@ -153,7 +152,7 @@ export function callSummary(action: ActionEntry, context: CallContext = {}): Cal
     primary,
     params: rest,
     result,
-    error: action.error?.message ? stripAnsi(action.error.message) : undefined,
+    error: action.error?.message || undefined,
   }
 }
 

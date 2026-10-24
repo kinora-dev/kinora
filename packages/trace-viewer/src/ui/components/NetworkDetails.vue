@@ -11,6 +11,7 @@ import { copyText } from '../lib/clipboard'
 import { formatMs } from '../lib/format'
 import { bodyLang, bodyUrl, formatBody, formatSize, isTextMime, statusClass, statusLabel } from '../lib/network'
 import { useTraceStore } from '../store'
+import WebSocketMessages from './WebSocketMessages.vue'
 
 const props = defineProps<{ row: NetworkRow }>()
 const emit = defineEmits<{ close: [] }>()
@@ -20,13 +21,30 @@ const CodeView = defineAsyncComponent(() => import('./CodeView.vue'))
 
 const store = useTraceStore()
 
-type DetailTab = 'headers' | 'payload' | 'response'
-const TABS: { id: DetailTab, label: string }[] = [
+type DetailTab = 'headers' | 'payload' | 'response' | 'messages'
+const HTTP_TABS: { id: DetailTab, label: string }[] = [
   { id: 'headers', label: 'Headers' },
   { id: 'payload', label: 'Payload' },
   { id: 'response', label: 'Response' },
 ]
-const tab = useStorage<DetailTab>('kinora-tv-net-detail-tab', 'headers')
+// A WebSocket has headers and frames, no body, like upstream's WebSocketResourceDetails.
+const WS_TABS: { id: DetailTab, label: string }[] = [
+  { id: 'headers', label: 'Headers' },
+  { id: 'messages', label: 'Messages' },
+]
+const httpTab = useStorage<DetailTab>('kinora-tv-net-detail-tab', 'headers')
+const wsTab = ref<DetailTab>('messages')
+const isWebSocket = computed(() => props.row.resource._resourceType === 'websocket')
+const TABS = computed(() => isWebSocket.value ? WS_TABS : HTTP_TABS)
+const tab = computed<DetailTab>({
+  get: () => isWebSocket.value ? wsTab.value : httpTab.value === 'messages' ? 'headers' : httpTab.value,
+  set: (value) => {
+    if (isWebSocket.value)
+      wsTab.value = value
+    else
+      httpTab.value = value
+  },
+})
 const collapsedSections = useStorage<string[]>('kinora-tv-net-collapsed-sections', [])
 const prettyPayload = useStorage('kinora-tv-net-pretty-payload', true)
 const prettyResponse = useStorage('kinora-tv-net-pretty-response', true)
@@ -209,15 +227,17 @@ async function copyAsPlaywright(): Promise<void> {
           <DropdownMenuItem @click="copy(row.url)">
             Copy URL
           </DropdownMenuItem>
-          <DropdownMenuItem @click="copyAsCurl">
-            Copy as cURL
-          </DropdownMenuItem>
-          <DropdownMenuItem @click="copyAsFetch">
-            Copy as fetch
-          </DropdownMenuItem>
-          <DropdownMenuItem @click="copyAsPlaywright">
-            Copy as Playwright
-          </DropdownMenuItem>
+          <template v-if="!isWebSocket">
+            <DropdownMenuItem @click="copyAsCurl">
+              Copy as cURL
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="copyAsFetch">
+              Copy as fetch
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="copyAsPlaywright">
+              Copy as Playwright
+            </DropdownMenuItem>
+          </template>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -248,6 +268,8 @@ async function copyAsPlaywright(): Promise<void> {
         </table>
       </section>
     </div>
+
+    <WebSocketMessages v-else-if="tab === 'messages'" :resource="resource" />
 
     <!-- Payload -->
     <div v-else-if="tab === 'payload'" class="flex min-h-0 flex-1 flex-col overflow-auto p-2">

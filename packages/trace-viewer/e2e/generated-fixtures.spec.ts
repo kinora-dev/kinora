@@ -181,3 +181,79 @@ test('generated annotations fixture renders trace annotations', async ({ page })
   await expect(page.getByRole('link', { name: 'https://kinora.dev/docs/trace-viewer' })).toBeVisible()
   await expect(page.getByText('QA platform team')).toBeVisible()
 })
+
+test('failed requests read red, and a selection hidden by a filter does not come back', async ({ page }) => {
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await expect(page.locator('[data-testid="net-row"][data-failed]')).toHaveCount(2)
+  await expect(page.getByTestId('net-row').filter({ hasText: 'cart' })).not.toHaveAttribute('data-failed')
+
+  await page.getByTestId('net-row').filter({ hasText: 'cart' }).click()
+  await expect(page.getByTestId('net-detail')).toBeVisible()
+  await page.getByPlaceholder(/^Search/).fill('missing')
+  await expect(page.getByTestId('net-detail')).toHaveCount(0)
+  await page.getByPlaceholder(/^Search/).fill('')
+  await expect(page.getByTestId('net-row')).toHaveCount(4)
+  await expect(page.getByTestId('net-detail')).toHaveCount(0)
+})
+
+test('attachments are split into image diff, screenshots and collapsed text attachments', async ({ page }) => {
+  await page.goto('/?trace=fixtures/image-diff-trace.zip&tab=attachments')
+  await expect(page.getByTestId('attachments-section')).toHaveText(['Image diff', 'Attachments'])
+
+  // Image diff: sizes, the three files, and the side-by-side toggle to the diff.
+  await page.getByRole('button', { name: 'Side by side' }).click()
+  await expect(page.getByText('Expected 240 × 120')).toBeVisible()
+  await page.getByTestId('sxs-right').click()
+  await expect(page.getByText('Diff 240 × 120')).toBeVisible()
+  await expect(page.getByTestId('image-diff-file')).toHaveText(['plan-card-expected.png', 'plan-card-actual.png', 'plan-card-diff.png'])
+
+  // Text attachments load only when opened.
+  const context = page.getByTestId('attachment').filter({ hasText: 'error-context' })
+  await expect(context.getByTestId('attachment-text')).toHaveCount(0)
+  await context.getByTestId('attachment-toggle').click()
+  await expect(context.getByTestId('attachment-text')).toContainText('# Instructions')
+})
+
+test('screenshots get their own section with an open link', async ({ page }) => {
+  await page.goto('/?trace=fixtures/demo.zip&tab=attachments')
+  await expect(page.getByTestId('attachments-section')).toHaveText(['Screenshots', 'Attachments'])
+  await expect(page.getByTestId('attachment').filter({ hasText: 'screenshot' }).getByTestId('attachment-open')).toHaveAttribute('target', '_blank')
+})
+
+test('arrow keys walk the network requests and Escape closes the details', async ({ page }) => {
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await page.getByTestId('net-row').filter({ hasText: 'cart' }).click()
+  const selectedAction = await page.getByTestId('current-action').textContent()
+
+  await page.keyboard.press('ArrowDown')
+  await expect(page.locator('[data-testid="net-row"][data-selected]')).toContainText('checkout')
+  await expect(page.getByTestId('net-detail').getByTestId('net-section-general')).toContainText('/api/checkout')
+  // The action list keeps its selection.
+  await expect(page.getByTestId('current-action')).toHaveText(selectedAction ?? '')
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('net-detail')).toHaveCount(0)
+})
+
+test('a WebSocket shows its frames with direction, opcode and a decoded detail', async ({ page }) => {
+  await openTrace(page, 'websocket-trace.zip')
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await page.getByTestId('net-row').filter({ hasText: 'prices' }).click()
+
+  const detail = page.getByTestId('net-detail')
+  await expect(detail.getByTestId('net-tab-payload')).toHaveCount(0)
+  await expect(detail.getByTestId('ws-message')).toHaveCount(4)
+  await expect(detail.getByTestId('ws-message').first()).toContainText('pro')
+
+  await detail.getByTestId('ws-message').filter({ hasText: 'binary' }).click()
+  await expect(detail.getByTestId('ws-message-detail')).toContainText('Received · Binary · 6 B')
+  await expect(detail.getByTestId('ws-message-detail')).toContainText('ca fe ba be 00 01')
+
+  await page.keyboard.press('ArrowUp')
+  await expect(detail.getByTestId('ws-message-detail')).toContainText('"currency": "USD"')
+})

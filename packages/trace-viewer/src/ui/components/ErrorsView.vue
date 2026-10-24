@@ -1,24 +1,22 @@
 <script setup lang="ts">
 import { Check, CircleAlert, Copy, FileSearch } from '@lucide/vue'
 import { computed, ref, watchEffect } from 'vue'
-import { stripAnsi } from '../lib/ansi'
+import { actionTitleParts } from '../lib/action'
 import { copyText } from '../lib/clipboard'
+import { errorLocation, uniqueErrors } from '../lib/errors'
 import { useTraceStore } from '../store'
+import AnsiText from './AnsiText.vue'
 
 const store = useTraceStore()
 
-const errors = computed(() => {
-  const m = store.model.value
-  if (!m)
-    return []
-  return m.errorDescriptors.map((e, i) => ({
-    key: `${i}-${e.message}`,
-    message: stripAnsi(e.message),
-    where: e.action ? `${e.action.class}.${e.action.method}` : undefined,
-    actionId: e.action?.callId,
-    stack: e.stack ?? e.action?.stack ?? [],
-  }))
-})
+const errors = computed(() => uniqueErrors(store.model.value).map(e => ({
+  key: e.message,
+  message: e.message,
+  title: e.action ? actionTitleParts(e.action, store.model.value?.sdkLanguage) : undefined,
+  location: errorLocation(e),
+  actionId: e.action?.callId,
+  stack: e.stack ?? e.action?.stack ?? [],
+})))
 
 function revealErrorSource(error: typeof errors.value[number]): void {
   if (error.actionId)
@@ -88,18 +86,33 @@ async function copyPrompt(): Promise<void> {
           :key="err.key"
           class="overflow-hidden rounded-md border border-fail/30 bg-fail/5"
         >
-          <div class="flex items-center gap-2 border-b border-fail/20 bg-fail/10 px-3 py-1.5">
-            <CircleAlert class="size-3.5 text-fail" />
-            <span v-if="err.where" class="font-mono text-xs text-fail">{{ err.where }}</span>
+          <div class="flex min-w-0 items-center gap-2 border-b border-fail/20 bg-fail/10 px-3 py-1.5 text-xs">
+            <CircleAlert class="size-3.5 shrink-0 text-fail" />
+            <span v-if="err.title" data-testid="error-action" class="min-w-0 truncate font-medium text-fail">
+              <span v-for="(part, i) in err.title.parts" :key="i" :class="part.param && 'text-info'">{{ part.text }}</span>
+              <span v-if="err.title.subtitle" class="ml-1.5 font-normal text-fail/70">{{ err.title.subtitle }}</span>
+            </span>
             <button
+              v-if="err.location"
               type="button"
-              class="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] text-fail/80 transition-colors hover:bg-fail/10 hover:text-fail"
+              data-testid="error-location"
+              :title="err.location.full"
+              :aria-label="`Go to source: ${err.location.full}`"
+              class="shrink-0 font-mono text-[11px] text-fail/80 underline-offset-2 hover:text-fail hover:underline"
+              @click="revealErrorSource(err)"
+            >
+              @ {{ err.location.short }}
+            </button>
+            <button
+              v-else
+              type="button"
+              class="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] text-fail/80 transition-colors hover:bg-fail/10 hover:text-fail"
               @click="revealErrorSource(err)"
             >
               <FileSearch class="size-3.5" /> Reveal in source
             </button>
           </div>
-          <pre class="overflow-x-auto px-3 py-2 font-mono text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap">{{ err.message }}</pre>
+          <pre data-testid="error-message" class="overflow-x-auto px-3 py-2 font-mono text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap"><AnsiText :text="err.message" /></pre>
         </div>
       </div>
     </div>

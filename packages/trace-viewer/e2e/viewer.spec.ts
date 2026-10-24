@@ -581,3 +581,11 @@ test('opens the tab named by ?tab=', async ({ page, baseURL }) => {
   await page.goto(`/?trace=${encodeURIComponent(`${baseURL}/fixtures/video-trace.zip`)}&tab=attachments`)
   await expect(page.getByTestId('attachment').first()).toBeVisible()
 })
+
+test('a trace recorded without the test runner has no Annotations tab', async ({ page }) => {
+  await page.goto('/?trace=fixtures/library-error-trace.zip&tab=annotations')
+  await expect(page.getByTestId('action').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Annotations' })).toHaveCount(0)
+  // The requested tab falls back to Source.
+  await expect(page.getByRole('button', { name: 'Source' })).toHaveClass(/text-foreground/)
+})

@@ -67,7 +67,8 @@ describe('callSummary', () => {
       result: { ok: true },
     }))
     expect(summary.status).toBe('error')
-    expect(summary.error).toBe('Error: boom')
+    // Colours are kept; the view renders them.
+    expect(summary.error).toContain('[31mboom')
     expect(summary.result).toEqual([{ key: 'ok', value: 'true', copyable: true }])
   })
 

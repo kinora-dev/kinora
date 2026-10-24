@@ -19,9 +19,9 @@ import {
   useTable,
 } from '@tanstack/vue-table'
 import { useElementSize, useStorage } from '@vueuse/core'
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { formatMs } from '../lib/format'
-import { bodyUrl, formatSize, NETWORK_SEARCH_FIELDS, networkMatches, RESOURCE_CATEGORIES, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../lib/network'
+import { bodyUrl, CANCELED_STATUS, formatSize, NETWORK_SEARCH_FIELDS, networkMatches, RESOURCE_CATEGORIES, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../lib/network'
 import { useTraceStore } from '../store'
 import FilterInput from './FilterInput.vue'
 import NetworkDetails from './NetworkDetails.vue'
@@ -194,6 +194,11 @@ const table = useTable({
 })
 
 const selected = computed(() => rows.value.find(r => r.id === selectedId.value) ?? null)
+// A request hidden by a filter stays unselected, like upstream, instead of coming back later.
+watch(rows, () => {
+  if (selectedId.value && !selected.value)
+    selectedId.value = null
+})
 
 function saveSplit(sizes: number[]): void {
   if (!selected.value)
@@ -223,6 +228,34 @@ const emptyMessage = computed(() => {
     return 'No network in range'
   return scope.value === 'all' ? 'No network in this trace' : 'No network for this action'
 })
+
+// Up/Down walk the requests in their sorted order, like upstream's grid; Escape closes the details.
+const tableScroller = ref<HTMLElement | null>(null)
+async function onTableKey(e: KeyboardEvent): Promise<void> {
+  if (e.key === 'Escape' && selectedId.value) {
+    selectedId.value = null
+    e.preventDefault()
+    return
+  }
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')
+    return
+  e.preventDefault()
+  const ordered = table.getRowModel().rows.map(row => row.original.id)
+  if (!ordered.length)
+    return
+  const index = selectedId.value ? ordered.indexOf(selectedId.value) : -1
+  const next = e.key === 'ArrowDown'
+    ? (index === -1 ? 0 : Math.min(index + 1, ordered.length - 1))
+    : (index === -1 ? ordered.length - 1 : Math.max(index - 1, 0))
+  selectedId.value = ordered[next]
+  await nextTick()
+  tableScroller.value?.querySelector(`[data-selected]`)?.scrollIntoView({ block: 'nearest' })
+}
+
+// Failed or canceled requests read red across the row, like upstream.
+function isFailed(row: NetworkRow): boolean {
+  return row.status >= 400 || row.status === CANCELED_STATUS
+}
 
 const alignEnd = new Set(['size', 'duration', 'start', 'status'])
 </script>
@@ -308,7 +341,14 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
     >
       <!-- table -->
       <ResizablePanel id="net-table" :order="1" :default-size="selected ? split[0] : 100">
-        <div class="h-full overflow-auto">
+        <div
+          ref="tableScroller"
+          data-testid="net-table"
+          tabindex="0"
+          aria-label="Network requests"
+          class="h-full overflow-auto outline-none"
+          @keydown="onTableKey"
+        >
           <table class="w-full table-fixed text-xs" :style="{ minWidth: `${table.getTotalSize()}px` }">
             <thead class="sticky top-0 z-10 bg-background">
               <tr class="border-b border-border">
@@ -355,11 +395,14 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
                 :key="row.original.id"
                 data-testid="net-row"
                 :data-route="row.original.route"
+                :data-failed="isFailed(row.original) || undefined"
+                :data-selected="selectedId === row.original.id || undefined"
                 :class="cn(
                   'cursor-pointer border-b border-border/40 transition-colors',
                   selectedId === row.original.id
                     ? 'bg-signal/10'
-                    : row.original.route ? 'bg-info/10 hover:bg-info/15' : 'hover:bg-muted/40',
+                    : isFailed(row.original) ? 'bg-fail/5 hover:bg-fail/10' : row.original.route ? 'bg-info/10 hover:bg-info/15' : 'hover:bg-muted/40',
+                  isFailed(row.original) && '[&_td]:text-fail [&_td_*]:text-fail',
                 )"
                 @click="selectedId = row.original.id"
                 @mouseenter="highlightRow(row.original)"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { cn } from '@kinora/ui'
 import { useElementSize } from '@vueuse/core'
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 
 const props = defineProps<{
   name: string
@@ -22,6 +22,20 @@ const tabs = computed(() => {
     t.push({ id: 'sxs', label: 'Side by side' }, { id: 'slider', label: 'Slider' })
   return t
 })
+
+// Natural sizes, shown under each image like upstream: a size mismatch is a common cause of a diff.
+const sizes = reactive<Record<string, string>>({})
+function measure(e: Event): void {
+  const img = e.target as HTMLImageElement
+  sizes[img.src] = `${img.naturalWidth} × ${img.naturalHeight}`
+}
+function sizeOf(src: string | undefined): string {
+  return (src && sizes[new URL(src, location.href).href]) || ''
+}
+
+// Side by side, clicking the actual image swaps it for the diff (upstream).
+const sxsShowsDiff = ref(false)
+const sxsRight = computed(() => sxsShowsDiff.value && props.diff ? props.diff : props.actual)
 
 const wrap = ref<HTMLElement | null>(null)
 const { width } = useElementSize(wrap)
@@ -74,21 +88,39 @@ const checker = {
     </div>
 
     <div class="flex justify-center p-3">
-      <img v-if="mode === 'diff' && diff" :src="diff" :alt="`${name} diff`" class="max-w-full rounded border border-border" :style="checker">
-      <img v-else-if="mode === 'actual'" :src="actual" :alt="`${name} actual`" class="max-w-full rounded border border-border" :style="checker">
-      <img v-else-if="mode === 'expected'" :src="expected" :alt="`${name} expected`" class="max-w-full rounded border border-border" :style="checker">
+      <figure v-if="mode === 'diff' || mode === 'actual' || mode === 'expected'" class="flex flex-col items-center gap-1">
+        <img
+          :src="mode === 'diff' ? diff : mode === 'actual' ? actual : expected"
+          :alt="`${name} ${mode}`"
+          class="max-w-full rounded border border-border"
+          :style="checker"
+          @load="measure"
+        >
+        <figcaption data-testid="image-size" class="font-mono text-[11px] text-muted-foreground">
+          {{ sizeOf(mode === 'diff' ? diff : mode === 'actual' ? actual : expected) }}
+        </figcaption>
+      </figure>
 
       <div v-else-if="mode === 'sxs'" class="flex flex-wrap items-start justify-center gap-3">
         <figure class="flex flex-col items-center gap-1">
-          <img :src="expected" :alt="`${name} expected`" class="max-w-full rounded border border-border" :style="checker">
+          <img :src="expected" :alt="`${name} expected`" class="max-w-full rounded border border-border" :style="checker" @load="measure">
           <figcaption class="text-[11px] text-muted-foreground">
-            Expected
+            Expected <span class="font-mono">{{ sizeOf(expected) }}</span>
           </figcaption>
         </figure>
         <figure class="flex flex-col items-center gap-1">
-          <img :src="actual" :alt="`${name} actual`" class="max-w-full rounded border border-border" :style="checker">
+          <img
+            :src="sxsRight"
+            :alt="`${name} ${sxsShowsDiff ? 'diff' : 'actual'}`"
+            :title="diff ? `Click to show the ${sxsShowsDiff ? 'actual image' : 'diff'}` : undefined"
+            :class="cn('max-w-full rounded border border-border', diff && 'cursor-pointer')"
+            :style="checker"
+            data-testid="sxs-right"
+            @load="measure"
+            @click="sxsShowsDiff = !sxsShowsDiff"
+          >
           <figcaption class="text-[11px] text-muted-foreground">
-            Actual
+            {{ sxsShowsDiff && diff ? 'Diff' : 'Actual' }} <span class="font-mono">{{ sizeOf(sxsRight) }}</span>
           </figcaption>
         </figure>
       </div>
@@ -110,6 +142,18 @@ const checker = {
           <div class="absolute top-1/2 left-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-signal bg-background" />
         </div>
       </div>
+    </div>
+    <!-- The three files, each openable on its own (upstream lists them under the diff). -->
+    <div class="flex flex-wrap gap-3 border-t border-border px-3 py-1.5 text-[11px]">
+      <a
+        v-for="file in [{ label: 'expected', url: expected }, { label: 'actual', url: actual }, { label: 'diff', url: diff }].filter(f => f.url)"
+        :key="file.label"
+        data-testid="image-diff-file"
+        :href="file.url"
+        target="_blank"
+        rel="noreferrer"
+        class="font-mono text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+      >{{ name }}-{{ file.label }}.png</a>
     </div>
   </div>
 </template>

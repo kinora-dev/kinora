@@ -5,6 +5,7 @@ import { computed, ref } from 'vue'
 import { callSummary } from '../lib/call'
 import { copyText } from '../lib/clipboard'
 import { useTraceStore } from '../store'
+import AnsiText from './AnsiText.vue'
 
 const store = useTraceStore()
 
@@ -98,7 +99,7 @@ const statusClass = computed(() => {
           Error
         </div>
         <div class="whitespace-pre-wrap">
-          {{ summary.error }}
+          <AnsiText :text="summary.error" />
         </div>
       </section>
 

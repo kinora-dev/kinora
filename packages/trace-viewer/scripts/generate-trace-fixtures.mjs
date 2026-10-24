@@ -14,8 +14,11 @@ const execFileAsync = promisify(execFile)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const fixtures = path.join(root, 'public/fixtures')
 const playwrightBin = path.join(root, 'node_modules/.bin/playwright')
+// `--only name.zip` regenerates just that fixture, leaving the others byte for byte.
+const only = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1] : undefined
 
-await generateDemoTrace()
+if (!only || only === 'demo.zip')
+  await generateDemoTrace()
 await generateScenarioTraces()
 await sanitizeFixturePaths()
 
@@ -162,9 +165,14 @@ async function generateScenarioTraces() {
   await generateTraceFixture('aria-trace.zip', ariaSpec('{ dom: true, aria: true, screen: true }'))
   await generateTraceFixture('aria-only-trace.zip', ariaSpec('{ aria: true, screen: true }'))
   await generateTraceFixture('library-error-trace.zip', libraryErrorSpec())
+  await generateTraceFixture('websocket-trace.zip', websocketSpec())
+  // A first run records the baseline, the second fails against it with expected/actual/diff images.
+  await generateTraceFixture('image-diff-trace.zip', imageDiffSpec('#2563eb'), { fails: true, baseline: imageDiffSpec('#16a34a') })
 }
 
-async function generateTraceFixture(name, spec, { file = 'fixture.spec.ts', fails = false } = {}) {
+async function generateTraceFixture(name, spec, { file = 'fixture.spec.ts', fails = false, baseline } = {}) {
+  if (only && only !== name)
+    return
   const tmpRoot = process.platform === 'win32' ? os.tmpdir() : '/tmp'
   const tmp = path.join(tmpRoot, `kinora-trace-fixture-${name.replace(/\.zip$/, '')}`)
   await rm(tmp, { force: true, recursive: true })
@@ -172,6 +180,11 @@ async function generateTraceFixture(name, spec, { file = 'fixture.spec.ts', fail
   try {
     await symlink(path.join(root, 'node_modules'), path.join(tmp, 'node_modules'), 'dir')
     await writeFile(path.join(tmp, 'playwright.config.mjs'), playwrightConfig())
+    if (baseline) {
+      await writeFile(path.join(tmp, file), baseline)
+      await execFileAsync(playwrightBin, ['test', '--config', 'playwright.config.mjs', '--update-snapshots'], { cwd: tmp })
+      await rm(path.join(tmp, 'test-results'), { force: true, recursive: true })
+    }
     await writeFile(path.join(tmp, file), spec)
     // A failing fixture makes Playwright exit 1, but it still writes the trace.
     await execFileAsync(playwrightBin, ['test', '--config', 'playwright.config.mjs'], { cwd: tmp })
@@ -294,6 +307,74 @@ test('annotation metadata support', async ({ page }, testInfo) => {
   testInfo.annotations.push({ type: 'owner', description: 'QA platform team' })
   await page.setContent('<main><h1>Annotated trace</h1><p>Custom annotations are visible in the viewer.</p></main>')
   await expect(page.getByRole('heading', { name: 'Annotated trace' })).toBeVisible()
+})
+`
+}
+
+// Text, JSON, binary and ping frames both ways, against a minimal WebSocket server (no dependency).
+function websocketSpec() {
+  return String.raw`
+import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
+import { createServer } from 'node:http'
+import { expect, test } from '@playwright/test'
+
+function frame(opcode, payload) {
+  const body = Buffer.from(payload)
+  return Buffer.concat([Buffer.from([0x80 | opcode, body.length]), body])
+}
+
+test('live price feed', async ({ page }) => {
+  const server = createServer()
+  server.on('upgrade', (req, socket) => {
+    const accept = createHash('sha1').update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64')
+    socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n')
+    socket.write(frame(1, 'welcome'))
+    socket.on('data', (buf) => {
+      const opcode = buf[0] & 0x0F
+      const mask = buf.subarray(2, 6)
+      const data = Buffer.from(buf.subarray(6, 6 + (buf[1] & 0x7F)).map((b, i) => b ^ mask[i % 4]))
+      if (opcode === 8) {
+        socket.end(frame(8, ''))
+        return
+      }
+      // The browser answers our ping with a pong: only text frames get a reply.
+      if (opcode !== 1)
+        return
+      socket.write(frame(1, JSON.stringify({ plan: data.toString(), price: 29, currency: 'USD' })))
+      socket.write(frame(2, [0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x01]))
+      socket.write(frame(9, 'ping'))
+    })
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address()
+
+  await page.setContent('<main><h1>Prices</h1><ul id="log"></ul></main>')
+  await page.evaluate(url => new Promise((resolve) => {
+    const ws = new WebSocket(url)
+    let received = 0
+    ws.onmessage = () => {
+      if (++received === 3) {
+        ws.close()
+        resolve()
+      }
+    }
+    ws.onopen = () => ws.send('pro')
+  }), 'ws://127.0.0.1:' + port + '/prices')
+  await expect(page.getByRole('heading', { name: 'Prices' })).toBeVisible()
+  server.close()
+})
+`
+}
+
+// Same card in another colour than its baseline, so toHaveScreenshot attaches expected, actual and diff.
+function imageDiffSpec(color) {
+  return String.raw`
+import { expect, test } from '@playwright/test'
+
+test('plan card matches its screenshot', async ({ page }) => {
+  await page.setContent('<div id="card" style="width:240px;height:120px;font:16px sans-serif;padding:16px;box-sizing:border-box;background:#fff"><b>Kinora Pro</b><p style="color:${color}">$29 / month</p></div>')
+  await expect(page.locator('#card')).toHaveScreenshot('plan-card.png')
 })
 `
 }
