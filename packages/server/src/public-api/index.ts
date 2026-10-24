@@ -25,6 +25,7 @@ import { insertTests, isGrouped, landShard, refillsLandedSlot } from './shards'
 
 const BEARER_PREFIX = 'Bearer '
 const INGEST_MAX_JSON_MB = 25
+const IDEMPOTENCY_KEY_MAX_LENGTH = 255
 // Matches the /api/v1 bodyLimit; busboy truncates the file part past this so RAM/disk stay bounded.
 const MAX_ARTIFACT_BYTES = 100 * 1024 * 1024
 
@@ -60,6 +61,10 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
   const input = c.req.valid('json')
   // Backfill only suppresses alerts (anti-spam); what is billed is decided by `history` below.
   const backfill = c.req.query('backfill') === '1'
+  // Grouped shard uploads are already idempotent: a re-sent shard refills its slot.
+  const idempotencyKey = isGrouped(input.run) ? undefined : c.req.header('Idempotency-Key')?.trim() || undefined
+  if (idempotencyKey && idempotencyKey.length > IDEMPOTENCY_KEY_MAX_LENGTH)
+    return c.json({ error: `Idempotency-Key longer than ${IDEMPOTENCY_KEY_MAX_LENGTH} characters` }, 400)
 
   const entitlements = await getEntitlements(orgId)
   const existing = await db.query.project.findFirst({
@@ -67,12 +72,14 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
     columns: { id: true },
   })
   const isNewProject = !existing
+  // Checked before the plan caps: the replayed run was already counted when it first landed.
+  const replayed = existing && idempotencyKey ? await findIdempotentRun(existing.id, idempotencyKey) : undefined
 
   // Result cap is read only for free (the only metered tier); project count only when capped + new.
   const usedResults = entitlements.tier === 'free' ? await currentPeriodResults(orgId) : 0
   const projects = isNewProject && Number.isFinite(entitlements.maxProjects) ? await projectCount(orgId) : 0
   const refill = !!existing && isGrouped(input.run) && await refillsLandedSlot(existing.id, input.run)
-  const cap = refill ? null : ingestCapError(entitlements, usedResults, isNewProject, projects)
+  const cap = refill || replayed ? null : ingestCapError(entitlements, usedResults, isNewProject, projects)
   if (cap)
     return c.json(cap, 402)
 
@@ -102,15 +109,18 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
     if (!projectId)
       throw new Error('project upsert returned no id')
 
+    if (replayed)
+      return { projectId, runId: replayed.id, tests: input.tests.length, results: 0, startedAt: replayed.startedAt, shard: undefined, replayed: true }
+
     const { run: runInput } = input
     if (isGrouped(runInput)) {
       const shard = await landShard(tx, projectId, { ...input, run: runInput }, billable)
       await recordResults(tx, orgId, history ? startedAt : new Date(), shard.results)
-      return { projectId, runId: shard.runId, tests: input.tests.length, results: shard.results, startedAt: shard.startedAt, shard }
+      return { projectId, runId: shard.runId, tests: input.tests.length, results: shard.results, startedAt: shard.startedAt, shard, replayed: false }
     }
 
     const runId = randomUUID()
-    await tx.insert(run).values({
+    const inserted = await tx.insert(run).values({
       id: runId,
       projectId,
       startedAt,
@@ -123,11 +133,19 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
       ci: input.run.ci,
       shards: input.run.shards,
       meterPending: billable,
-    })
+      idempotencyKey,
+    }).onConflictDoNothing().returning({ id: run.id })
+    if (inserted.length === 0) {
+      // A concurrent attempt with the same key committed first.
+      const prior = await findIdempotentRun(projectId, idempotencyKey!, tx)
+      if (!prior)
+        throw new Error('idempotent run conflict without a stored run')
+      return { projectId, runId: prior.id, tests: input.tests.length, results: 0, startedAt: prior.startedAt, shard: undefined, replayed: true }
+    }
     await insertTests(tx, runId, projectId, input.tests)
     await recordResults(tx, orgId, history ? startedAt : new Date(), input.tests.length)
 
-    return { projectId, runId, tests: input.tests.length, results: input.tests.length, startedAt, shard: undefined }
+    return { projectId, runId, tests: input.tests.length, results: input.tests.length, startedAt, shard: undefined, replayed: false }
   })
   const { shard } = result
 
@@ -137,14 +155,14 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
     for (const key of shard.orphanedKeys)
       await storage.delete(key).catch(error => logger.error({ error, key }, 'replaced shard artifact cleanup failed'))
   }
-  else if (billable) {
+  else if (billable && !result.replayed) {
     await meterRun(result.runId, orgId, result.tests)
   }
 
   // A grouped run is notified once, by the upload that completes it, with the tests of every shard.
   const complete = !shard || shard.status === 'complete'
   const runTests = shard ? await testsOfRun(result.runId) : input.tests
-  if (!backfill && (shard ? shard.notify : true)) {
+  if (!backfill && !result.replayed && (shard ? shard.notify : true)) {
     // Fire-and-forget: alerts hit external webhook/Slack/SMTP and must not block or fail the ingest response.
     void notifyRun({
       organizationId: orgId,
@@ -215,8 +233,15 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
     runUrl,
     ...(regression ? { regression } : {}),
     ...grouped,
-  }, 201)
+  }, result.replayed ? 200 : 201)
 })
+
+async function findIdempotentRun(projectId: string, key: string, tx: Pick<typeof db, 'query'> = db) {
+  return tx.query.run.findFirst({
+    where: and(eq(run.projectId, projectId), eq(run.idempotencyKey, key)),
+    columns: { id: true, startedAt: true },
+  })
+}
 
 interface StreamedArtifact {
   key: string

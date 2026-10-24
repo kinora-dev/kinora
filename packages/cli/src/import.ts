@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { buildIngestRun, createIngestClient } from '@kinora/core'
+import { buildIngestRun, createIngestClient, describeRetry } from '@kinora/core'
 
 export interface ImportOptions {
   dir: string
@@ -17,7 +17,7 @@ export async function importReports(opts: ImportOptions): Promise<{ imported: nu
   if (files.length === 0)
     return { imported: 0, failed: 0 }
 
-  const client = createIngestClient({ baseUrl: opts.url, token: opts.token, backfill: true })
+  const client = createIngestClient({ baseUrl: opts.url, token: opts.token, backfill: true, onRetry: info => console.warn(`  ${describeRetry(info)}`) })
   const slug = opts.project.slug
   const name = opts.project.name ?? slug
   const concurrency = Math.max(1, opts.concurrency ?? 6)

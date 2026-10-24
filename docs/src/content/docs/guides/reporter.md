@@ -8,6 +8,10 @@ every run: pass rates, trends, flaky tests, and the full trace for failures. It 
 posts the normalized run, then uploads the `trace.zip` for each test that produced one.
 **Upload never fails your test run.**
 
+If the kinora server is unreachable or answers `502`, `503`, `504`, `408` or `429` (a deploy, a
+restart), the upload is retried for about a minute with growing waits, logging each one. Retries
+reuse the same `Idempotency-Key`, so a run is never stored twice.
+
 ## Install
 
 ```bash

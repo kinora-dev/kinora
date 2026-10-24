@@ -3,7 +3,7 @@ import type { Reporter, TestModule, Vitest } from 'vitest/node'
 import type { IncludeTests } from './convert'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, detectCiEnv, IngestError, isUploadableAttachment, resolveShardGroup } from '@kinora/core'
+import { createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, IngestError, isUploadableAttachment, resolveShardGroup } from '@kinora/core'
 import { toNormTests } from './convert'
 
 export interface KinoraVitestReporterOptions {
@@ -98,7 +98,7 @@ export default class KinoraVitestReporter implements Reporter {
 
     // Upload never fails the test run.
     try {
-      const client = createIngestClient({ baseUrl: url, token })
+      const client = createIngestClient({ baseUrl: url, token, onRetry: info => console.warn(`[kinora] ${describeRetry(info)}`) })
       const res = await client.uploadRun(payload)
       const kinds = this.options.uploadAttachments ?? DEFAULT_UPLOAD_ATTACHMENTS
       let artifacts = 0

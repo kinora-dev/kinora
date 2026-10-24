@@ -1,6 +1,6 @@
 import type { IngestRun } from '../src/index'
 import { describe, expect, it } from 'vitest'
-import { buildIngestRun, createIngestClient, IngestError } from '../src/index'
+import { buildIngestRun, createIngestClient, describeRetry, IngestError } from '../src/index'
 
 const PAYLOAD: IngestRun = {
   project: { slug: 'web-app', name: 'web-app' },
@@ -54,6 +54,102 @@ describe('createIngestClient.uploadRun', () => {
     })
     await client.uploadRun(PAYLOAD)
     expect(calledUrl).toBe('http://test/api/v1/runs')
+  })
+})
+
+describe('createIngestClient retries', () => {
+  const ok = () => new Response(JSON.stringify({ projectId: 'p1', runId: 'r1', tests: 0 }), { status: 201 })
+
+  it('retries an unreachable server with the same idempotency key, reporting each wait', async () => {
+    const keys: (string | null)[] = []
+    const retries: number[] = []
+    let calls = 0
+    const client = createIngestClient({
+      baseUrl: 'http://test',
+      token: 't',
+      retryDelays: [0, 0, 0],
+      onRetry: info => retries.push(info.attempt),
+      fetch: async (_url, init) => {
+        keys.push(new Headers(init?.headers).get('idempotency-key'))
+        calls++
+        if (calls === 1)
+          throw new TypeError('fetch failed')
+        if (calls === 2)
+          return new Response('Bad Gateway', { status: 502 })
+        return ok()
+      },
+    })
+
+    await expect(client.uploadRun(PAYLOAD)).resolves.toMatchObject({ runId: 'r1' })
+    expect(calls).toBe(3)
+    expect(retries).toEqual([1, 2])
+    expect(keys[0]).toBeTruthy()
+    expect(new Set(keys).size).toBe(1)
+  })
+
+  it('sends a new idempotency key for each run', async () => {
+    const keys: (string | null)[] = []
+    const client = createIngestClient({
+      baseUrl: 'http://test',
+      token: 't',
+      fetch: async (_url, init) => {
+        keys.push(new Headers(init?.headers).get('idempotency-key'))
+        return ok()
+      },
+    })
+    await client.uploadRun(PAYLOAD)
+    await client.uploadRun(PAYLOAD)
+    expect(keys[0]).not.toBe(keys[1])
+  })
+
+  it.each([400, 401, 402, 500])('does not retry a %i', async (status) => {
+    let calls = 0
+    const client = createIngestClient({
+      baseUrl: 'http://test',
+      token: 't',
+      retryDelays: [0, 0],
+      fetch: async () => {
+        calls++
+        return new Response('no', { status })
+      },
+    })
+    await expect(client.uploadRun(PAYLOAD)).rejects.toMatchObject({ status })
+    expect(calls).toBe(1)
+  })
+
+  it('gives up after the last delay, then fails fast until the server answers again', async () => {
+    let calls = 0
+    let up = false
+    const client = createIngestClient({
+      baseUrl: 'http://test',
+      token: 't',
+      retryDelays: [0, 0],
+      fetch: async () => {
+        calls++
+        if (up)
+          return new Response(JSON.stringify({ url: 'http://test/a.zip' }), { status: 201 })
+        return new Response('down', { status: 503 })
+      },
+    })
+    const artifact = { runId: 'r', testKey: 'k', name: 'trace', contentType: 'application/zip', body: new Uint8Array([1]) }
+
+    await expect(client.uploadRun(PAYLOAD)).rejects.toMatchObject({ status: 503 })
+    expect(calls).toBe(3)
+    await expect(client.uploadArtifact(artifact)).rejects.toMatchObject({ status: 503 })
+    expect(calls).toBe(4)
+
+    up = true
+    await expect(client.uploadArtifact(artifact)).resolves.toEqual({ url: 'http://test/a.zip' })
+    up = false
+    await expect(client.uploadArtifact(artifact)).rejects.toMatchObject({ status: 503 })
+    expect(calls).toBe(8)
+  })
+})
+
+describe('describeRetry', () => {
+  it('names the cause and the wait', () => {
+    expect(describeRetry({ error: new IngestError(503, 'x'), delayMs: 4100 })).toBe('kinora server unavailable (HTTP 503), retrying in 4s')
+    expect(describeRetry({ error: new TypeError('fetch failed'), delayMs: 1000 })).toBe('kinora server unavailable (fetch failed), retrying in 1s')
   })
 })
 
@@ -116,6 +212,7 @@ describe('createIngestClient.uploadArtifact', () => {
     const client = createIngestClient({
       baseUrl: 'http://test',
       token: 't',
+      retryDelays: [0],
       fetch: async () => {
         calls++
         if (calls === 1)

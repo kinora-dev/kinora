@@ -55,9 +55,12 @@ export const run = pgTable('run', {
   status: text('status').$type<RunStatus>().notNull().default('complete'),
   // Alerts fired for this run; a grouped run notifies once, on completion or when closed incomplete.
   notifiedAt: timestamp('notified_at'),
+  // Client-sent Idempotency-Key: a retried upload whose response was lost maps back to this run.
+  idempotencyKey: text('idempotency_key'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, table => [
   index('run_projectId_idx').on(table.projectId),
+  uniqueIndex('run_project_idempotency_uniq').on(table.projectId, table.idempotencyKey).where(sql`idempotency_key is not null`),
   uniqueIndex('run_project_groupkey_uniq').on(table.projectId, table.groupKey).where(sql`group_key is not null`),
   index('run_open_idx').on(table.createdAt).where(sql`status = 'open'`),
 ])

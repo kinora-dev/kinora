@@ -26,6 +26,10 @@ Create a project API token in the dashboard under **Settings → Workspace**. Au
 from the environment (`KINORA_TOKEN`, `KINORA_URL`). Self-hosting? Point at your server with
 `--url` / `KINORA_URL` - see [Self-hosting](/self-hosting/).
 
+If the kinora server is unreachable or answers `502`, `503`, `504`, `408` or `429` (a deploy, a
+restart), the upload is retried for about a minute with growing waits, logging each one. Retries
+reuse the same `Idempotency-Key`, so a run is never stored twice.
+
 ## Bulk import (historical backfill)
 
 Import every `*.json` report under a directory in one go, useful for seeding history from an

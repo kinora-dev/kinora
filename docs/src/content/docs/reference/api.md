@@ -58,6 +58,11 @@ Query parameters:
 | `backfill=1` | Historical import: suppresses alerts and stays unmetered (billing follows `run.startedAt`). |
 | `regression=1` | Compute regression vs the base branch and include it in the response. |
 
+Send an `Idempotency-Key` header (any unique string, up to 255 characters) to make retries safe:
+a second upload with the same key for the same project returns the run already stored, with a
+`200` instead of a `201`, and is neither counted nor alerted again. The reporters and the CLI send
+one per run. Sharded uploads ignore it, a re-sent shard already replaces its slot.
+
 Response `201`:
 
 ```json

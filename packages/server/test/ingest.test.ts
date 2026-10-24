@@ -110,4 +110,52 @@ describe('ingest /api/v1/runs', () => {
     const tests = await db.query.test.findMany()
     expect(tests[0].duration).toBe(57)
   })
+  it('returns the stored run when an upload is retried with the same Idempotency-Key', async () => {
+    const user = await createUser()
+    const key = await createApiKey(user.id)
+    const org = await ownedOrgId(user.id)
+    const headers = { 'Idempotency-Key': 'retry-1' }
+
+    const first = await ingest(key, runPayload(), headers)
+    expect(first.status).toBe(201)
+    const replay = await ingest(key, runPayload(), headers)
+    expect(replay.status).toBe(200)
+
+    const a = await first.json() as { runId: string }
+    const b = await replay.json() as { runId: string }
+    expect(b.runId).toBe(a.runId)
+    expect(await db.query.run.findMany()).toHaveLength(1)
+    expect(await db.query.test.findMany()).toHaveLength(1)
+    expect(await currentPeriodResults(org)).toBe(1)
+  })
+
+  it('stores one run when two attempts with the same key race', async () => {
+    const user = await createUser()
+    const key = await createApiKey(user.id)
+    await ingest(key) // the project exists, so both attempts reach the run insert
+    const headers = { 'Idempotency-Key': 'race-1' }
+
+    const [a, b] = await Promise.all([ingest(key, runPayload(), headers), ingest(key, runPayload(), headers)])
+    expect([a.status, b.status].sort()).toEqual([200, 201])
+    const [ra, rb] = await Promise.all([a.json(), b.json()]) as { runId: string }[]
+    expect(ra.runId).toBe(rb.runId)
+    expect(await db.query.run.findMany()).toHaveLength(2)
+  })
+
+  it('keeps distinct keys as distinct runs', async () => {
+    const user = await createUser()
+    const key = await createApiKey(user.id)
+
+    await ingest(key, runPayload(), { 'Idempotency-Key': 'k1' })
+    await ingest(key, runPayload(), { 'Idempotency-Key': 'k2' })
+    expect(await db.query.run.findMany()).toHaveLength(2)
+  })
+
+  it('rejects an oversized Idempotency-Key', async () => {
+    const user = await createUser()
+    const key = await createApiKey(user.id)
+
+    const res = await ingest(key, runPayload(), { 'Idempotency-Key': 'x'.repeat(256) })
+    expect(res.status).toBe(400)
+  })
 })

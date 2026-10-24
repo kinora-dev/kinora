@@ -1,6 +1,6 @@
 import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRunResult, ShardGroup } from '@kinora/core'
 import { readFile } from 'node:fs/promises'
-import { buildIngestRun, createIngestClient, DEFAULT_UPLOAD_ATTACHMENTS, flakyTestsOf, isUploadableAttachment } from '@kinora/core'
+import { buildIngestRun, createIngestClient, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, flakyTestsOf, isUploadableAttachment } from '@kinora/core'
 
 // `counts` / `flaky`: the run's, which the PR comment shows. For a grouped shard, the server's view
 // of every shard landed so far; `grouped` says the upload carried a group key.
@@ -30,7 +30,13 @@ export async function uploadReport(raw: unknown, opts: UploadOptions): Promise<U
     ci: opts.ci,
     group: opts.group,
   })
-  const client = createIngestClient({ baseUrl: opts.url, token: opts.token, fetch: opts.fetch, regression: opts.regression })
+  const client = createIngestClient({
+    baseUrl: opts.url,
+    token: opts.token,
+    fetch: opts.fetch,
+    regression: opts.regression,
+    onRetry: info => console.warn(`warning: ${describeRetry(info)}`),
+  })
   const res = await client.uploadRun(payload)
 
   const kinds = opts.uploadAttachments ?? DEFAULT_UPLOAD_ATTACHMENTS

@@ -39,8 +39,8 @@ export async function caller(user: { id: string }, organizationId?: string) {
   return appRouter.createCaller({ user: user as AuthType['user'], organizationId: orgId, req: new Request('http://test') })
 }
 
-export async function ingest(key: string | null, payload: IngestRun = runPayload()) {
-  const headers: Record<string, string> = { 'content-type': 'application/json' }
+export async function ingest(key: string | null, payload: IngestRun = runPayload(), extraHeaders: Record<string, string> = {}) {
+  const headers: Record<string, string> = { 'content-type': 'application/json', ...extraHeaders }
   if (key)
     headers.Authorization = `Bearer ${key}`
   return app.request('/api/v1/runs', { method: 'POST', headers, body: JSON.stringify(payload) })

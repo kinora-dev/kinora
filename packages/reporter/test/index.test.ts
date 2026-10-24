@@ -272,6 +272,29 @@ describe('reporter onEnd', () => {
     await expect(reporter.onEnd(fakeResult())).resolves.toBeUndefined()
   })
 
+  it('retries while the server is down and warns about each wait', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let calls = 0
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls++
+      if (calls === 1)
+        return new Response('Service Unavailable', { status: 503 })
+      return new Response(JSON.stringify({ projectId: 'p', runId: 'r', tests: 1 }), { status: 201 })
+    }))
+
+    const reporter = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' } })
+    reporter.onBegin({ version: '1.60.0' } as FullConfig, fakeSuite([fakeTest()]))
+    const done = reporter.onEnd(fakeResult())
+    await vi.runAllTimersAsync()
+    await done
+    vi.useRealTimers()
+
+    expect(calls).toBe(2)
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^\[kinora\] kinora server unavailable \(HTTP 503\), retrying in 1s$/))
+    warn.mockRestore()
+  })
+
   it('posts a GitHub PR comment when prComment is enabled on a pull_request', async () => {
     const calls: string[] = []
     vi.stubGlobal('fetch', vi.fn(async (url: unknown, init?: RequestInit) => {

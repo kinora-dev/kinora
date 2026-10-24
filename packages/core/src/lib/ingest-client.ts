@@ -52,6 +52,9 @@ export interface IngestClientOptions {
   backfill?: boolean
   // Ask the server to include a regression summary in the run response (for the PR comment).
   regression?: boolean
+  // Waits between attempts on a transient failure; the default rides out a ~1 minute server restart.
+  retryDelays?: readonly number[]
+  onRetry?: (info: { error: unknown, attempt: number, delayMs: number }) => void
 }
 
 export interface UploadArtifactInput {
@@ -62,8 +65,9 @@ export interface UploadArtifactInput {
   body: Uint8Array | Blob
 }
 
-const RETRYABLE_ARTIFACT_STATUSES = new Set([408, 429, 500, 502, 503, 504])
-const ARTIFACT_UPLOAD_MAX_ATTEMPTS = 3
+// 500 is left out: an application error, which a retry would only repeat.
+const RETRYABLE_STATUSES = new Set([408, 429, 502, 503, 504])
+export const DEFAULT_RETRY_DELAYS = [1000, 2000, 4000, 8000, 15000, 30000]
 
 export class IngestError extends Error {
   readonly status: number
@@ -89,14 +93,16 @@ export async function toIngestError(res: Response, fallback: string): Promise<In
   return new IngestError(res.status, message)
 }
 
-function isRetryableArtifactError(err: unknown): boolean {
+// fetch rejects with a TypeError when the server can't be reached (refused, reset, DNS).
+export function isTransientIngestError(err: unknown): boolean {
   if (err instanceof IngestError)
-    return RETRYABLE_ARTIFACT_STATUSES.has(err.status)
+    return RETRYABLE_STATUSES.has(err.status)
   return err instanceof TypeError
 }
 
-function artifactRetryDelay(attempt: number): number {
-  return 100 * 2 ** attempt + Math.floor(Math.random() * 50)
+export function describeRetry(info: { error: unknown, delayMs: number }): string {
+  const cause = info.error instanceof IngestError ? `HTTP ${info.error.status}` : info.error instanceof Error ? info.error.message : String(info.error)
+  return `kinora server unavailable (${cause}), retrying in ${Math.round(info.delayMs / 1000)}s`
 }
 
 async function wait(ms: number): Promise<void> {
@@ -117,46 +123,69 @@ export function createIngestClient(opts: IngestClientOptions) {
     params.set('regression', '1')
   const query = params.toString()
   const runsUrl = `${base}/api/v1/runs${query ? `?${query}` : ''}`
+  const retryDelays = opts.retryDelays ?? DEFAULT_RETRY_DELAYS
+  // Once a call has waited out every retry, the server is down: later calls fail fast instead of
+  // each waiting the full window again (one per artifact).
+  let unreachable = false
+
+  async function withRetry<T>(attemptOnce: () => Promise<T>): Promise<T> {
+    const delays = unreachable ? [] : retryDelays
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const result = await attemptOnce()
+        unreachable = false
+        return result
+      }
+      catch (err) {
+        if (!isTransientIngestError(err))
+          throw err
+        if (attempt >= delays.length) {
+          unreachable = true
+          throw err
+        }
+        const delayMs = delays[attempt] + Math.floor(Math.random() * delays[attempt] * 0.2)
+        opts.onRetry?.({ error: err, attempt: attempt + 1, delayMs })
+        await wait(delayMs)
+      }
+    }
+  }
 
   return {
     async uploadRun(input: IngestRun): Promise<IngestRunResult> {
-      const res = await doFetch(runsUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'authorization': auth },
-        body: JSON.stringify(input),
+      const body = JSON.stringify(input)
+      // Same key on every attempt: a retry after a lost response returns the stored run, not a duplicate.
+      const idempotencyKey = globalThis.crypto.randomUUID()
+      return withRetry(async () => {
+        const res = await doFetch(runsUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'authorization': auth, 'idempotency-key': idempotencyKey },
+          body,
+        })
+        if (!res.ok)
+          throw await toIngestError(res, `kinora ingest failed (${res.status})`)
+        return ingestRunResultSchema.parse(await res.json())
       })
-      if (!res.ok)
-        throw await toIngestError(res, `kinora ingest failed (${res.status})`)
-      return ingestRunResultSchema.parse(await res.json())
     },
 
     async uploadArtifact(input: UploadArtifactInput): Promise<UploadArtifactResult> {
       // Cast the typed-array generic so this compiles under both node and DOM libs.
       const blob = input.body instanceof Blob ? input.body : new Blob([input.body as Uint8Array<ArrayBuffer>], { type: input.contentType })
       const url = `${base}/api/v1/runs/${encodeURIComponent(input.runId)}/artifacts`
-      for (let attempt = 0; attempt < ARTIFACT_UPLOAD_MAX_ATTEMPTS; attempt++) {
-        try {
-          const form = new FormData()
-          form.set('file', blob, input.name)
-          form.set('testKey', input.testKey)
-          form.set('name', input.name)
-          // No content-type header: fetch sets the multipart boundary.
-          const res = await doFetch(url, {
-            method: 'POST',
-            headers: { authorization: auth },
-            body: form,
-          })
-          if (!res.ok)
-            throw await toIngestError(res, `kinora artifact upload failed (${res.status})`)
-          return uploadArtifactResultSchema.parse(await res.json())
-        }
-        catch (err) {
-          if (attempt === ARTIFACT_UPLOAD_MAX_ATTEMPTS - 1 || !isRetryableArtifactError(err))
-            throw err
-          await wait(artifactRetryDelay(attempt))
-        }
-      }
-      throw new IngestError(0, 'kinora artifact upload failed')
+      return withRetry(async () => {
+        const form = new FormData()
+        form.set('file', blob, input.name)
+        form.set('testKey', input.testKey)
+        form.set('name', input.name)
+        // No content-type header: fetch sets the multipart boundary.
+        const res = await doFetch(url, {
+          method: 'POST',
+          headers: { authorization: auth },
+          body: form,
+        })
+        if (!res.ok)
+          throw await toIngestError(res, `kinora artifact upload failed (${res.status})`)
+        return uploadArtifactResultSchema.parse(await res.json())
+      })
     },
   }
 }
