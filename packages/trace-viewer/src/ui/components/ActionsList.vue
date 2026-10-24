@@ -94,7 +94,10 @@ const countLabel = computed(() => {
       <div class="flex items-baseline gap-2">
         <span class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Actions</span>
         <span class="font-mono text-[11px] text-muted-foreground/70">{{ countLabel }}</span>
-        <span v-if="store.hiddenActionCount.value" class="font-mono text-[11px] text-muted-foreground/70">{{ store.hiddenActionCount.value }} hidden</span>
+        <template v-if="store.hiddenActionCount.value">
+          <span aria-hidden="true" class="text-[11px] text-muted-foreground/40">·</span>
+          <span class="font-mono text-[11px] text-muted-foreground/70">{{ store.hiddenActionCount.value }} hidden</span>
+        </template>
       </div>
     </div>
 
