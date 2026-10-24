@@ -14,6 +14,7 @@ export default antfu(
       'packages/trace-viewer/src/sw/**',
       'packages/trace-viewer/src/sw-main.ts',
       'packages/trace-viewer/public/sw.bundle.js',
+      'packages/trace-viewer/public/console-api.bundle.js',
     ],
   },
   {

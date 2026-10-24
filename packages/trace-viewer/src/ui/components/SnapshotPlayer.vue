@@ -4,7 +4,7 @@ import { useStorage } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { actionTitle } from '../lib/action'
 import { collectAriaTargets } from '../lib/snapshots'
-import { useLocatorPicker } from '../lib/useLocatorPicker'
+import { installConsoleApi, useLocatorPicker } from '../lib/useLocatorPicker'
 import { useTraceStore } from '../store'
 import AriaSnapshotView from './AriaSnapshotView.vue'
 import DomSnapshotView from './DomSnapshotView.vue'
@@ -69,9 +69,16 @@ async function copyUrl(): Promise<void> {
   setTimeout(() => (urlCopied.value = false), 1500)
 }
 
+// Opened without `noopener`: the viewer installs the console API in the tab (same origin, served by our SW).
 function openSnapshot(): void {
-  if (store.currentSnapshotUrl.value)
-    window.open(store.currentSnapshotUrl.value, '_blank', 'noopener,noreferrer')
+  const url = store.currentSnapshotUrl.value
+  const win = url ? window.open(url, '_blank') : null
+  if (win) {
+    void installConsoleApi(win, {
+      sdkLanguage: store.model.value?.sdkLanguage ?? 'javascript',
+      testIdAttributeName: store.model.value?.testIdAttributeName ?? 'data-testid',
+    })
+  }
 }
 
 function toggleInspector(): void {

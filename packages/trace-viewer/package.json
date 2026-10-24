@@ -12,8 +12,9 @@
     "test:e2e": "playwright test",
     "fixtures:generate": "node scripts/generate-trace-fixtures.mjs",
     "build:sw": "vite build --config vite.sw.config.ts",
-    "dev": "pnpm build:sw && vite",
-    "build": "pnpm build:sw && vite build",
+    "build:console-api": "vite build --config vite.console.config.ts",
+    "dev": "pnpm build:sw && pnpm build:console-api && vite",
+    "build": "pnpm build:sw && pnpm build:console-api && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

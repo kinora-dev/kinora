@@ -477,6 +477,15 @@ test('opens the current snapshot in a new tab', async ({ page }) => {
 
   await expect(popup).toHaveURL(/\/snapshot\//)
   await expect(popup.getByText('Order complete')).toBeVisible()
+
+  // Playwright's console API, to try selectors in the tab's devtools.
+  await expect.poll(() => popup.evaluate(() => typeof (window as any).playwright?.$)).toBe('function')
+  const found = await popup.evaluate(() => {
+    const playwright = (window as any).playwright
+    const button = playwright.$('internal:role=button[name="Complete checkout"i]')
+    return { text: button?.textContent?.trim(), locator: playwright.generateLocator(button), count: playwright.$$('li.step').length }
+  })
+  expect(found).toEqual({ text: 'Complete checkout', locator: `getByRole('button', { name: 'Complete checkout' })`, count: 3 })
 })
 
 test('play advances the selected action', async ({ page }) => {

@@ -29,6 +29,32 @@ export function loadInjected(): Promise<InjectedModules> {
 // Like upstream, `?isUnderTest` opens the highlight's shadow root so e2e tests can see it.
 const isUnderTest = new URLSearchParams(globalThis.location?.search ?? '').has('isUnderTest')
 
+// `playwright.$`, `playwright.generateLocator`... in the console of a popped-out snapshot.
+// Upstream installs it from the opener onto its snapshot.html wrapper; kinora loads it inside the
+// snapshot itself, so it queries the snapshot document and runs in its realm. The snapshot's CSP
+// only lets nonce'd scripts run, hence the page's own nonce on the injected <script>.
+export async function installConsoleApi(win: Window, options: { sdkLanguage: Language, testIdAttributeName: string }): Promise<void> {
+  const src = new URL('console-api.bundle.js', location.href).toString()
+  // The tab starts on about:blank and gets the snapshot asynchronously; give it ten seconds.
+  for (let attempt = 0; attempt < 200 && !win.closed; attempt++) {
+    try {
+      const doc = win.document
+      if (win.location.href !== 'about:blank' && doc.readyState !== 'loading') {
+        const script = doc.createElement('script')
+        script.nonce = doc.querySelector<HTMLScriptElement>('script[nonce]')?.nonce ?? ''
+        script.src = src
+        Object.assign(script.dataset, { ...options, isUnderTest: String(isUnderTest) })
+        doc.head.append(script)
+        return
+      }
+    }
+    catch {
+      // Navigation in progress.
+    }
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+}
+
 // One injected script + recorder per snapshot frame, like upstream's `createRecorders` (snapshotTab.tsx).
 // They live on the frame's window, so a new snapshot document gets fresh ones.
 function createRecorders(modules: InjectedModules, out: FrameRecorder[], options: { sdkLanguage: Language, testIdAttributeName: string }, frameSelector: string, win: Window | null | undefined): void {
