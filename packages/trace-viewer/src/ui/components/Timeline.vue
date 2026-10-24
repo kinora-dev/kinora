@@ -325,8 +325,8 @@ function seekToTime(t: number): void {
       </div>
     </div>
 
-    <!-- filmstrip: one row per page -->
-    <div v-if="rows.length" class="relative shrink-0 border-b border-border bg-muted/10 px-2 py-1.5" @mouseleave="preview = null">
+    <!-- filmstrip: one row per page; 48px for a single row, so its border lines up with the action filter's -->
+    <div v-if="rows.length" class="relative shrink-0 border-b border-border bg-muted/10 px-2 pt-1.5 pb-[5px]" @mouseleave="preview = null">
       <div ref="filmstrip" class="relative flex flex-col gap-1">
         <div
           v-for="row in rows"
