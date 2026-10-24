@@ -14,9 +14,14 @@ export interface MatchStatus {
 }
 
 // Kinora extra: upstream highlights matches but does not count them.
-export function matchStatus(matches: LocatorMatches): MatchStatus {
+export function matchStatus(matches: LocatorMatches, kind: 'locator' | 'aria' = 'locator'): MatchStatus {
   if (matches === 'invalid')
-    return { tone: 'fail', label: 'Invalid locator' }
+    return { tone: 'fail', label: kind === 'aria' ? 'Invalid ARIA snapshot' : 'Invalid locator' }
+  if (kind === 'aria') {
+    if (matches === 0)
+      return { tone: 'fail', label: 'No match', hint: 'No element in this snapshot has this ARIA snapshot.' }
+    return { tone: 'pass', label: matches === 1 ? '1 match' : `${matches} matches` }
+  }
   if (matches === 0)
     return { tone: 'fail', label: 'No match', hint: 'An action on it would wait until it times out.' }
   if (matches === 1)

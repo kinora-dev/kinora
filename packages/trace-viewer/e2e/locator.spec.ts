@@ -63,3 +63,39 @@ test('resolves locators inside nested iframes', async ({ page }) => {
   await expect(page.getByTestId('locator-matches')).toHaveText(/^1 match/)
   await expect(page.frameLocator('iframe[name="snapshot"]').frameLocator('iframe[title="Payment frame"]').locator('x-pw-highlight')).toHaveCount(1)
 })
+
+async function typeAria(page: Page, text: string): Promise<void> {
+  const editor = page.getByTestId('aria-template').locator('.cm-content')
+  await editor.click()
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.insertText(text)
+}
+
+test('picking fills the ARIA snapshot, and editing it highlights matching elements', async ({ page }) => {
+  await openLocatorTab(page, 'demo.zip', 'Fill "alex@example.com"')
+  await page.getByRole('button', { name: 'Pick locator' }).first().click()
+  await page.frameLocator('iframe[name="snapshot"]').getByRole('button', { name: 'Complete checkout' }).click()
+  await expect(page.getByTestId('aria-template')).toContainText('- button "Complete checkout"')
+
+  await typeAria(page, '- button /Complete/')
+  await expect(page.getByTestId('aria-source')).toHaveText('Edited')
+  await expect(page.getByTestId('aria-matches')).toHaveText(/^1 match/)
+  await expect(highlights(page)).toHaveCount(1)
+
+  await typeAria(page, '- heading "Nothing like this"')
+  await expect(page.getByTestId('aria-matches')).toHaveText(/^No match/)
+  await expect(highlights(page)).toHaveCount(0)
+
+  // Editing the locator again moves the highlight back to it.
+  await typeLocator(page, `locator('li.step')`)
+  await expect(page.getByTestId('locator-matches')).toHaveText(/^3 matches/)
+  await expect(page.getByTestId('aria-matches')).toHaveCount(0)
+})
+
+test('ARIA snapshot syntax errors are underlined and listed', async ({ page }) => {
+  await openLocatorTab(page, 'demo.zip', 'Fill "alex@example.com"')
+  await typeAria(page, '- heading "Checkout"\n- button "Pay')
+  await expect(page.getByTestId('aria-template-errors')).toContainText('2:')
+  await expect(page.getByTestId('aria-template').locator('.cm-subtleError, .cm-subtleErrorLine')).not.toHaveCount(0)
+  await expect(page.getByTestId('aria-matches')).toHaveCount(0)
+})

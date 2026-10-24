@@ -6,6 +6,7 @@ import { asLocator } from '@isomorphic/locatorGenerators'
 import { locatorOrSelectorAsSelector } from '@isomorphic/locatorParser'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useTraceStore } from '../store'
+import { parseAriaTemplate } from './ariaTemplate'
 import { selectorForFrame } from './locatorMatch'
 
 interface FrameRecorder {
@@ -83,9 +84,12 @@ export function useLocatorPicker() {
   async function update(): Promise<void> {
     const current = ++updates
     const inspecting = store.inspectingLocator.value
-    const query = store.locatorQuery.value?.trim() || ''
-    // Recorders are created lazily: picking, or a locator to resolve against the snapshot.
-    const modules = inspecting || query ? await loadInjected() : undefined
+    const query = store.snapshotQuery.value?.text.trim() ? store.snapshotQuery.value : null
+    // Recorders are created lazily: picking, or a query to resolve against the snapshot.
+    const [modules, template] = await Promise.all([
+      inspecting || query ? loadInjected() : undefined,
+      query?.kind === 'aria' ? parseAriaTemplate(query.text) : undefined,
+    ])
     if (current !== updates)
       return
     const sdkLanguage = store.model.value?.sdkLanguage ?? 'javascript'
@@ -108,11 +112,14 @@ export function useLocatorPicker() {
     recorders = found
     stopListening()
 
-    // Same resolution as upstream's InspectModeController, plus a match count.
-    const fullSelector = query ? locatorOrSelectorAsSelector(sdkLanguage, query, testIdAttributeName) : ''
+    // Same resolution as upstream's InspectModeController, plus a match count. A locator is split
+    // across frames; an ARIA template is tried as is in every frame.
+    const fullSelector = !query
+      ? ''
+      : query.kind === 'aria' ? template?.selector ?? '' : locatorOrSelectorAsSelector(sdkLanguage, query.text, testIdAttributeName)
     let matches = 0
     for (const { recorder, frameSelector } of recorders) {
-      const selector = fullSelector ? selectorForFrame(fullSelector, frameSelector) : undefined
+      const selector = !fullSelector ? undefined : query?.kind === 'aria' ? fullSelector : selectorForFrame(fullSelector, frameSelector)
       try {
         const parsed = selector ? recorder.injectedScript.parseSelector(selector) : undefined
         recorder.injectedScript.setHighlights(parsed ? [{ selector: parsed }] : [])
@@ -124,7 +131,7 @@ export function useLocatorPicker() {
         recorder.injectedScript.setHighlights([])
       }
     }
-    store.locatorMatches.value = !query ? null : fullSelector ? matches : 'invalid'
+    store.queryMatches.value = !query ? null : fullSelector ? matches : 'invalid'
 
     for (const { recorder, frameSelector } of recorders) {
       recorder.setUIState(uiState, {
@@ -144,7 +151,7 @@ export function useLocatorPicker() {
     }
   }
 
-  watch([() => store.inspectingLocator.value, () => store.locatorQuery.value, iframe], () => void update())
+  watch([() => store.inspectingLocator.value, () => store.snapshotQuery.value, iframe], () => void update())
   window.addEventListener('keydown', onKeyDown)
   onBeforeUnmount(() => {
     window.removeEventListener('keydown', onKeyDown)

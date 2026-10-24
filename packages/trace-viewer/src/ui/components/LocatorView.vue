@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import type { TemplateError } from '../lib/ariaTemplate'
 import { asLocator } from '@isomorphic/locatorGenerators'
 import { locatorOrSelectorAsSelector } from '@isomorphic/locatorParser'
 import { cn } from '@kinora/ui'
 import { Check, Copy, RotateCcw, Target } from '@lucide/vue'
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, watchEffect } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch, watchEffect } from 'vue'
+import { parseAriaTemplate } from '../lib/ariaTemplate'
 import { matchStatus } from '../lib/locatorMatch'
 import { useTraceStore } from '../store'
 
@@ -11,7 +13,7 @@ import { useTraceStore } from '../store'
 const CodeEditor = defineAsyncComponent(() => import('./CodeEditor.vue'))
 
 const store = useTraceStore()
-const copied = ref<'locator' | 'selector' | null>(null)
+const copied = ref<'locator' | 'selector' | 'aria' | null>(null)
 const sdkLanguage = computed(() => store.model.value?.sdkLanguage ?? 'javascript')
 const testIdAttributeName = computed(() => store.model.value?.testIdAttributeName ?? 'data-testid')
 
@@ -34,32 +36,55 @@ const source = computed(() => {
   return store.pickedLocator.value ? 'Snapshot picker' : 'Selected action'
 })
 
+// Like upstream, the snapshot highlights whichever editor was changed last.
+const lastEdited = ref<'locator' | 'aria'>(store.editedAriaSnapshot.value !== null ? 'aria' : 'locator')
+
 const locator = computed({
   get: () => store.editedLocator.value ?? store.pickedLocator.value?.locator ?? actionLocator.value,
   set: (value) => {
     store.editedLocator.value = value
+    lastEdited.value = 'locator'
+    store.setInspectingLocator(false)
+  },
+})
+
+const ariaSnapshot = computed({
+  get: () => store.editedAriaSnapshot.value ?? store.pickedLocator.value?.ariaSnapshot ?? '',
+  set: (value) => {
+    store.editedAriaSnapshot.value = value
+    lastEdited.value = 'aria'
     store.setInspectingLocator(false)
   },
 })
 
 const selector = computed(() => locator.value.trim() ? locatorOrSelectorAsSelector(sdkLanguage.value, locator.value, testIdAttributeName.value) : '')
+const queryKind = computed(() => lastEdited.value === 'aria' && ariaSnapshot.value.trim() ? 'aria' : 'locator')
 
-// While this tab is open, the snapshot highlights what the locator matches.
+// While this tab is open, the snapshot highlights what the active editor matches.
 watchEffect(() => {
-  store.locatorQuery.value = locator.value
+  store.snapshotQuery.value = queryKind.value === 'aria'
+    ? { kind: 'aria', text: ariaSnapshot.value }
+    : { kind: 'locator', text: locator.value }
 })
 onBeforeUnmount(() => {
-  store.locatorQuery.value = null
-  store.locatorMatches.value = null
+  store.snapshotQuery.value = null
+  store.queryMatches.value = null
 })
 
+const ariaErrors = ref<TemplateError[]>([])
+watch(ariaSnapshot, async (text) => {
+  const errors = text.trim() ? (await parseAriaTemplate(text)).errors : []
+  if (text === ariaSnapshot.value)
+    ariaErrors.value = errors
+}, { immediate: true })
+
 const status = computed(() => {
-  const matches = store.locatorMatches.value
-  if (!locator.value.trim() || matches === null)
+  const matches = store.queryMatches.value
+  if (matches === null)
     return undefined
   if (!store.currentSnapshotUrl.value)
     return { tone: 'muted', label: 'No DOM snapshot to match against' }
-  return matchStatus(matches)
+  return matchStatus(matches, queryKind.value)
 })
 
 const toneClass: Record<string, string> = {
@@ -69,11 +94,17 @@ const toneClass: Record<string, string> = {
   pass: 'border-pass/30 bg-pass/10 text-pass',
 }
 
-function reset(): void {
+function resetLocator(): void {
   store.editedLocator.value = null
+  lastEdited.value = 'locator'
 }
 
-async function copyValue(kind: 'locator' | 'selector', value: string): Promise<void> {
+function resetAria(): void {
+  store.editedAriaSnapshot.value = null
+  lastEdited.value = 'locator'
+}
+
+async function copyValue(kind: 'locator' | 'selector' | 'aria', value: string): Promise<void> {
   if (!value)
     return
   await navigator.clipboard.writeText(value)
@@ -110,7 +141,7 @@ async function copyValue(kind: 'locator' | 'selector', value: string): Promise<v
             type="button"
             class="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title="Back to the generated locator"
-            @click="reset"
+            @click="resetLocator"
           >
             <RotateCcw class="size-3" />
             Reset
@@ -132,7 +163,7 @@ async function copyValue(kind: 'locator' | 'selector', value: string): Promise<v
           placeholder="Type a locator, or pick one in the snapshot"
         />
         <div
-          v-if="status"
+          v-if="status && queryKind === 'locator'"
           data-testid="locator-matches"
           :data-tone="status.tone"
           :class="cn('mt-2 flex items-baseline gap-2 rounded-md border px-2.5 py-1.5 text-xs', toneClass[status.tone])"
@@ -157,6 +188,53 @@ async function copyValue(kind: 'locator' | 'selector', value: string): Promise<v
           </button>
         </div>
         <pre data-testid="selector-value" class="overflow-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs text-foreground/90">{{ selector }}</pre>
+      </section>
+      <section>
+        <div class="mb-1.5 flex items-center gap-2">
+          <h3 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            ARIA snapshot
+          </h3>
+          <span v-if="store.editedAriaSnapshot.value !== null" data-testid="aria-source" class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Edited</span>
+          <button
+            v-if="store.editedAriaSnapshot.value !== null"
+            type="button"
+            class="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="Back to the picked element's ARIA snapshot"
+            @click="resetAria"
+          >
+            <RotateCcw class="size-3" />
+            Reset
+          </button>
+          <button
+            v-if="ariaSnapshot"
+            type="button"
+            class="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 font-mono text-xs text-muted-foreground transition-colors hover:border-signal/50 hover:text-foreground"
+            @click="copyValue('aria', ariaSnapshot)"
+          >
+            <component :is="copied === 'aria' ? Check : Copy" class="size-3.5" />
+            {{ copied === 'aria' ? 'Copied' : 'Copy snapshot' }}
+          </button>
+        </div>
+        <CodeEditor
+          v-model="ariaSnapshot"
+          data-testid="aria-template"
+          :errors="ariaErrors"
+          placeholder="Pick an element to see its ARIA snapshot, or type a template to find matching elements"
+        />
+        <ul v-if="ariaErrors.length" data-testid="aria-template-errors" class="mt-2 flex flex-col gap-1 text-xs text-fail">
+          <li v-for="(error, i) in ariaErrors" :key="i">
+            <span class="font-mono">{{ error.line }}:{{ error.column }}</span> {{ error.message }}
+          </li>
+        </ul>
+        <div
+          v-else-if="status && queryKind === 'aria'"
+          data-testid="aria-matches"
+          :data-tone="status.tone"
+          :class="cn('mt-2 flex items-baseline gap-2 rounded-md border px-2.5 py-1.5 text-xs', toneClass[status.tone])"
+        >
+          <span class="font-medium">{{ status.label }}</span>
+          <span v-if="'hint' in status && status.hint" class="text-foreground/70">{{ status.hint }}</span>
+        </div>
       </section>
     </div>
   </div>

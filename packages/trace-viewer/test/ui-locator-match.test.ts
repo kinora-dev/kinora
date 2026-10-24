@@ -25,4 +25,10 @@ describe('matchStatus', () => {
     expect(matchStatus(3)).toMatchObject({ tone: 'flaky', label: '3 matches', hint: expect.stringContaining('strict mode') })
     expect(matchStatus('invalid')).toEqual({ tone: 'fail', label: 'Invalid locator' })
   })
+
+  it('drops the strict mode warning for ARIA templates', () => {
+    expect(matchStatus(2, 'aria')).toEqual({ tone: 'pass', label: '2 matches' })
+    expect(matchStatus(0, 'aria')).toMatchObject({ tone: 'fail', hint: expect.stringContaining('ARIA snapshot') })
+    expect(matchStatus('invalid', 'aria')).toEqual({ tone: 'fail', label: 'Invalid ARIA snapshot' })
+  })
 })
