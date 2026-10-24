@@ -230,7 +230,7 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
 <template>
   <div ref="root" class="flex h-full flex-col">
     <!-- filters -->
-    <div class="flex shrink-0 items-center gap-2 border-b border-border px-2 py-1.5">
+    <div :class="cn('flex shrink-0 items-center gap-2 border-b border-border px-2', store.detailsDock.value === 'right' ? 'h-12' : 'py-1.5')">
       <div v-if="!store.timeRange.value" class="flex shrink-0 items-center rounded-md bg-muted/60 p-0.5">
         <button
           type="button"

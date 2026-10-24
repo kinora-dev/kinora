@@ -42,7 +42,7 @@ const loadPercent = computed(() => {
 const cols = useStorage('kinora-tv-cols', [22, 78])
 const rows = useStorage('kinora-tv-rows', [62, 38])
 // Docked right, the detail tabs get the full height, which short windows need most.
-const dock = useStorage<'bottom' | 'right'>('kinora-tv-details-dock', 'bottom')
+const dock = store.detailsDock
 const dockCols = useStorage('kinora-tv-dock-cols', [58, 42])
 
 useKeyboardNav()
@@ -229,7 +229,7 @@ onMounted(() => {
             </ResizablePanel>
             <ResizableHandle with-handle />
             <ResizablePanel :default-size="dockCols[1]" :min-size="20">
-              <div data-testid="details-panel" class="h-full border-l border-border">
+              <div data-testid="details-panel" class="h-full">
                 <DetailTabs />
               </div>
             </ResizablePanel>

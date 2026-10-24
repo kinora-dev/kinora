@@ -39,7 +39,7 @@ const tabs = computed<{ id: DetailTab, label: string, count?: number }[]>(() => 
 
 <template>
   <div class="flex h-full flex-col">
-    <div class="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-2">
+    <div :class="cn('flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-2', store.detailsDock.value === 'right' ? 'h-11' : 'h-9')">
       <button
         v-for="t in tabs"
         :key="t.id"

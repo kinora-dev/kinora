@@ -82,6 +82,8 @@ const snapshotTab = ref<SnapshotTab>('action')
 const snapshotInfo = ref<SnapshotInfo>({})
 const detailTab = ref<DetailTab>(initialDetailTab())
 watch(detailTab, tab => safeStorage()?.setItem(DETAIL_TAB_KEY, tab))
+// Where the detail tabs sit; docked right, their bars line up with the side panels' bars.
+const detailsDock = useStorage<'bottom' | 'right'>('kinora-tv-details-dock', 'bottom')
 const actionFilter = ref('')
 const consoleScope = ref<ListScope>('selected')
 const networkScope = ref<ListScope>('selected')
@@ -717,6 +719,7 @@ export function useTraceStore() {
     visibleItems,
     listedRows,
     actionFilter,
+    detailsDock,
     consoleScope,
     networkScope,
     scopedConsoleEntries,
