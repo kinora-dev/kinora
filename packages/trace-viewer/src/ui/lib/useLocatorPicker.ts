@@ -3,8 +3,10 @@ import type { Recorder } from '@injected/recorder/recorder'
 import type { Language } from '@isomorphic/locatorGenerators'
 import type { ElementInfo } from '@recorder/recorderTypes'
 import { asLocator } from '@isomorphic/locatorGenerators'
+import { locatorOrSelectorAsSelector } from '@isomorphic/locatorParser'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useTraceStore } from '../store'
+import { selectorForFrame } from './locatorMatch'
 
 interface FrameRecorder {
   recorder: Recorder
@@ -23,6 +25,9 @@ export function loadInjected(): Promise<InjectedModules> {
   return injectedModules
 }
 
+// Like upstream, `?isUnderTest` opens the highlight's shadow root so e2e tests can see it.
+const isUnderTest = new URLSearchParams(globalThis.location?.search ?? '').has('isUnderTest')
+
 // One injected script + recorder per snapshot frame, like upstream's `createRecorders` (snapshotTab.tsx).
 // They live on the frame's window, so a new snapshot document gets fresh ones.
 function createRecorders(modules: InjectedModules, out: FrameRecorder[], options: { sdkLanguage: Language, testIdAttributeName: string }, frameSelector: string, win: Window | null | undefined): void {
@@ -31,7 +36,7 @@ function createRecorders(modules: InjectedModules, out: FrameRecorder[], options
     return
   const frame = win as RecordedWindow
   if (!frame._kinoraRecorder) {
-    const injectedScript = new InjectedScript(frame, { isUnderTest: false, frameSeq: 0, stableRafCount: 1, browserName: 'chromium', customEngines: [], ...options })
+    const injectedScript = new InjectedScript(frame, { isUnderTest, frameSeq: 0, stableRafCount: 1, browserName: 'chromium', customEngines: [], ...options })
     frame._kinoraInjectedScript = injectedScript
     // Kinora's snapshot toolbar has its own Pick button, so the recorder's in-page toolbar stays hidden.
     frame._kinoraRecorder = { recorder: new Recorder(injectedScript, { hideToolbar: true }), frameSelector }
@@ -78,12 +83,14 @@ export function useLocatorPicker() {
   async function update(): Promise<void> {
     const current = ++updates
     const inspecting = store.inspectingLocator.value
-    const modules = inspecting ? await loadInjected() : undefined
+    const query = store.locatorQuery.value?.trim() || ''
+    // Recorders are created lazily: picking, or a locator to resolve against the snapshot.
+    const modules = inspecting || query ? await loadInjected() : undefined
     if (current !== updates)
       return
     const sdkLanguage = store.model.value?.sdkLanguage ?? 'javascript'
     const testIdAttributeName = store.model.value?.testIdAttributeName ?? 'data-testid'
-    // Recorders are created lazily, the first time picking is turned on for a snapshot.
+    const uiState = { mode: inspecting ? 'inspecting' as const : 'none' as const, language: sdkLanguage, testIdAttributeName, overlay: { offsetX: 0 } }
     const found: FrameRecorder[] = []
     try {
       if (modules)
@@ -93,13 +100,34 @@ export function useLocatorPicker() {
       // The snapshot document may be gone mid-swap.
     }
     for (const previous of recorders) {
-      if (!found.includes(previous))
-        previous.recorder.setUIState({ mode: 'none', language: sdkLanguage, testIdAttributeName, overlay: { offsetX: 0 } }, {})
+      if (!found.includes(previous)) {
+        previous.recorder.injectedScript.setHighlights([])
+        previous.recorder.setUIState({ ...uiState, mode: 'none' }, {})
+      }
     }
     recorders = found
     stopListening()
+
+    // Same resolution as upstream's InspectModeController, plus a match count.
+    const fullSelector = query ? locatorOrSelectorAsSelector(sdkLanguage, query, testIdAttributeName) : ''
+    let matches = 0
     for (const { recorder, frameSelector } of recorders) {
-      recorder.setUIState({ mode: 'inspecting', language: sdkLanguage, testIdAttributeName, overlay: { offsetX: 0 } }, {
+      const selector = fullSelector ? selectorForFrame(fullSelector, frameSelector) : undefined
+      try {
+        const parsed = selector ? recorder.injectedScript.parseSelector(selector) : undefined
+        recorder.injectedScript.setHighlights(parsed ? [{ selector: parsed }] : [])
+        if (parsed)
+          matches += recorder.injectedScript.querySelectorAll(parsed, recorder.document).length
+      }
+      catch {
+        // Not resolvable in this frame (e.g. the part that enters a child frame).
+        recorder.injectedScript.setHighlights([])
+      }
+    }
+    store.locatorMatches.value = !query ? null : fullSelector ? matches : 'invalid'
+
+    for (const { recorder, frameSelector } of recorders) {
+      recorder.setUIState(uiState, {
         async elementPicked(elementInfo: ElementInfo) {
           const selector = frameSelector + elementInfo.selector
           store.pickLocator({ selector, locator: asLocator(sdkLanguage, selector), ariaSnapshot: elementInfo.ariaSnapshot })
@@ -116,7 +144,7 @@ export function useLocatorPicker() {
     }
   }
 
-  watch([() => store.inspectingLocator.value, iframe], () => void update())
+  watch([() => store.inspectingLocator.value, () => store.locatorQuery.value, iframe], () => void update())
   window.addEventListener('keydown', onKeyDown)
   onBeforeUnmount(() => {
     window.removeEventListener('keydown', onKeyDown)

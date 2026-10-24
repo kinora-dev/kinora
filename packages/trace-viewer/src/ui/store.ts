@@ -1,5 +1,6 @@
 import type { ActionEntry, ContextEntry } from '@isomorphic/trace/entries'
 import type { StackFrame } from '@trace/trace'
+import type { LocatorMatches } from './lib/locatorMatch'
 import type { Snapshot, SnapshotTab } from './lib/snapshots'
 import type { TimeRange } from './lib/timeline'
 import { buildActionTree, TraceModel } from '@isomorphic/trace/traceModel'
@@ -69,6 +70,11 @@ const networkReveal = ref<NetworkReveal | null>(null)
 const attachmentReveal = ref<{ callId: string, version: number } | null>(null)
 const pickedLocator = ref<PickedLocator | null>(null)
 const inspectingLocator = ref(false)
+// A locator typed in the Locator tab; it stays while browsing actions, like upstream, until a new pick.
+const editedLocator = ref<string | null>(null)
+// The locator the Locator tab wants resolved against the snapshot, and how many elements it found.
+const locatorQuery = ref<string | null>(null)
+const locatorMatches = ref<LocatorMatches | null>(null)
 const playing = ref(false)
 const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 2] as const
 const playbackSpeedIndex = ref(PLAYBACK_SPEEDS.indexOf(1))
@@ -173,6 +179,7 @@ async function load(uri: string, name = ''): Promise<void> {
     sourceReveal.value = null
     networkReveal.value = null
     pickedLocator.value = null
+    editedLocator.value = null
     inspectingLocator.value = false
     // Default selection: failed action, else the last page action with a
     // snapshot (most representative page state), else the first action.
@@ -395,6 +402,7 @@ function setInspectingLocator(value: boolean): void {
 
 function pickLocator(locator: PickedLocator): void {
   pickedLocator.value = locator
+  editedLocator.value = null
   inspectingLocator.value = false
   detailTab.value = 'locator'
 }
@@ -520,6 +528,9 @@ export function useTraceStore() {
     revealAttachment,
     revealConsole,
     selectAtTime,
+    editedLocator,
+    locatorQuery,
+    locatorMatches,
     loadProgress,
     canvasFromScreenshot,
     highlightedTime,

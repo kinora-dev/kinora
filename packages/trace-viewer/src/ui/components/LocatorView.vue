@@ -1,34 +1,77 @@
 <script setup lang="ts">
-import { asLocatorDescription } from '@isomorphic/locatorGenerators'
-import { Check, Copy } from '@lucide/vue'
-import { computed, ref } from 'vue'
+import { asLocator } from '@isomorphic/locatorGenerators'
+import { locatorOrSelectorAsSelector } from '@isomorphic/locatorParser'
+import { cn } from '@kinora/ui'
+import { Check, Copy, RotateCcw, Target } from '@lucide/vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watchEffect } from 'vue'
+import { matchStatus } from '../lib/locatorMatch'
 import { useTraceStore } from '../store'
+
+// Lazy like the Source tab's CodeView: CodeMirror stays out of the initial bundle.
+const CodeEditor = defineAsyncComponent(() => import('./CodeEditor.vue'))
 
 const store = useTraceStore()
 const copied = ref<'locator' | 'selector' | null>(null)
+const sdkLanguage = computed(() => store.model.value?.sdkLanguage ?? 'javascript')
+const testIdAttributeName = computed(() => store.model.value?.testIdAttributeName ?? 'data-testid')
 
-const source = computed(() => store.pickedLocator.value ? 'Snapshot picker' : 'Selected action')
-
-const selector = computed(() => {
-  if (store.pickedLocator.value)
-    return store.pickedLocator.value.selector
+const actionLocator = computed(() => {
   const params = store.activeAction.value?.params ?? {}
-  const value = params.selector ?? params.locator?.selector
-  return typeof value === 'string' ? value : ''
-})
-
-const locator = computed(() => {
-  if (store.pickedLocator.value)
-    return store.pickedLocator.value.locator
-  if (!selector.value)
+  const selector = params.selector ?? params.locator?.selector
+  if (typeof selector !== 'string' || !selector)
     return ''
   try {
-    return asLocatorDescription(store.model.value?.sdkLanguage ?? 'javascript', selector.value)
+    return asLocator(sdkLanguage.value, selector)
   }
   catch {
-    return ''
+    return selector
   }
 })
+
+const source = computed(() => {
+  if (store.editedLocator.value !== null)
+    return 'Edited'
+  return store.pickedLocator.value ? 'Snapshot picker' : 'Selected action'
+})
+
+const locator = computed({
+  get: () => store.editedLocator.value ?? store.pickedLocator.value?.locator ?? actionLocator.value,
+  set: (value) => {
+    store.editedLocator.value = value
+    store.setInspectingLocator(false)
+  },
+})
+
+const selector = computed(() => locator.value.trim() ? locatorOrSelectorAsSelector(sdkLanguage.value, locator.value, testIdAttributeName.value) : '')
+
+// While this tab is open, the snapshot highlights what the locator matches.
+watchEffect(() => {
+  store.locatorQuery.value = locator.value
+})
+onBeforeUnmount(() => {
+  store.locatorQuery.value = null
+  store.locatorMatches.value = null
+})
+
+const status = computed(() => {
+  const matches = store.locatorMatches.value
+  if (!locator.value.trim() || matches === null)
+    return undefined
+  if (!store.currentSnapshotUrl.value)
+    return { tone: 'muted', label: 'No DOM snapshot to match against' }
+  return matchStatus(matches)
+})
+
+const toneClass: Record<string, string> = {
+  fail: 'border-fail/30 bg-fail/10 text-fail',
+  flaky: 'border-flaky/30 bg-flaky/10 text-flaky',
+  muted: 'border-border bg-muted/30 text-muted-foreground',
+  pass: 'border-pass/30 bg-pass/10 text-pass',
+}
+
+function reset(): void {
+  store.editedLocator.value = null
+}
 
 async function copyValue(kind: 'locator' | 'selector', value: string): Promise<void> {
   if (!value)
@@ -44,21 +87,34 @@ async function copyValue(kind: 'locator' | 'selector', value: string): Promise<v
 
 <template>
   <div class="h-full overflow-auto p-3">
-    <div v-if="!selector" class="flex h-full items-center justify-center text-sm text-muted-foreground">
-      No locator for this action
-    </div>
-    <div v-else class="flex max-w-3xl flex-col gap-4">
-      <div class="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs">
-        <span class="font-semibold text-foreground">Source</span>
-        <span class="text-muted-foreground">: </span>
-        <span data-testid="locator-source" class="text-foreground/90">{{ source }}</span>
-      </div>
-
+    <div class="flex max-w-3xl flex-col gap-4">
       <section>
         <div class="mb-1.5 flex items-center gap-2">
           <h3 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Generated locator
+            Locator
           </h3>
+          <span data-testid="locator-source" class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{{ source }}</span>
+          <button
+            type="button"
+            title="Pick locator"
+            :class="cn(
+              'flex size-6 items-center justify-center rounded-md transition-colors',
+              store.inspectingLocator.value ? 'bg-signal/15 text-signal' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )"
+            @click="store.setInspectingLocator(!store.inspectingLocator.value)"
+          >
+            <Target class="size-3.5" />
+          </button>
+          <button
+            v-if="store.editedLocator.value !== null"
+            type="button"
+            class="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="Back to the generated locator"
+            @click="reset"
+          >
+            <RotateCcw class="size-3" />
+            Reset
+          </button>
           <button
             v-if="locator"
             type="button"
@@ -69,10 +125,24 @@ async function copyValue(kind: 'locator' | 'selector', value: string): Promise<v
             {{ copied === 'locator' ? 'Copied' : 'Copy locator' }}
           </button>
         </div>
-        <pre data-testid="locator-value" class="overflow-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs text-foreground/90">{{ locator || selector }}</pre>
+        <CodeEditor
+          v-model="locator"
+          data-testid="locator-value"
+          :lang="sdkLanguage"
+          placeholder="Type a locator, or pick one in the snapshot"
+        />
+        <div
+          v-if="status"
+          data-testid="locator-matches"
+          :data-tone="status.tone"
+          :class="cn('mt-2 flex items-baseline gap-2 rounded-md border px-2.5 py-1.5 text-xs', toneClass[status.tone])"
+        >
+          <span class="font-medium">{{ status.label }}</span>
+          <span v-if="'hint' in status && status.hint" class="text-foreground/70">{{ status.hint }}</span>
+        </div>
       </section>
 
-      <section>
+      <section v-if="selector">
         <div class="mb-1.5 flex items-center gap-2">
           <h3 class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Raw selector
