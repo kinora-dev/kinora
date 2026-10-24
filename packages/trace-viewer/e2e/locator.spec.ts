@@ -112,3 +112,15 @@ test('picking works while paused on a screencast frame', async ({ page }) => {
   await page.frameLocator('iframe[name="snapshot"]').getByRole('button', { name: 'Complete checkout' }).click()
   await expect(page.getByTestId('aria-template')).toContainText('- button "Complete checkout"')
 })
+
+test('a new pick matches its locator again after the ARIA snapshot was edited', async ({ page }) => {
+  await openLocatorTab(page, 'demo.zip', 'Fill "alex@example.com"')
+  await typeAria(page, '- button /Complete/')
+  await expect(page.getByTestId('aria-matches')).toHaveText(/^1 match/)
+
+  await page.getByRole('button', { name: 'Pick locator' }).first().click()
+  await page.frameLocator('iframe[name="snapshot"]').getByRole('button', { name: 'Complete checkout' }).click()
+  await expect(page.getByTestId('locator-source')).toHaveText('Snapshot picker')
+  await expect(page.getByTestId('locator-matches')).toHaveText(/^1 match/)
+  await expect(page.getByTestId('aria-matches')).toHaveCount(0)
+})

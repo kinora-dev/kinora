@@ -599,8 +599,12 @@ const scopedConsoleEntries = computed(() => {
     stdio = stdio.filter(e => inWindow(e.timestamp, range))
   }
   else if (consoleScope.value === 'selected') {
-    events = action ? m.eventsForAction(action) : []
-    stdio = action ? stdio.filter(e => e.timestamp >= action.startTime && e.timestamp <= (action.endTime || action.startTime)) : []
+    // Up to the next action like upstream's badges, but never short of the action's own end: a
+    // step's next action is its first child, which would leave out what its children logged.
+    const own = new Set(action ? m.eventsForAction(action) : [])
+    const end = action ? action.endTime || action.startTime : 0
+    events = action ? events.filter(e => own.has(e) || (e.time >= action.startTime && e.time <= end)) : []
+    stdio = action ? stdio.filter(e => e.timestamp >= action.startTime && e.timestamp <= end) : []
   }
   const pageTitle = (id: string | undefined) => (id && m.resourceOwnerRefToTitle.get(id)) || ''
   return consoleEntries({ events, stdio, pageTitle })
@@ -614,7 +618,8 @@ const scopedNetworkRows = computed(() => {
   const range = timeRange.value
   if (range)
     return resourcesInWindow(resources, range, context)
-  return networkScope.value === 'all' ? allResources(resources, context) : resourcesForAction(resources, activeAction.value, context)
+  // The selection, not the hovered action: hovering the list must not drop the open request.
+  return networkScope.value === 'all' ? allResources(resources, context) : resourcesForAction(resources, selectedAction.value, context)
 })
 
 const playbackFrameUrl = computed(() => {

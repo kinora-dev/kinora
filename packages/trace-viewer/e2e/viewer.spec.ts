@@ -89,6 +89,23 @@ test('shows the test source code', async ({ page }) => {
   await expect(page.getByText(/testInfo\.attach\('screenshot'/)).toBeVisible()
 })
 
+test('source tab reads a current trace without probing the legacy source path', async ({ page }) => {
+  const legacy: string[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('/file/resources/src@'))
+      legacy.push(request.url())
+  })
+  const current: string[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('/file/src/'))
+      current.push(request.url())
+  })
+  await page.goto('/?trace=fixtures/demo.zip&tab=source')
+  await expect(page.getByText(/testInfo\.attach\('screenshot'/)).toBeVisible()
+  expect(current).not.toEqual([])
+  expect(legacy).toEqual([])
+})
+
 test('source tab toolbar names the file and copies it', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' }).click()

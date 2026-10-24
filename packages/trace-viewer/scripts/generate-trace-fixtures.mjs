@@ -160,6 +160,7 @@ async function generateScenarioTraces() {
   await generateTraceFixture('network-rich-trace.zip', networkRichSpec())
   await generateTraceFixture('console-rich-trace.zip', consoleRichSpec())
   await generateTraceFixture('console-format-trace.zip', consoleFormatSpec())
+  await generateTraceFixture('step-console-trace.zip', stepConsoleSpec())
   await generateTraceFixture('annotations-trace.zip', annotationsSpec())
   await generateTraceFixture('error-trace.zip', errorSpec(), { file: 'demo.spec.ts', fails: true })
   await generateTraceFixture('aria-trace.zip', ariaSpec('{ dom: true, aria: true, screen: true }'))
@@ -449,6 +450,22 @@ test('console formatting', async ({ page }) => {
   await page.setContent('<button id="go">Go</button><script>document.getElementById("go").onclick = () => { console.log("%cstyled%c plain %s", "color: rgb(255, 0, 0); font-weight: bold", "", "value"); for (let i = 0; i < 3; i++) console.log("repeated message"); setTimeout(() => { throw new Error("boom from page") }, 0); setTimeout(() => { document.title = "done" }, 50) }<\/script>')
   await page.getByRole('button', { name: 'Go' }).click()
   await expect(page).toHaveTitle('done')
+})
+`
+}
+
+// Console output from inside a step, after its first child action started.
+function stepConsoleSpec() {
+  return String.raw`
+import { test } from '@playwright/test'
+
+test('step console', async ({ page }) => {
+  await page.setContent('<button onclick="console.log(&quot;clicked in step&quot;)">Go</button>')
+  await test.step('checkout step', async () => {
+    await page.getByRole('button', { name: 'Go' }).click()
+    await page.evaluate(() => console.warn('warned in step'))
+    console.log('runner line in step')
+  })
 })
 `
 }

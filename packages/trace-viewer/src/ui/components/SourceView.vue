@@ -60,19 +60,39 @@ function fileName(file: string): string {
   return file.split(/[/\\]/).pop() ?? file
 }
 
-async function readSource(file: string, model: NonNullable<typeof store.model.value>): Promise<string> {
+// Like Node's `path.extname`, which names the file in the trace: '' without a dot or for a dotfile.
+function extname(file: string): string {
+  const name = fileName(file)
+  const dot = name.lastIndexOf('.')
+  return dot <= 0 ? '' : name.slice(dot)
+}
+
+async function fetchSource(file: string, model: NonNullable<typeof store.model.value>): Promise<string> {
   try {
     const sha1 = await calculateSha1(file)
+    // Current traces first, like upstream; older ones stored sources as `resources/src@<sha1>.txt`.
+    const modern = await fetch(model.createRelativeUrl(`file/src/${sha1}${extname(file)}`))
+    if (modern.ok)
+      return await modern.text()
     const legacy = await fetch(model.createRelativeUrl(`file/resources/src@${sha1}.txt`))
-    if (legacy.ok)
-      return await legacy.text()
-    const ext = fileName(file).split('.').pop() || 'txt'
-    const modern = await fetch(model.createRelativeUrl(`file/src/${sha1}.${ext}`))
-    return modern.ok ? await modern.text() : `Source unavailable for ${file}`
+    return legacy.ok ? await legacy.text() : `Source unavailable for ${file}`
   }
   catch {
     return `Unable to read ${file}`
   }
+}
+
+// Stepping through actions of one spec file reads it once per trace.
+let sourceCache = new Map<string, Promise<string>>()
+watch(() => store.model.value, () => (sourceCache = new Map()))
+
+function readSource(file: string, model: NonNullable<typeof store.model.value>): Promise<string> {
+  let text = sourceCache.get(file)
+  if (!text) {
+    text = fetchSource(file, model)
+    sourceCache.set(file, text)
+  }
+  return text
 }
 
 watch([frames, selectedFrame], async (_, __, onCleanup) => {

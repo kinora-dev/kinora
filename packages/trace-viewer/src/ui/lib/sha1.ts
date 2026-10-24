@@ -1,4 +1,4 @@
-// Source files are stored in the trace as `src@<sha1-of-path>.txt`.
+// Source files are stored in the trace under the SHA-1 of their path (`src/<sha1><ext>`).
 export async function calculateSha1(text: string): Promise<string> {
   const buffer = new TextEncoder().encode(text)
   const hash = await crypto.subtle.digest('SHA-1', buffer)

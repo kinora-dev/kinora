@@ -39,6 +39,8 @@ const source = computed(() => {
 
 // Like upstream, the snapshot highlights whichever editor was changed last.
 const lastEdited = ref<'locator' | 'aria'>(store.editedAriaSnapshot.value !== null ? 'aria' : 'locator')
+// A new pick replaces both editors, so its locator is what gets matched again.
+watch(() => store.pickedLocator.value, () => (lastEdited.value = 'locator'))
 
 const locator = computed({
   get: () => store.editedLocator.value ?? store.pickedLocator.value?.locator ?? actionLocator.value,

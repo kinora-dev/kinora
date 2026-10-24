@@ -119,6 +119,8 @@ watch(() => store.networkReveal.value, (reveal) => {
   scope.value = 'all'
   store.clearTimeRange()
   selectedId.value = reveal.resourceId
+  // Applied once: coming back to the tab later keeps whatever the user set since.
+  store.networkReveal.value = null
 }, { immediate: true })
 
 watch([query, searchesBodies], ([q, bodies]) => {

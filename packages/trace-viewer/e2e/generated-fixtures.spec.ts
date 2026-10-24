@@ -257,3 +257,45 @@ test('a WebSocket shows its frames with direction, opcode and a decoded detail',
   await page.keyboard.press('ArrowUp')
   await expect(detail.getByTestId('ws-message-detail')).toContainText('"currency": "USD"')
 })
+
+test('a console link to a request applies once, not on every visit to the Network tab', async ({ page }) => {
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByRole('button', { name: /^Console/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await page.getByTestId('console-network-link').first().click()
+  await expect(page.getByTestId('net-detail')).toBeVisible()
+
+  // The link widened the list to the whole trace; narrow it again and zoom the timeline.
+  await page.getByRole('button', { name: 'Selected', exact: true }).click()
+  await page.getByTestId('action').last().dblclick()
+  await expect(page.getByTestId('reset-zoom')).toBeVisible()
+
+  await page.getByRole('button', { name: /^Call/ }).click()
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await expect(page.getByTestId('reset-zoom')).toBeVisible()
+  await page.getByTestId('reset-zoom').click()
+  await expect(page.getByRole('button', { name: 'Selected', exact: true })).toHaveClass(/bg-card/)
+})
+
+test('hovering an action keeps the open network request', async ({ page }) => {
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByTestId('action').last().click()
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByTestId('net-row').filter({ hasText: 'checkout' }).click()
+  await expect(page.getByTestId('net-detail')).toBeVisible()
+
+  await page.getByTestId('action').first().hover()
+  await page.getByTestId('net-detail').hover()
+  await expect(page.getByTestId('net-detail')).toContainText('/api/checkout')
+})
+
+test('the selected step lists what the page logged inside it', async ({ page }) => {
+  await openTrace(page, 'step-console-trace.zip')
+  await page.getByTestId('action').filter({ hasText: 'checkout step' }).click()
+  await page.getByRole('button', { name: /^Console/ }).click()
+
+  const bodies = page.getByTestId('console-body')
+  await expect(bodies.filter({ hasText: 'clicked in step' })).toBeVisible()
+  await expect(bodies.filter({ hasText: 'warned in step' })).toBeVisible()
+  await expect(bodies.filter({ hasText: 'runner line in step' })).toBeVisible()
+})
