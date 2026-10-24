@@ -60,7 +60,10 @@ async function download(att: AttachmentView): Promise<void> {
   if (!att.url)
     return
   try {
-    const body = await (await fetch(att.url)).arrayBuffer()
+    const res = await fetch(att.url)
+    if (!res.ok)
+      throw new Error(`HTTP ${res.status}`)
+    const body = await res.arrayBuffer()
     const href = URL.createObjectURL(new Blob([body], { type: att.contentType }))
     const a = document.createElement('a')
     a.href = href

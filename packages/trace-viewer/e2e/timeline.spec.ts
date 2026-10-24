@@ -54,6 +54,8 @@ test('scrubber moves through time and follows the running action', async ({ page
   const fillStart = ms(await page.getByTestId('timeline-current-time').textContent())
   await page.getByTestId('action').filter({ hasText: 'Screenshot' }).first().click()
 
+  // Off the action list: a hovered action previews its own snapshot over the frame.
+  await page.getByTestId('action-scrubber').hover()
   await page.getByTestId('action-scrubber').fill(String(fillStart + 1))
   await expect(page.getByTestId('current-action')).toHaveText('Fill "alex@example.com"')
   await expect(page.getByTestId('timeline-current-time')).toHaveText(`${fillStart + 1}ms`)

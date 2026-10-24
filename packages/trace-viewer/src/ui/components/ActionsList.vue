@@ -1,30 +1,24 @@
 <script setup lang="ts">
 import type { ActionEntry } from '@isomorphic/trace/entries'
-import type { ActionItem } from '../store'
+import type { ActionGroup } from '../store'
 import { cn } from '@kinora/ui'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@kinora/ui/dropdown-menu'
 import { Ban, Check, ChevronRight, CircleX, Filter, Paperclip, TriangleAlert, X } from '@lucide/vue'
-import { useStorage } from '@vueuse/core'
-import { computed, ref } from 'vue'
-import { actionStatus, actionTime, actionTitle, actionTitleParts, filterTree, isSkippedStep } from '../lib/action'
-import { actionInWindow } from '../lib/timeline'
-import { useTraceStore } from '../store'
+import { computed, nextTick, ref, watch } from 'vue'
+import { actionStatus, actionTime, actionTitle, actionTitleParts, isSkippedStep } from '../lib/action'
+import { ACTION_GROUPS, useTraceStore } from '../store'
 import FilterInput from './FilterInput.vue'
 import TextTooltip from './TextTooltip.vue'
 
 const store = useTraceStore()
-const filter = ref('')
-
-const ACTION_GROUPS = ['getter', 'route', 'configuration'] as const
-type ActionGroup = typeof ACTION_GROUPS[number]
+const filter = store.actionFilter
+const hiddenGroups = store.hiddenGroups
 
 const groupLabels: Record<ActionGroup, string> = {
   getter: 'Getters',
   route: 'Network routes',
   configuration: 'Configuration',
 }
-
-const hiddenGroups = useStorage<ActionGroup[]>('kinora-tv-hidden-action-groups', [])
 
 const filtering = computed(() => filter.value.trim().length > 0)
 
@@ -52,10 +46,8 @@ const groupRows = computed(() => ACTION_GROUPS.map(group => ({
 })))
 
 const rows = computed(() => {
-  const f = filter.value.trim().toLowerCase()
-  const range = store.timeRange.value
   const model = store.model.value
-  const describe = (item: ActionItem, context: boolean) => {
+  return store.listedRows.value.map(({ item, context }) => {
     const { parts, subtitle } = actionTitleParts(item.action, model?.sdkLanguage)
     const stats = model?.stats(item.action) ?? { errors: 0, warnings: 0 }
     return {
@@ -71,21 +63,28 @@ const rows = computed(() => {
       warnings: stats.warnings,
       attachments: item.action.attachments?.filter(a => !a.name.startsWith('_')).length ?? 0,
     }
+  })
+})
+
+// A selection made elsewhere (timeline, playback, keyboard) opens the steps hiding it and scrolls to it.
+const list = ref<HTMLElement | null>(null)
+watch(() => store.selectedId.value, async (id) => {
+  const index = store.items.value.findIndex(item => item.id === id)
+  if (index === -1)
+    return
+  let depth = store.items.value[index].depth
+  const opened = new Set(store.collapsed.value)
+  for (let i = index - 1; i >= 0 && depth > 0; i--) {
+    const item = store.items.value[i]
+    if (item.depth < depth) {
+      opened.delete(item.id)
+      depth = item.depth
+    }
   }
-  if (!f && !range) {
-    return store.visibleItems.value
-      .filter(item => actionPassesGroup(item.action))
-      .map(item => describe(item, false))
-  }
-  // Filtering or zoomed: keep the steps leading to each match so the tree keeps its shape.
-  return filterTree(store.items.value, (item) => {
-    if (!actionPassesGroup(item.action) || (range && !actionInWindow(item.action, range)))
-      return false
-    if (!f)
-      return true
-    const { subtitle } = actionTitleParts(item.action, model?.sdkLanguage)
-    return `${actionTitle(item.action)} ${subtitle ?? ''}`.toLowerCase().includes(f)
-  }).map(({ item, context }) => describe(item, context))
+  if (opened.size !== store.collapsed.value.size)
+    store.collapsed.value = opened
+  await nextTick()
+  list.value?.querySelector('[data-selected]')?.scrollIntoView({ block: 'nearest' })
 })
 
 function pluralize(count: number, noun: string): string {
@@ -138,7 +137,7 @@ const countLabel = computed(() => {
       </DropdownMenu>
     </div>
 
-    <div data-action-list class="min-h-0 flex-1 overflow-y-auto py-1">
+    <div ref="list" data-action-list class="min-h-0 flex-1 overflow-y-auto py-1">
       <div
         v-for="row in rows"
         :key="row.item.id"
@@ -146,6 +145,7 @@ const countLabel = computed(() => {
         tabindex="0"
         data-testid="action"
         :data-context="row.context || undefined"
+        :data-selected="store.selectedId.value === row.item.id || undefined"
         :class="cn(
           'group relative flex w-full cursor-pointer items-center gap-2 py-1.5 pr-2.5 text-left text-[13px] transition-colors',
           store.selectedId.value === row.item.id
@@ -166,14 +166,15 @@ const countLabel = computed(() => {
           class="absolute inset-y-0 left-0 w-0.5 bg-signal"
         />
         <span class="flex size-4 shrink-0 items-center justify-center">
-          <X v-if="row.status === 'error'" class="size-3.5 text-fail" />
           <span
-            v-else-if="!filtering && !store.timeRange.value && row.item.hasChildren"
+            v-if="!filtering && !store.timeRange.value && row.item.hasChildren"
+            data-testid="action-expander"
             class="flex cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
             @click.stop="store.toggleCollapse(row.item.id)"
           >
-            <ChevronRight :class="cn('size-3.5 transition-transform', !store.collapsed.value.has(row.item.id) && 'rotate-90')" />
+            <ChevronRight :class="cn('size-3.5 transition-transform', !store.collapsed.value.has(row.item.id) && 'rotate-90', row.status === 'error' && 'text-fail')" />
           </span>
+          <X v-else-if="row.status === 'error'" class="size-3.5 text-fail" />
           <Ban v-else-if="row.skipped" data-testid="action-skipped" class="size-3.5 text-muted-foreground" aria-label="skipped" />
           <Check v-else-if="row.status === 'ok'" class="size-3.5 text-pass" />
         </span>

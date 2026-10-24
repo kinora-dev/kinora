@@ -6,6 +6,7 @@ import type { TimeRange } from './lib/timeline'
 import { buildActionTree, TraceModel } from '@isomorphic/trace/traceModel'
 import { useStorage } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
+import { actionTitle, actionTitleParts, filterTree } from './lib/action'
 import { advance, indexAt } from './lib/playback'
 import { collectSnapshots, snapshotInfoUrl, snapshotUrl } from './lib/snapshots'
 import { actionInWindow, screencastFrames as buildScreencastFrames, normalizeRange } from './lib/timeline'
@@ -33,6 +34,15 @@ export interface PickedLocator {
   // ARIA snapshot of the picked element, from the injected script.
   ariaSnapshot?: string
 }
+
+export interface ListedRow {
+  item: ActionItem
+  // An ancestor shown only to keep the tree shape around a filtered match.
+  context: boolean
+}
+
+export const ACTION_GROUPS = ['getter', 'route', 'configuration'] as const
+export type ActionGroup = typeof ACTION_GROUPS[number]
 
 export const DETAIL_TABS = ['source', 'call', 'locator', 'log', 'network', 'attachments', 'errors', 'console', 'metadata', 'annotations'] as const
 export type DetailTab = typeof DETAIL_TABS[number]
@@ -65,7 +75,9 @@ const hoveredActionId = ref<string | null>(null)
 const snapshotTab = ref<SnapshotTab>('action')
 const snapshotInfo = ref<SnapshotInfo>({})
 const detailTab = ref<DetailTab>(initialDetailTab())
-watch(detailTab, tab => globalThis.localStorage?.setItem(DETAIL_TAB_KEY, tab))
+watch(detailTab, tab => safeStorage()?.setItem(DETAIL_TAB_KEY, tab))
+const actionFilter = ref('')
+const hiddenGroups = useStorage<ActionGroup[]>('kinora-tv-hidden-action-groups', [])
 // Service-worker progress while a trace downloads and unzips; null when not reported yet.
 const loadProgress = ref<{ done: number, total: number } | null>(null)
 // Paints recorded <canvas> elements from the action screenshot (upstream "Display canvas content").
@@ -100,13 +112,26 @@ interface PendingLoad {
 }
 
 let playFrame: number | undefined
+let pingTimer: ReturnType<typeof setInterval> | undefined
+let loadGeneration = 0
+let snapshotInfoGeneration = 0
 let sourceRevealVersion = 0
 let networkRevealVersion = 0
 let attachmentRevealVersion = 0
 
+// Reading `localStorage` throws where storage is blocked (sandboxed or third-party embeds).
+function safeStorage(): Storage | undefined {
+  try {
+    return globalThis.localStorage
+  }
+  catch {
+    return undefined
+  }
+}
+
 // `?tab=` wins (links from the dashboard), then the tab picked last time.
 function initialDetailTab(): DetailTab {
-  const tab = new URLSearchParams(globalThis.location?.search ?? '').get('tab') ?? globalThis.localStorage?.getItem(DETAIL_TAB_KEY)
+  const tab = new URLSearchParams(globalThis.location?.search ?? '').get('tab') ?? safeStorage()?.getItem(DETAIL_TAB_KEY)
   return DETAIL_TABS.find(id => id === tab) ?? 'source'
 }
 
@@ -147,7 +172,7 @@ async function registerServiceWorker(uri: string, name: string): Promise<void> {
     location.reload()
     await new Promise(() => {})
   }
-  setInterval(() => {
+  pingTimer ??= setInterval(() => {
     void fetch('ping')
   }, 10_000)
 }
@@ -166,7 +191,9 @@ function consumePendingLoad(): PendingLoad | null {
 }
 
 async function load(uri: string, name = ''): Promise<void> {
+  const generation = ++loadGeneration
   stopPlay()
+  hoveredActionId.value = null
   status.value = 'loading'
   loadProgress.value = null
   errorKind.value = 'generic'
@@ -178,6 +205,9 @@ async function load(uri: string, name = ''): Promise<void> {
     if (!res.ok)
       throw new Error(await parseErrorResponse(res))
     const contexts = await res.json() as ContextEntry[]
+    // A newer load (drop, paste) started meanwhile: it owns the state now.
+    if (generation !== loadGeneration)
+      return
     const m = new TraceModel(uri, contexts)
     model.value = m
     items.value = flatten(m)
@@ -203,6 +233,8 @@ async function load(uri: string, name = ''): Promise<void> {
     status.value = 'ready'
   }
   catch (err: any) {
+    if (generation !== loadGeneration)
+      return
     errorMessage.value = err?.message ?? String(err)
     errorKind.value = isUnsupportedTraceVersion(errorMessage.value) ? 'unsupported-trace-version' : 'generic'
     status.value = 'error'
@@ -260,6 +292,28 @@ function toggleCollapse(id: string): void {
   collapsed.value = next
 }
 
+// The rows the action list shows: collapsed steps, the text filter, hidden groups and the zoomed window.
+const listedRows = computed<ListedRow[]>(() => {
+  const f = actionFilter.value.trim().toLowerCase()
+  const range = timeRange.value
+  const sdkLanguage = model.value?.sdkLanguage
+  const passesGroup = (action: ActionEntry): boolean => !action.group || !hiddenGroups.value.includes(action.group as ActionGroup)
+  if (!f && !range) {
+    return visibleItems.value
+      .filter(item => passesGroup(item.action))
+      .map(item => ({ item, context: false }))
+  }
+  // Filtering or zoomed: keep the steps leading to each match so the tree keeps its shape.
+  return filterTree(items.value, (item) => {
+    if (!passesGroup(item.action) || (range && !actionInWindow(item.action, range)))
+      return false
+    if (!f)
+      return true
+    const { subtitle } = actionTitleParts(item.action, sdkLanguage)
+    return `${actionTitle(item.action)} ${subtitle ?? ''}`.toLowerCase().includes(f)
+  })
+})
+
 function setHoveredAction(id: string | null): void {
   hoveredActionId.value = id
 }
@@ -284,9 +338,8 @@ function setTimeRange(a: number, b: number): void {
 }
 
 function zoomToAction(action: ActionEntry): void {
-  const start = action.startTime ?? 0
-  const end = action.endTime ?? start
-  setTimeRange(start, end)
+  // Unfinished actions have `endTime: 0`; zoom from their start to the trace end.
+  setTimeRange(action.startTime, action.endTime || model.value?.endTime || action.startTime)
 }
 
 function clearTimeRange(): void {
@@ -310,13 +363,35 @@ function selectIndex(index: number): void {
     select(item.id)
 }
 
-// Arrow keys walk the rows on screen, skipping children of collapsed steps.
+// Where the selection sits among the listed rows. A selection hidden by a collapsed step or a
+// filter anchors on the last listed row before it, so stepping continues from there.
+function listedPosition(): { index: number, exact: boolean } {
+  const rows = listedRows.value
+  const index = rows.findIndex(row => row.item.id === selectedId.value)
+  if (index !== -1)
+    return { index, exact: true }
+  const selected = selectedIndex.value
+  const order = new Map(items.value.map((item, i) => [item.id, i]))
+  return { index: rows.findLastIndex(row => (order.get(row.item.id) ?? 0) < selected), exact: false }
+}
+
+function stepTarget(delta: number): ActionItem | undefined {
+  const rows = listedRows.value
+  const { index, exact } = listedPosition()
+  if (index === -1)
+    return delta > 0 ? rows[0]?.item : undefined
+  return rows[exact || delta > 0 ? index + delta : index]?.item
+}
+
+// Arrow keys walk the rows on screen.
 function step(delta: number): void {
-  const rows = visibleItems.value
-  const index = rows.findIndex(i => i.id === selectedId.value)
-  const item = rows[index === -1 ? 0 : index + delta]
+  const item = stepTarget(delta)
   if (item)
     select(item.id)
+}
+
+function canStep(delta: number): boolean {
+  return !!stepTarget(delta)
 }
 
 // Left collapses an open step, otherwise moves to the parent step.
@@ -405,6 +480,9 @@ function revealNetworkResource(resourceId: string): void {
 }
 
 function setInspectingLocator(value: boolean): void {
+  // Picking happens on the selected action's snapshot, not on a screencast frame.
+  if (value)
+    stopPlay()
   inspectingLocator.value = value
 }
 
@@ -499,18 +577,19 @@ function togglePlay(): void {
 }
 
 async function refreshSnapshotInfo(): Promise<void> {
+  const generation = ++snapshotInfoGeneration
   const infoUrl = snapshotInfoUrl(traceUri.value, currentSnapshot.value)
-  if (!infoUrl) {
-    snapshotInfo.value = {}
-    return
+  let info: SnapshotInfo = {}
+  if (infoUrl) {
+    try {
+      const res = await fetch(infoUrl)
+      info = res.ok ? await res.json() : {}
+    }
+    catch {}
   }
-  try {
-    const res = await fetch(infoUrl)
-    snapshotInfo.value = res.ok ? await res.json() : {}
-  }
-  catch {
-    snapshotInfo.value = {}
-  }
+  // Stepping quickly: an older response must not overwrite the current snapshot's info.
+  if (generation === snapshotInfoGeneration)
+    snapshotInfo.value = info
 }
 
 export function useTraceStore() {
@@ -523,6 +602,10 @@ export function useTraceStore() {
     model,
     items,
     visibleItems,
+    listedRows,
+    actionFilter,
+    hiddenGroups,
+    canStep,
     collapsed,
     toggleCollapse,
     hoveredActionId,

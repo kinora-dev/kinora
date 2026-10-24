@@ -3,6 +3,7 @@ import { Check, Copy } from '@lucide/vue'
 import { useStorage } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { actionTitle } from '../lib/action'
+import { copyText } from '../lib/clipboard'
 import { collectAriaTargets } from '../lib/snapshots'
 import { installConsoleApi, useLocatorPicker } from '../lib/useLocatorPicker'
 import { useTraceStore } from '../store'
@@ -37,6 +38,8 @@ const screenshotUrl = computed(() => {
   return fileUrl(target && store.model.value?.screenshotForCall(target.action.callId, target.phase)?.file)
 })
 const actionPhase = computed(() => store.snapshotTab.value === 'action' ? store.activeAction.value : undefined)
+// Paused on a frame, hovering an action still previews its snapshot, like upstream.
+const playbackFrame = computed(() => store.playing.value || !store.hoveredActionId.value ? store.playbackFrameUrl.value : undefined)
 
 function fileUrl(file: string | undefined): string | undefined {
   const model = store.model.value
@@ -64,7 +67,8 @@ const urlCopied = ref(false)
 async function copyUrl(): Promise<void> {
   if (!pageUrl.value)
     return
-  await navigator.clipboard.writeText(pageUrl.value)
+  if (!await copyText(pageUrl.value))
+    return
   urlCopied.value = true
   setTimeout(() => (urlCopied.value = false), 1500)
 }
@@ -135,15 +139,16 @@ watch(frameSrc, () => {
           </div>
         </div>
         <div class="relative min-h-0 flex-1 bg-muted/30">
+          <!-- The snapshot stays mounted under the frame, so the picker keeps a live iframe. -->
           <img
-            v-if="store.playbackFrameUrl.value"
+            v-if="playbackFrame"
             data-testid="playback-frame"
-            :src="store.playbackFrameUrl.value"
+            :src="playbackFrame"
             alt=""
-            class="size-full object-contain object-top"
+            class="absolute inset-0 z-10 size-full bg-card object-contain object-top"
           >
           <DomSnapshotView
-            v-else-if="mode === 'dom'"
+            v-if="mode === 'dom'"
             :actual-size="actualSize"
             :src="frameSrc"
             :viewport="viewport"

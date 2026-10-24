@@ -4,6 +4,7 @@ import { Check, Copy } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { ariaLineTokens, ariaSnapshotLines } from '../lib/aria'
+import { copyText } from '../lib/clipboard'
 
 const props = defineProps<{
   box?: AriaBox
@@ -64,28 +65,32 @@ function escapeRegex(value: string): string {
 async function copySnapshot(): Promise<void> {
   if (!text.value)
     return
-  await navigator.clipboard.writeText(text.value)
+  if (!await copyText(text.value))
+    return
   copied.value = true
   setTimeout(() => (copied.value = false), 1500)
 }
 
-watch(() => props.url, async (url) => {
+watch(() => props.url, async (url, _, onCleanup) => {
+  let stale = false
+  onCleanup(() => (stale = true))
   ariaLines.value = []
   hoveredBox.value = undefined
   copied.value = false
+  loading.value = !!url
   if (!url)
     return
-  loading.value = true
+  let lines: typeof ariaLines.value = []
   try {
     const res = await fetch(url)
-    ariaLines.value = res.ok ? ariaSnapshotLines(await res.text()) : []
+    lines = res.ok ? ariaSnapshotLines(await res.text()) : []
   }
-  catch {
-    ariaLines.value = []
-  }
-  finally {
-    loading.value = false
-  }
+  catch {}
+  // Stepping quickly: an earlier action's snapshot must not replace the current one.
+  if (stale)
+    return
+  ariaLines.value = lines
+  loading.value = false
 }, { immediate: true })
 
 const PADDING = 10

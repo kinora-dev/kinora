@@ -2,7 +2,7 @@
 import { cn } from '@kinora/ui'
 import { ChevronLeft, ChevronRight, Pause, Play, Square, ZoomOut } from '@lucide/vue'
 import { useElementSize } from '@vueuse/core'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { actionDuration, actionStatus, actionTitle } from '../lib/action'
 import { formatMs } from '../lib/format'
 import { filmstripTiles, frameAt, pageScreencastFrames, rulerTicks, xToTime } from '../lib/timeline'
@@ -26,7 +26,8 @@ const segments = computed(() => {
     .map((item) => {
       const a = item.action
       const start = a.startTime ?? min
-      const end = a.endTime ?? start
+      // Unfinished actions (`endTime: 0`, e.g. the one a test timed out in) run to the trace end.
+      const end = a.endTime || store.model.value?.endTime || start
       return { duration: formatMs(actionDuration(a)), end, id: item.id, start, status: actionStatus(a), title: actionTitle(a) }
     })
     .filter(s => s.end >= min && s.start <= max)
@@ -132,9 +133,14 @@ function selectNearestAtClientX(clientX: number): void {
   seekToTime(xToTime(x, width, min, span))
 }
 
-function onBrushUp(e: PointerEvent): void {
+function removeBrushListeners(): void {
   window.removeEventListener('pointermove', onBrushMove)
   window.removeEventListener('pointerup', onBrushUp)
+}
+onBeforeUnmount(removeBrushListeners)
+
+function onBrushUp(e: PointerEvent): void {
+  removeBrushListeners()
   const b = brush.value
   brush.value = null
   if (!b)
@@ -219,25 +225,14 @@ const scrubberValue = computed({
   set: value => store.scrubTo((store.model.value?.startTime ?? 0) + Number(value)),
 })
 
-// Select the action whose time window is closest to a screencast frame.
+// Select what was running at that time, never an action that had not started yet (upstream).
 function seekToTime(t: number): void {
-  let best: string | undefined
-  let bestDist = Infinity
-  for (const item of store.items.value) {
-    const start = item.action.startTime ?? 0
-    const dist = Math.abs(start - t)
-    if (dist < bestDist) {
-      bestDist = dist
-      best = item.id
-    }
-  }
-  if (best)
-    store.select(best)
+  store.selectAtTime(t)
 }
 </script>
 
 <template>
-  <div class="flex h-full flex-col">
+  <div data-timeline class="flex h-full flex-col">
     <div class="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
       <button
         type="button"
@@ -263,7 +258,7 @@ function seekToTime(t: number): void {
         <button
           type="button"
           class="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
-          :disabled="store.selectedIndex.value <= 0"
+          :disabled="!store.canStep(-1)"
           title="Previous action"
           @click="store.step(-1)"
         >
@@ -272,7 +267,7 @@ function seekToTime(t: number): void {
         <button
           type="button"
           class="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
-          :disabled="store.selectedIndex.value >= store.items.value.length - 1"
+          :disabled="!store.canStep(1)"
           title="Next action"
           @click="store.step(1)"
         >

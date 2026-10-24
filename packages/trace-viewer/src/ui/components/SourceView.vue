@@ -4,6 +4,7 @@ import { cn } from '@kinora/ui'
 import { Check, Copy, ExternalLink } from '@lucide/vue'
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { stripAnsi } from '../lib/ansi'
+import { copyText } from '../lib/clipboard'
 import { desktopBridge, vscodeUrl } from '../lib/editor'
 import { calculateSha1 } from '../lib/sha1'
 import { useTraceStore } from '../store'
@@ -35,7 +36,8 @@ const openError = ref('')
 async function copyFileName(): Promise<void> {
   if (!frame.value)
     return
-  await navigator.clipboard.writeText(fileName(frame.value.file))
+  if (!await copyText(fileName(frame.value.file)))
+    return
   copied.value = true
   setTimeout(() => (copied.value = false), 1500)
 }
@@ -58,32 +60,39 @@ function fileName(file: string): string {
   return file.split(/[/\\]/).pop() ?? file
 }
 
-watch([frames, selectedFrame], async () => {
+async function readSource(file: string, model: NonNullable<typeof store.model.value>): Promise<string> {
+  try {
+    const sha1 = await calculateSha1(file)
+    const legacy = await fetch(model.createRelativeUrl(`file/resources/src@${sha1}.txt`))
+    if (legacy.ok)
+      return await legacy.text()
+    const ext = fileName(file).split('.').pop() || 'txt'
+    const modern = await fetch(model.createRelativeUrl(`file/src/${sha1}.${ext}`))
+    return modern.ok ? await modern.text() : `Source unavailable for ${file}`
+  }
+  catch {
+    return `Unable to read ${file}`
+  }
+}
+
+watch([frames, selectedFrame], async (_, __, onCleanup) => {
+  // A newer frame or action replaced this one before its source arrived.
+  let stale = false
+  onCleanup(() => (stale = true))
   selectedFrame.value = Math.min(selectedFrame.value, Math.max(0, frames.value.length - 1))
   const frame = frames.value[selectedFrame.value]
   const model = store.model.value
   if (!frame?.file || !model) {
     content.value = ''
+    loading.value = false
     return
   }
   loading.value = true
-  try {
-    const sha1 = await calculateSha1(frame.file)
-    const legacy = await fetch(model.createRelativeUrl(`file/resources/src@${sha1}.txt`))
-    if (legacy.ok) {
-      content.value = await legacy.text()
-      return
-    }
-    const ext = fileName(frame.file).split('.').pop() || 'txt'
-    const modern = await fetch(model.createRelativeUrl(`file/src/${sha1}.${ext}`))
-    content.value = modern.ok ? await modern.text() : `Source unavailable for ${frame.file}`
-  }
-  catch {
-    content.value = `Unable to read ${frame.file}`
-  }
-  finally {
-    loading.value = false
-  }
+  const text = await readSource(frame.file, model)
+  if (stale)
+    return
+  content.value = text
+  loading.value = false
 }, { immediate: true })
 
 watch([() => store.selectedId.value, revealVersion], () => {

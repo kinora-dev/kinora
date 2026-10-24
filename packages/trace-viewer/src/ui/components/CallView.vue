@@ -3,6 +3,7 @@ import { cn } from '@kinora/ui'
 import { Check, Copy } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { callSummary } from '../lib/call'
+import { copyText } from '../lib/clipboard'
 import { useTraceStore } from '../store'
 
 const store = useTraceStore()
@@ -25,7 +26,8 @@ const sections = computed(() => summary.value
 const copiedKey = ref<string>()
 
 async function copyValue(id: string, value: string): Promise<void> {
-  await navigator.clipboard.writeText(value)
+  if (!await copyText(value))
+    return
   copiedKey.value = id
   setTimeout(() => {
     if (copiedKey.value === id)
@@ -36,7 +38,7 @@ async function copyValue(id: string, value: string): Promise<void> {
 const allParamsText = computed(() => JSON.stringify(store.activeAction.value?.params ?? {}, null, 2))
 
 function copyParams(): void {
-  void navigator.clipboard.writeText(allParamsText.value)
+  void copyText(allParamsText.value)
 }
 
 const statusClass = computed(() => {

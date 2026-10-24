@@ -21,4 +21,10 @@ describe('formatMs', () => {
     expect(formatMs(90_000)).toBe('1m30s')
     expect(formatMs(125_000)).toBe('2m05s')
   })
+
+  it('rounds into the next unit instead of overflowing it', () => {
+    expect(formatMs(999.6)).toBe('1.0s')
+    expect(formatMs(59_960)).toBe('1m00s')
+    expect(formatMs(119_700)).toBe('2m00s')
+  })
 })

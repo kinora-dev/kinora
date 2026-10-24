@@ -6,6 +6,7 @@ import { Braces, ChevronDown, ChevronRight, Copy, X } from '@lucide/vue'
 import { useStorage } from '@vueuse/core'
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { getAPIRequestCodeGen } from '../../core/ui/codegen'
+import { copyText } from '../lib/clipboard'
 import { formatMs } from '../lib/format'
 import { bodyLang, bodyUrl, formatBody, formatSize, isTextMime, statusClass, statusLabel, toCurl, toFetch } from '../lib/network'
 import { useTraceStore } from '../store'
@@ -147,7 +148,7 @@ watch(() => responseBody.value?.font, (font) => {
 onBeforeUnmount(() => fontFace && document.fonts.delete(fontFace))
 
 function copy(text: string): void {
-  void navigator.clipboard.writeText(text)
+  void copyText(text)
 }
 
 function copyAsPlaywright(): void {

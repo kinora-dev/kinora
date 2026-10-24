@@ -73,3 +73,24 @@ test('arrow keys fold and walk the action tree, Enter zooms to the action', asyn
   await page.keyboard.press('Enter')
   await expect(page.getByTestId('reset-zoom')).toBeVisible()
 })
+
+test('stepping from a step folded away continues after its parent', async ({ page }) => {
+  await action(page, 'Fixture "browser"').click()
+  await action(page, 'Before Hooks').getByTestId('action-expander').click()
+  await expect(action(page, 'Fixture "browser"')).toBeHidden()
+
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByTestId('current-action')).toHaveText('Route requests')
+})
+
+test('arrow keys in another panel leave the selected action alone', async ({ page }) => {
+  await action(page, 'Fill "alex@example.com"').click()
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByTestId('net-row').first().click()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByTestId('current-action')).toHaveText('Fill "alex@example.com"')
+
+  await action(page, 'Fill "alex@example.com"').click()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByTestId('current-action')).not.toHaveText('Fill "alex@example.com"')
+})

@@ -46,9 +46,10 @@ describe('actionInWindow', () => {
     expect(actionInWindow({ startTime: 21, endTime: 25 }, range)).toBe(false)
   })
 
-  it('treats a missing endTime as an instant at startTime', () => {
+  it('runs an unfinished action (endTime 0) to the end of the trace', () => {
+    expect(actionInWindow({ startTime: 5, endTime: 0 }, range)).toBe(true)
     expect(actionInWindow({ startTime: 15 }, range)).toBe(true)
-    expect(actionInWindow({ startTime: 25 }, range)).toBe(false)
+    expect(actionInWindow({ startTime: 25, endTime: 0 }, range)).toBe(false)
   })
 })
 

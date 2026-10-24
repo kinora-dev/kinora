@@ -22,10 +22,11 @@ export function inWindow(t: number | undefined, range: TimeRange): boolean {
   return t !== undefined && t >= range.start && t <= range.end
 }
 
-// An action belongs to the window when its [start, end] span intersects it.
+// An action belongs to the window when its [start, end] span intersects it. An unfinished
+// action (`endTime: 0`) runs until the end of the trace.
 export function actionInWindow(action: { startTime?: number, endTime?: number }, range: TimeRange): boolean {
   const start = action.startTime ?? 0
-  const end = action.endTime ?? start
+  const end = action.endTime || Number.POSITIVE_INFINITY
   return end >= range.start && start <= range.end
 }
 

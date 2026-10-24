@@ -6,6 +6,7 @@ import { cn } from '@kinora/ui'
 import { Check, Copy, RotateCcw, Target } from '@lucide/vue'
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch, watchEffect } from 'vue'
 import { parseAriaTemplate } from '../lib/ariaTemplate'
+import { copyText } from '../lib/clipboard'
 import { matchStatus } from '../lib/locatorMatch'
 import { useTraceStore } from '../store'
 
@@ -107,7 +108,8 @@ function resetAria(): void {
 async function copyValue(kind: 'locator' | 'selector' | 'aria', value: string): Promise<void> {
   if (!value)
     return
-  await navigator.clipboard.writeText(value)
+  if (!await copyText(value))
+    return
   copied.value = kind
   setTimeout(() => {
     if (copied.value === kind)

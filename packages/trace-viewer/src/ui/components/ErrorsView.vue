@@ -2,6 +2,7 @@
 import { Check, CircleAlert, Copy, FileSearch } from '@lucide/vue'
 import { computed, ref, watchEffect } from 'vue'
 import { stripAnsi } from '../lib/ansi'
+import { copyText } from '../lib/clipboard'
 import { useTraceStore } from '../store'
 
 const store = useTraceStore()
@@ -33,7 +34,9 @@ function revealErrorSource(error: typeof errors.value[number]): void {
 const prompt = ref('')
 const copied = ref(false)
 
-watchEffect(async () => {
+watchEffect(async (onCleanup) => {
+  let stale = false
+  onCleanup(() => (stale = true))
   prompt.value = ''
   const m = store.model.value
   const att = m?.attachments.find(a => a.name === 'error-context')
@@ -47,15 +50,16 @@ watchEffect(async () => {
   if (!url)
     return
   try {
-    prompt.value = await (await fetch(url)).text()
+    const text = await (await fetch(url)).text()
+    if (!stale)
+      prompt.value = text
   }
-  catch {
-    prompt.value = ''
-  }
+  catch {}
 })
 
 async function copyPrompt(): Promise<void> {
-  await navigator.clipboard.writeText(prompt.value)
+  if (!await copyText(prompt.value))
+    return
   copied.value = true
   setTimeout(() => (copied.value = false), 1500)
 }

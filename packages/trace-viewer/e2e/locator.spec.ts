@@ -99,3 +99,16 @@ test('ARIA snapshot syntax errors are underlined and listed', async ({ page }) =
   await expect(page.getByTestId('aria-template').locator('.cm-subtleError, .cm-subtleErrorLine')).not.toHaveCount(0)
   await expect(page.getByTestId('aria-matches')).toHaveCount(0)
 })
+
+test('picking works while paused on a screencast frame', async ({ page }) => {
+  await openLocatorTab(page, 'demo.zip', 'Fill "alex@example.com"')
+  const start = Number((await page.getByTestId('timeline-current-time').textContent())!.replace('ms', ''))
+  await page.getByTestId('action-scrubber').hover()
+  await page.getByTestId('action-scrubber').fill(String(start + 1))
+  await expect(page.getByTestId('playback-frame')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Pick locator' }).first().click()
+  await expect(page.getByTestId('playback-frame')).toHaveCount(0)
+  await page.frameLocator('iframe[name="snapshot"]').getByRole('button', { name: 'Complete checkout' }).click()
+  await expect(page.getByTestId('aria-template')).toContainText('- button "Complete checkout"')
+})
