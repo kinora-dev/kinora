@@ -144,7 +144,7 @@ export function callSummary(action: ActionEntry, context: CallContext = {}): Cal
       : [callValue(action, 'value', action.result, context.sdkLanguage)]
 
   return {
-    title: action.title || actionTitle(action),
+    title: actionTitle(action),
     subtitle: action.subtitle || `${action.class}.${action.method}`,
     status: status === 'error' ? 'error' : status === 'step' ? 'step' : 'ok',
     statusTone: status === 'error' ? 'error' : status === 'step' ? 'muted' : 'default',

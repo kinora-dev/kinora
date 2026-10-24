@@ -11,6 +11,7 @@ const DIFF_RE = /^(.*)-(expected|actual|diff)\.png$/
 
 // Groups Playwright's `<name>-{expected,actual,diff}.png` screenshot triplets;
 // incomplete groups (missing expected or actual) stay in `rest` as plain attachments.
+// Unlike upstream, a triplet is grouped per step, so two assertions on the same name stay apart.
 export function groupImageDiffs(attachments: Attachment[]): { diffs: ImageDiffGroup[], rest: Attachment[] } {
   const groups = new Map<string, ImageDiffGroup>()
   const order: string[] = []
@@ -19,19 +20,20 @@ export function groupImageDiffs(attachments: Attachment[]): { diffs: ImageDiffGr
     if (!m)
       continue
     const [, name, type] = m
-    let g = groups.get(name)
+    const key = `${att.callId}\0${name}`
+    let g = groups.get(key)
     if (!g) {
       g = { name }
-      groups.set(name, g)
-      order.push(name)
+      groups.set(key, g)
+      order.push(key)
     }
     g[type as 'expected' | 'actual' | 'diff'] = att
   }
 
   const diffs: ImageDiffGroup[] = []
   const used = new Set<Attachment>()
-  for (const name of order) {
-    const g = groups.get(name)!
+  for (const key of order) {
+    const g = groups.get(key)!
     if (!g.expected || !g.actual)
       continue
     diffs.push(g)

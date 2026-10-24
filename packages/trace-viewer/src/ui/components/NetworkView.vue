@@ -21,7 +21,7 @@ import {
 import { useElementSize, useStorage } from '@vueuse/core'
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { formatMs } from '../lib/format'
-import { allResources, bodyUrl, formatSize, NETWORK_SEARCH_FIELDS, networkMatches, RESOURCE_CATEGORIES, resourcesForAction, resourcesInWindow, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../lib/network'
+import { bodyUrl, formatSize, NETWORK_SEARCH_FIELDS, networkMatches, RESOURCE_CATEGORIES, SEARCH_BODY_LIMIT, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../lib/network'
 import { useTraceStore } from '../store'
 import FilterInput from './FilterInput.vue'
 import NetworkDetails from './NetworkDetails.vue'
@@ -41,13 +41,11 @@ const { width: rootWidth } = useElementSize(root)
 const stacked = computed(() => rootWidth.value > 0 && rootWidth.value < 720)
 const split = computed(() => stacked.value ? netRows.value : netCols.value)
 
-type Scope = 'selected' | 'all'
-
 const search = ref('')
 const activeCats = ref<Set<ResourceCategory>>(new Set())
 const sorting = ref<SortingState>([])
 const selectedId = ref<string | null>(null)
-const scope = ref<Scope>('selected')
+const scope = store.networkScope
 const searchIn = useStorage<NetworkMatch[]>('kinora-tv-net-search-in', NETWORK_SEARCH_FIELDS.map(f => f.field))
 const searchesBodies = computed(() => searchIn.value.includes('request body') || searchIn.value.includes('response body'))
 const query = computed(() => search.value.trim().toLowerCase())
@@ -128,17 +126,7 @@ watch([query, searchesBodies], ([q, bodies]) => {
     void loadResponseTexts()
 })
 
-const scopedRows = computed(() => {
-  const model = store.model.value
-  const resources = model?.resources ?? []
-  const context = { ownerTitles: model?.resourceOwnerRefToTitle, startTime: model?.startTime }
-  const range = store.timeRange.value
-  return range
-    ? resourcesInWindow(resources, range, context)
-    : scope.value === 'all'
-      ? allResources(resources, context)
-      : resourcesForAction(resources, store.activeAction.value, context)
-})
+const scopedRows = store.scopedNetworkRows
 
 const matchesById = computed(() => {
   const out = new Map<string, NetworkMatch[]>()

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Attachment } from '@isomorphic/trace/traceModel'
+import { isTextualMimeType } from '@isomorphic/mimeType'
 import { Download, Paperclip } from '@lucide/vue'
 import { computed, nextTick, reactive, ref, watch, watchEffect } from 'vue'
 import { groupImageDiffs } from '../lib/attachments'
@@ -43,13 +44,13 @@ const diffs = computed(() =>
 const attachments = computed<AttachmentView[]>(() =>
   grouped.value.rest.map((att, i) => ({
     callId: att.callId,
-    key: `${i}-${att.name}`,
+    key: `${i}-${att.callId}-${att.name}`,
     name: att.name,
     contentType: att.contentType,
     url: attachmentUrl(att),
     isImage: att.contentType.startsWith('image/'),
     isVideo: att.contentType.startsWith('video/'),
-    isText: att.contentType.startsWith('text/') || att.contentType.includes('json') || att.contentType.includes('xml'),
+    isText: isTextualMimeType(att.contentType),
   })),
 )
 
@@ -77,16 +78,25 @@ async function download(att: AttachmentView): Promise<void> {
   }
 }
 
-// Lazily fetch textual attachment contents.
+// Lazily fetch textual attachment contents, per trace: keys repeat from one trace to the next.
 const texts = reactive<Record<string, string>>({})
+watch(() => store.model.value, () => {
+  for (const key of Object.keys(texts))
+    delete texts[key]
+})
 
 async function loadText(key: string, url: string): Promise<void> {
+  const model = store.model.value
+  let text: string
   try {
-    texts[key] = await (await fetch(url)).text()
+    const res = await fetch(url)
+    text = res.ok ? await res.text() : '<unavailable>'
   }
   catch {
-    texts[key] = '<unavailable>'
+    text = '<unavailable>'
   }
+  if (model === store.model.value)
+    texts[key] = text
 }
 
 const root = ref<HTMLElement | null>(null)

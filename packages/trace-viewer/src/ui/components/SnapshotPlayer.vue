@@ -152,6 +152,7 @@ watch(frameSrc, () => {
             :actual-size="actualSize"
             :src="frameSrc"
             :viewport="viewport"
+            :viewport-src="store.snapshotInfo.value.src"
             @loaded="setIframe"
           />
           <AriaSnapshotView

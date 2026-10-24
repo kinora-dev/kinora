@@ -1,37 +1,21 @@
 <script setup lang="ts">
 import type { ConsoleEntry } from '../lib/console'
 import { cn } from '@kinora/ui'
-import { computed, onBeforeUnmount, ref } from 'vue'
-import { consoleEntries } from '../lib/console'
+import { computed, onBeforeUnmount } from 'vue'
 import { formatMs } from '../lib/format'
 import { resourceAtUrl } from '../lib/network'
-import { inWindow } from '../lib/timeline'
 import { useTraceStore } from '../store'
 
 const store = useTraceStore()
 // A hovered row leaves no mouseleave behind when the tab closes under the pointer.
 onBeforeUnmount(() => store.setHighlightedTime(null))
-type Scope = 'selected' | 'all'
-const scope = ref<Scope>('selected')
+const scope = store.consoleScope
 
 const entries = computed(() => {
   const model = store.model.value
   if (!model)
     return []
-  const range = store.timeRange.value
-  const action = store.activeAction.value
-  let events = model.events
-  let stdio = model.stdio
-  if (range) {
-    events = events.filter(e => inWindow(e.time, range))
-    stdio = stdio.filter(e => inWindow(e.timestamp, range))
-  }
-  else if (scope.value === 'selected') {
-    events = action ? model.eventsForAction(action) : []
-    stdio = action ? stdio.filter(e => e.timestamp >= action.startTime && e.timestamp <= (action.endTime || action.startTime)) : []
-  }
-  const pageTitle = (id: string | undefined) => (id && model.resourceOwnerRefToTitle.get(id)) || ''
-  return consoleEntries({ events, stdio, pageTitle }).map(entry => ({
+  return store.scopedConsoleEntries.value.map(entry => ({
     ...entry,
     locationLabel: entry.console && formatLocation(entry),
     networkResourceId: entry.console?.location?.url ? resourceAtUrl(model.resources, entry.console.location.url, entry.time)?.id : undefined,

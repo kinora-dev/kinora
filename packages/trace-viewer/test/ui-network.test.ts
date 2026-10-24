@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allResources, bodyLang, bodyUrl, contentType, formatBody, formatSize, formatXml, networkMatches, resourceAtUrl, resourceCategory, resourceName, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, statusLabel, toCurl, toFetch } from '../src/ui/lib/network'
+import { allResources, bodyLang, bodyUrl, contentType, formatBody, formatSize, formatXml, networkMatches, resourceAtUrl, resourceCategory, resourceName, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../src/ui/lib/network'
 
 type Res = Parameters<typeof resourceCategory>[0]
 
@@ -120,46 +120,6 @@ describe('network list columns', () => {
   })
 })
 
-describe('toCurl', () => {
-  it('builds a GET curl with just the url', () => {
-    expect(toCurl(res({ url: 'https://x/a' }))).toBe(`curl 'https://x/a'`)
-  })
-
-  it('adds method, headers, and a shell-quoted body', () => {
-    const curl = toCurl(res({
-      url: 'https://x/a',
-      method: 'POST',
-      reqHeaders: [{ name: 'Content-Type', value: 'application/json' }],
-      postData: '{"a":1}',
-    }))
-    expect(curl).toContain(`curl 'https://x/a'`)
-    expect(curl).toContain('-X POST')
-    expect(curl).toContain(`-H 'Content-Type: application/json'`)
-    expect(curl).toContain(`--data-raw '{"a":1}'`)
-  })
-
-  it('escapes single quotes in values', () => {
-    expect(toCurl(res({ url: `https://x/it's` }))).toContain(`'https://x/it'\\''s'`)
-  })
-})
-
-describe('toFetch', () => {
-  it('builds a fetch snippet with method, headers, and body', () => {
-    expect(toFetch(res({
-      url: 'https://x/a',
-      method: 'POST',
-      reqHeaders: [{ name: 'Content-Type', value: 'application/json' }],
-      postData: '{"a":1}',
-    }))).toBe(`fetch("https://x/a", {
-  "method": "POST",
-  "headers": {
-    "Content-Type": "application/json"
-  },
-  "body": "{\\"a\\":1}"
-})`)
-  })
-})
-
 describe('bodyUrl', () => {
   it('returns undefined without a model or file', () => {
     expect(bodyUrl(null, 'body.txt')).toBeUndefined()
@@ -266,6 +226,8 @@ describe('routeOutcome', () => {
     expect(routeOutcome({ ...res(), _wasFulfilled: true })).toBe('fulfilled')
     expect(routeOutcome({ ...res(), _wasContinued: true })).toBe('continued')
     expect(routeOutcome({ ...res(), _wasAborted: true })).toBe('aborted')
+    // Upstream's precedence when several flags are set.
+    expect(routeOutcome({ ...res(), _wasFulfilled: true, _wasAborted: true })).toBe('aborted')
     expect(allResources([{ ...res(), _wasFulfilled: true }])[0].route).toBe('fulfilled')
   })
 })

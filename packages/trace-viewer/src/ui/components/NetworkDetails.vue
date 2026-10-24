@@ -6,9 +6,10 @@ import { Braces, ChevronDown, ChevronRight, Copy, X } from '@lucide/vue'
 import { useStorage } from '@vueuse/core'
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { getAPIRequestCodeGen } from '../../core/ui/codegen'
+import { generateCurlCommand, generateFetchCall } from '../../core/ui/devtools'
 import { copyText } from '../lib/clipboard'
 import { formatMs } from '../lib/format'
-import { bodyLang, bodyUrl, formatBody, formatSize, isTextMime, statusClass, statusLabel, toCurl, toFetch } from '../lib/network'
+import { bodyLang, bodyUrl, formatBody, formatSize, isTextMime, statusClass, statusLabel } from '../lib/network'
 import { useTraceStore } from '../store'
 
 const props = defineProps<{ row: NetworkRow }>()
@@ -151,9 +152,21 @@ function copy(text: string): void {
   void copyText(text)
 }
 
-function copyAsPlaywright(): void {
+async function copyAsCurl(): Promise<void> {
+  copy(await generateCurlCommand(store.model.value ?? undefined, resource.value))
+}
+
+async function copyAsFetch(): Promise<void> {
+  copy(await generateFetchCall(store.model.value ?? undefined, resource.value))
+}
+
+// The whole body, not the preview capped at BODY_LIMIT, and also when it is stored as a file.
+async function copyAsPlaywright(): Promise<void> {
+  const postData = resource.value.request.postData
+  const url = bodyUrl(store.model.value, postData?._file)
+  const body = url ? await fetch(url).then(r => r.text()).catch(() => undefined) : postData?.text
   const codegen = getAPIRequestCodeGen(store.model.value?.sdkLanguage ?? 'javascript')
-  copy(codegen.generatePlaywrightRequestCall(resource.value.request, requestBody.value?.text))
+  copy(codegen.generatePlaywrightRequestCall(resource.value.request, body))
 }
 </script>
 
@@ -196,10 +209,10 @@ function copyAsPlaywright(): void {
           <DropdownMenuItem @click="copy(row.url)">
             Copy URL
           </DropdownMenuItem>
-          <DropdownMenuItem @click="copy(toCurl(resource))">
+          <DropdownMenuItem @click="copyAsCurl">
             Copy as cURL
           </DropdownMenuItem>
-          <DropdownMenuItem @click="copy(toFetch(resource))">
+          <DropdownMenuItem @click="copyAsFetch">
             Copy as fetch
           </DropdownMenuItem>
           <DropdownMenuItem @click="copyAsPlaywright">

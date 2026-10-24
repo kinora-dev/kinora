@@ -36,13 +36,14 @@ export interface RowContext {
   startTime?: number
 }
 
+// Same precedence as upstream when a request carries several flags.
 export function routeOutcome(r: ResourceEntry): RouteOutcome | undefined {
-  if (r._wasFulfilled)
-    return 'fulfilled'
   if (r._wasAborted)
     return 'aborted'
   if (r._wasContinued)
     return 'continued'
+  if (r._wasFulfilled)
+    return 'fulfilled'
   if (r._apiRequestRef)
     return 'api'
   return undefined
@@ -232,31 +233,6 @@ export function statusClass(status: number): string {
   if (status >= 300)
     return 'text-flaky'
   return 'text-pass'
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`
-}
-
-export function toCurl(r: ResourceEntry): string {
-  const parts = [`curl ${shellQuote(r.request.url)}`]
-  if (r.request.method && r.request.method !== 'GET')
-    parts.push(`-X ${r.request.method}`)
-  for (const h of r.request.headers ?? [])
-    parts.push(`-H ${shellQuote(`${h.name}: ${h.value}`)}`)
-  if (r.request.postData?.text)
-    parts.push(`--data-raw ${shellQuote(r.request.postData.text)}`)
-  return parts.join(' \\\n  ')
-}
-
-export function toFetch(r: ResourceEntry): string {
-  const headers: Record<string, string> = {}
-  for (const h of r.request.headers ?? [])
-    headers[h.name] = h.value
-  const init: Record<string, unknown> = { method: r.request.method, headers }
-  if (r.request.postData?.text)
-    init.body = r.request.postData.text
-  return `fetch(${JSON.stringify(r.request.url)}, ${JSON.stringify(init, null, 2)})`
 }
 
 // URL to fetch a response/post body blob stored in the trace.

@@ -8,6 +8,8 @@ const props = defineProps<{
   actualSize?: boolean
   src: string
   viewport?: { width: number, height: number }
+  // The snapshot `viewport` belongs to; it applies once that snapshot is on screen.
+  viewportSrc?: string
 }>()
 
 const emit = defineEmits<{
@@ -19,6 +21,7 @@ const emit = defineEmits<{
 const frames = [ref<HTMLIFrameElement | null>(null), ref<HTMLIFrameElement | null>(null)]
 const visible = ref(0)
 let iteration = 0
+const shownSrc = ref('')
 
 function load(iframe: HTMLIFrameElement, url: string): Promise<void> {
   return new Promise((resolve) => {
@@ -42,6 +45,7 @@ async function show(url: string): Promise<void> {
   if (current !== iteration)
     return
   visible.value = next
+  shownSrc.value = url
   emit('loaded', iframe)
 }
 
@@ -51,9 +55,16 @@ watch(() => props.src, url => void show(url))
 const container = ref<HTMLElement | null>(null)
 const { width, height } = useElementSize(container)
 
+// Resizing before the next snapshot is shown would rescale the previous page for a moment.
+const appliedViewport = ref(props.viewport)
+watch([() => props.viewport, () => props.viewportSrc, shownSrc], () => {
+  if (!props.viewportSrc || props.viewportSrc === shownSrc.value)
+    appliedViewport.value = props.viewport
+}, { immediate: true })
+
 // Render at the recorded viewport, shrunk to fit, so responsive pages look as they did in the test.
 const stage = computed<CSSProperties>(() => {
-  const vp = props.viewport
+  const vp = appliedViewport.value
   if (vp?.width && vp.height && props.actualSize)
     return { height: `${vp.height}px`, margin: '0 auto', position: 'relative', width: `${vp.width}px` }
   if (!vp?.width || !vp.height || !width.value || !height.value)

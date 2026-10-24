@@ -77,10 +77,30 @@ test('network detail copies the request as Playwright code', async ({ page, cont
 
   await page.getByTestId('net-detail').getByRole('button', { name: 'Copy' }).click()
   await page.getByRole('menuitem', { name: 'Copy as Playwright' }).click()
+  // The copy is async (bodies stored as files are fetched first).
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).not.toBe('')
   const code = await page.evaluate(() => navigator.clipboard.readText())
   expect(code).toContain(`await page.request.post('https://demo.kinora.dev/api/checkout'`)
   expect(code).toContain(`"plan":"Pro"`)
   expect(code).toContain(`'content-type': 'application/json'`)
+})
+
+test('network detail copies the request as cURL without transport headers', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await page.getByTestId('net-row').filter({ hasText: 'checkout' }).click()
+
+  await page.getByTestId('net-detail').getByRole('button', { name: 'Copy' }).click()
+  await page.getByRole('menuitem', { name: 'Copy as cURL' }).click()
+  // The copy is async (bodies stored as files are fetched first).
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).not.toBe('')
+  const command = await page.evaluate(() => navigator.clipboard.readText())
+  expect(command).toContain(`curl 'https://demo.kinora.dev/api/checkout'`)
+  expect(command).toContain(`"plan":"Pro"`)
+  expect(command.toLowerCase()).not.toContain('accept-encoding')
+  expect(command.toLowerCase()).not.toContain('-h \'host:')
 })
 
 test('network detail toggles pretty printing and remembers its tab', async ({ page }) => {

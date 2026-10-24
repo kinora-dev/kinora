@@ -2,7 +2,6 @@
 import type { DetailTab } from '../store'
 import { cn } from '@kinora/ui'
 import { computed } from 'vue'
-import { resourcesForAction } from '../lib/network'
 import { useTraceStore } from '../store'
 import AnnotationsView from './AnnotationsView.vue'
 import AttachmentsView from './AttachmentsView.vue'
@@ -18,15 +17,9 @@ import SourceView from './SourceView.vue'
 const store = useTraceStore()
 
 const errorCount = computed(() => store.model.value?.errorDescriptors.length ?? 0)
-const consoleCount = computed(() => {
-  const action = store.activeAction.value
-  if (!action)
-    return 0
-  return store.model.value?.eventsForAction(action).filter(e => e.type === 'console' || e.method === 'pageError').length ?? 0
-})
-const networkCount = computed(() =>
-  resourcesForAction(store.model.value?.resources ?? [], store.activeAction.value).length,
-)
+// Badges count what the tab lists (scope, brushed window, folded repeats), not a separate tally.
+const consoleCount = computed(() => store.scopedConsoleEntries.value.length)
+const networkCount = computed(() => store.scopedNetworkRows.value.length)
 const attachmentCount = computed(() => store.model.value?.visibleAttachments.length ?? 0)
 const annotationCount = computed(() => store.model.value?.annotations?.length ?? 0)
 

@@ -7,9 +7,11 @@ import { buildActionTree, TraceModel } from '@isomorphic/trace/traceModel'
 import { useStorage } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { actionTitle, actionTitleParts, filterTree } from './lib/action'
+import { consoleEntries } from './lib/console'
+import { allResources, resourcesForAction, resourcesInWindow } from './lib/network'
 import { advance, indexAt } from './lib/playback'
 import { collectSnapshots, snapshotInfoUrl, snapshotUrl } from './lib/snapshots'
-import { actionInWindow, screencastFrames as buildScreencastFrames, normalizeRange } from './lib/timeline'
+import { actionInWindow, screencastFrames as buildScreencastFrames, inWindow, normalizeRange } from './lib/timeline'
 
 export interface ActionItem {
   id: string
@@ -21,6 +23,8 @@ export interface ActionItem {
 export interface SnapshotInfo {
   url?: string
   viewport?: { width: number, height: number }
+  // The snapshot URL this info describes, so the view applies it once that snapshot is shown.
+  src?: string
 }
 
 export interface SnapshotQuery {
@@ -40,6 +44,9 @@ export interface ListedRow {
   // An ancestor shown only to keep the tree shape around a filtered match.
   context: boolean
 }
+
+// Console and Network list either what led to the active action or the whole trace.
+export type ListScope = 'selected' | 'all'
 
 export const ACTION_GROUPS = ['getter', 'route', 'configuration'] as const
 export type ActionGroup = typeof ACTION_GROUPS[number]
@@ -77,6 +84,8 @@ const snapshotInfo = ref<SnapshotInfo>({})
 const detailTab = ref<DetailTab>(initialDetailTab())
 watch(detailTab, tab => safeStorage()?.setItem(DETAIL_TAB_KEY, tab))
 const actionFilter = ref('')
+const consoleScope = ref<ListScope>('selected')
+const networkScope = ref<ListScope>('selected')
 const hiddenGroups = useStorage<ActionGroup[]>('kinora-tv-hidden-action-groups', [])
 // Service-worker progress while a trace downloads and unzips; null when not reported yet.
 const loadProgress = ref<{ done: number, total: number } | null>(null)
@@ -148,7 +157,19 @@ function flatten(m: TraceModel): ActionItem[] {
   return out
 }
 
-async function registerServiceWorker(uri: string, name: string): Promise<void> {
+let serviceWorkerReady: Promise<void> | undefined
+
+// Started when the viewer boots, like upstream, so the one-time reload a fresh install may need
+// happens before anything is dropped or pasted: an in-memory trace (`blob:`) cannot survive it.
+function ensureServiceWorker(): Promise<void> {
+  serviceWorkerReady ??= registerServiceWorker().catch((err) => {
+    serviceWorkerReady = undefined
+    throw err
+  })
+  return serviceWorkerReady
+}
+
+async function registerServiceWorker(): Promise<void> {
   if (!navigator.serviceWorker)
     throw new Error('Service workers unavailable. Serve over https or localhost.')
   navigator.serviceWorker.onmessage = (event: MessageEvent) => {
@@ -167,11 +188,14 @@ async function registerServiceWorker(uri: string, name: string): Promise<void> {
     const attempts = Number(sessionStorage.getItem(SW_RELOAD_ATTEMPTS_KEY) ?? '0')
     if (attempts >= 1)
       throw new Error('Service worker registered but did not control this page. Reload the viewer and try again.')
-    sessionStorage.setItem(PENDING_LOAD_KEY, JSON.stringify({ uri, name } satisfies PendingLoad))
+    const uri = traceUri.value
+    if (status.value === 'loading' && uri && !uri.startsWith('blob:'))
+      sessionStorage.setItem(PENDING_LOAD_KEY, JSON.stringify({ uri, name: traceName.value } satisfies PendingLoad))
     sessionStorage.setItem(SW_RELOAD_ATTEMPTS_KEY, String(attempts + 1))
     location.reload()
     await new Promise(() => {})
   }
+  sessionStorage.removeItem(SW_RELOAD_ATTEMPTS_KEY)
   pingTimer ??= setInterval(() => {
     void fetch('ping')
   }, 10_000)
@@ -200,7 +224,7 @@ async function load(uri: string, name = ''): Promise<void> {
   traceUri.value = uri
   traceName.value = name
   try {
-    await registerServiceWorker(uri, name)
+    await ensureServiceWorker()
     const res = await fetch(`contexts?trace=${encodeURIComponent(uri)}`)
     if (!res.ok)
       throw new Error(await parseErrorResponse(res))
@@ -228,7 +252,6 @@ async function load(uri: string, name = ''): Promise<void> {
       || m.hasDomSnapshotForCall(i.action.callId, 'before'),
     )
     selectedId.value = (failed?.callId ?? lastWithPage?.id ?? items.value[0]?.id) ?? null
-    sessionStorage.removeItem(SW_RELOAD_ATTEMPTS_KEY)
     sessionStorage.removeItem(PENDING_LOAD_KEY)
     status.value = 'ready'
   }
@@ -503,6 +526,38 @@ const playbackItems = computed(() => {
 
 const screencastFrames = computed(() => buildScreencastFrames(model.value))
 
+// What the Console tab lists, shared with its badge: a brushed window wins over the scope.
+const scopedConsoleEntries = computed(() => {
+  const m = model.value
+  if (!m)
+    return []
+  const range = timeRange.value
+  const action = activeAction.value
+  let events = m.events
+  let stdio = m.stdio
+  if (range) {
+    events = events.filter(e => inWindow(e.time, range))
+    stdio = stdio.filter(e => inWindow(e.timestamp, range))
+  }
+  else if (consoleScope.value === 'selected') {
+    events = action ? m.eventsForAction(action) : []
+    stdio = action ? stdio.filter(e => e.timestamp >= action.startTime && e.timestamp <= (action.endTime || action.startTime)) : []
+  }
+  const pageTitle = (id: string | undefined) => (id && m.resourceOwnerRefToTitle.get(id)) || ''
+  return consoleEntries({ events, stdio, pageTitle })
+})
+
+// What the Network tab lists before its own search and type filters, shared with its badge.
+const scopedNetworkRows = computed(() => {
+  const m = model.value
+  const resources = m?.resources ?? []
+  const context = { ownerTitles: m?.resourceOwnerRefToTitle, startTime: m?.startTime }
+  const range = timeRange.value
+  if (range)
+    return resourcesInWindow(resources, range, context)
+  return networkScope.value === 'all' ? allResources(resources, context) : resourcesForAction(resources, activeAction.value, context)
+})
+
 const playbackFrameUrl = computed(() => {
   const t = playhead.value
   const frames = screencastFrames.value
@@ -579,6 +634,7 @@ function togglePlay(): void {
 async function refreshSnapshotInfo(): Promise<void> {
   const generation = ++snapshotInfoGeneration
   const infoUrl = snapshotInfoUrl(traceUri.value, currentSnapshot.value)
+  const src = currentSnapshotUrl.value ?? 'about:blank'
   let info: SnapshotInfo = {}
   if (infoUrl) {
     try {
@@ -589,7 +645,7 @@ async function refreshSnapshotInfo(): Promise<void> {
   }
   // Stepping quickly: an older response must not overwrite the current snapshot's info.
   if (generation === snapshotInfoGeneration)
-    snapshotInfo.value = info
+    snapshotInfo.value = { ...info, src }
 }
 
 export function useTraceStore() {
@@ -604,6 +660,10 @@ export function useTraceStore() {
     visibleItems,
     listedRows,
     actionFilter,
+    consoleScope,
+    networkScope,
+    scopedConsoleEntries,
+    scopedNetworkRows,
     hiddenGroups,
     canStep,
     collapsed,
@@ -648,6 +708,7 @@ export function useTraceStore() {
     boundaries,
     load,
     loadFile,
+    ensureServiceWorker,
     consumePendingLoad,
     select,
     selectIndex,

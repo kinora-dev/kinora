@@ -77,6 +77,11 @@ const downloads = [
     upstream: 'packages/trace-viewer/src/ui/codegen.ts',
     local: 'packages/trace-viewer/src/core/ui/codegen.ts',
   },
+  // "Copy as cURL / fetch" (Chromium DevTools): skips hop-by-hop headers, reads bodies stored as files.
+  {
+    upstream: 'packages/trace-viewer/src/third_party/devtools.ts',
+    local: 'packages/trace-viewer/src/core/ui/devtools.ts',
+  },
 ]
 
 const generated = [

@@ -70,6 +70,11 @@ describe('callSummary', () => {
     expect(summary.error).toBe('Error: boom')
     expect(summary.result).toEqual([{ key: 'ok', value: 'true', copyable: true }])
   })
+
+  it('fills the title template like the action list', () => {
+    const summary = callSummary(action({ title: 'Fill "{value}"', params: { value: 'alex@example.com' } }))
+    expect(summary.title).toBe('Fill "alex@example.com"')
+  })
 })
 
 describe('callSummary times', () => {
