@@ -312,3 +312,12 @@ test('a request out of the selected action scope comes back with the action', as
   await page.getByTestId('action').filter({ hasText: 'Expect "toHaveText"' }).click()
   await expect(page.getByTestId('net-detail')).toBeVisible()
 })
+
+test('network columns sort ascending first and the status shows its text on hover', async ({ page }) => {
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  await page.getByRole('columnheader', { name: 'Start' }).click()
+  await expect(page.getByTestId('net-row').first()).toContainText('cart')
+  await expect(page.getByTestId('net-row').filter({ hasText: 'missing' }).getByTitle('Not Found')).toBeVisible()
+})

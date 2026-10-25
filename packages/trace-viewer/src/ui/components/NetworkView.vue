@@ -119,6 +119,7 @@ watch(() => store.networkReveal.value, (reveal) => {
   scope.value = 'all'
   store.clearTimeRange()
   selectedId.value = reveal.resourceId
+  void scrollToSelected()
   // Applied once: coming back to the tab later keeps whatever the user set since.
   store.networkReveal.value = null
 }, { immediate: true })
@@ -188,6 +189,8 @@ const table = useTable({
   columns,
   state,
   columnResizeMode: 'onChange',
+  // Like upstream, every column sorts ascending first (TanStack starts numbers descending).
+  sortDescFirst: false,
   onColumnResizingChange: updater => valueUpdater(updater, columnResizing),
   onColumnSizingChange: (updater) => {
     columnSizing.value = typeof updater === 'function' ? updater(columnSizing.value) : updater
@@ -251,6 +254,10 @@ async function onTableKey(e: KeyboardEvent): Promise<void> {
     ? (index === -1 ? 0 : Math.min(index + 1, ordered.length - 1))
     : (index === -1 ? ordered.length - 1 : Math.max(index - 1, 0))
   selectedId.value = ordered[next]
+  await scrollToSelected()
+}
+
+async function scrollToSelected(): Promise<void> {
   await nextTick()
   tableScroller.value?.querySelector(`[data-selected]`)?.scrollIntoView({ block: 'nearest' })
 }
@@ -426,7 +433,7 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
                       class="shrink-0 rounded bg-signal/15 px-1 font-sans text-[10px] text-signal"
                     >{{ where }}</span>
                   </div>
-                  <span v-else-if="cell.column.id === 'status'" :class="statusClass(row.original.status)">{{ statusLabel(row.original.status) }}</span>
+                  <span v-else-if="cell.column.id === 'status'" :class="statusClass(row.original.status)" :title="row.original.statusText || undefined">{{ statusLabel(row.original.status) }}</span>
                   <span v-else-if="cell.column.id === 'size'" class="text-muted-foreground">{{ formatSize(row.original.size) }}</span>
                   <span v-else-if="cell.column.id === 'duration'" class="text-muted-foreground">{{ formatMs(row.original.duration) || '-' }}</span>
                   <span v-else-if="cell.column.id === 'start'" class="text-muted-foreground">{{ formatMs(row.original.start) }}</span>

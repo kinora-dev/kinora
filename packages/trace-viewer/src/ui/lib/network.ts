@@ -19,6 +19,7 @@ export interface NetworkRow {
   url: string
   method: string
   status: number
+  statusText: string
   category: ResourceCategory
   contentType: string
   size: number
@@ -90,8 +91,8 @@ function responseSize(r: ResourceEntry): number {
 export function resourceName(url: string): string {
   try {
     const u = new URL(url)
-    const last = u.pathname.split('/').filter(Boolean).pop()
-    return (last || u.hostname) + u.search
+    const last = u.pathname.slice(u.pathname.lastIndexOf('/') + 1)
+    return (last || u.host) + u.search
   }
   catch {
     return url
@@ -112,6 +113,7 @@ function toNetworkRow(r: ResourceEntry, context: RowContext = {}): NetworkRow {
     url: r.request.url,
     method: r.request.method,
     status: r.response?.status ?? 0,
+    statusText: r.response?.statusText ?? '',
     category: resourceCategory(r),
     contentType: contentType(r),
     size: responseSize(r),

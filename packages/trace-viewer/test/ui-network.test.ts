@@ -94,6 +94,8 @@ describe('network list columns', () => {
   it('keeps the query string in the name', () => {
     expect(resourceName('https://x/api/orders?page=2&sort=desc')).toBe('orders?page=2&sort=desc')
     expect(resourceName('https://x/?q=1')).toBe('x?q=1')
+    expect(resourceName('http://localhost:5173/')).toBe('localhost:5173')
+    expect(resourceName('https://x/api/items/')).toBe('x')
   })
 
   it('drops the charset from the content type and names websockets', () => {
