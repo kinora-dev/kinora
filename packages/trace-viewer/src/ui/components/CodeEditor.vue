@@ -59,7 +59,8 @@ onMounted(() => {
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         EditorView.lineWrapping,
-        props.lang === 'javascript' ? javascript() : [],
+        // Locators in every SDK language are C-like call chains, which the JS grammar highlights well.
+        props.lang ? javascript() : [],
         placeholderExtension(props.placeholder ?? ''),
         codeHighlight,
         codeTheme,

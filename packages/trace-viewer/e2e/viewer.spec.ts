@@ -209,7 +209,7 @@ test('call tab formats expect details', async ({ page }) => {
 })
 
 test('picks a locator from the snapshot', async ({ page }) => {
-  await page.getByRole('button', { name: 'Pick locator' }).click()
+  await page.getByRole('button', { name: 'Pick locator' }).first().click()
   await page.frameLocator('iframe[name="snapshot"]').getByRole('button', { name: 'Complete checkout' }).click()
 
   await expect(page.getByRole('button', { name: 'Locator', exact: true })).toHaveClass(/text-foreground/)
@@ -273,7 +273,7 @@ test('docks the detail tabs to the right at full height', async ({ page }) => {
 })
 
 test('escape cancels the locator picker', async ({ page }) => {
-  const pick = page.getByRole('button', { name: 'Pick locator' })
+  const pick = page.getByRole('button', { name: 'Pick locator' }).first()
   await pick.click()
   await expect(pick).toHaveClass(/text-signal/)
   await page.keyboard.press('Escape')
@@ -282,6 +282,23 @@ test('escape cancels the locator picker', async ({ page }) => {
   // Also while the snapshot document has focus.
   await pick.click()
   await page.frameLocator('iframe[name="snapshot"]').locator('body').press('Escape')
+  await expect(pick).not.toHaveClass(/text-signal/)
+})
+
+test('picking opens the Locator tab, goes on after a pick, and stops when leaving the tab', async ({ page }) => {
+  await page.getByRole('button', { name: 'Call', exact: true }).click()
+  const pick = page.getByRole('button', { name: 'Pick locator' }).first()
+  await pick.click()
+  await expect(page.getByTestId('locator-value')).toBeVisible()
+
+  const snapshot = page.frameLocator('iframe[name="snapshot"]')
+  await snapshot.getByRole('button', { name: 'Complete checkout' }).click()
+  await expect(page.getByTestId('locator-value')).toContainText('Complete checkout')
+  await expect(pick).toHaveClass(/text-signal/)
+  await snapshot.locator('#customer').click()
+  await expect(page.getByTestId('locator-value')).toContainText('Customer email')
+
+  await page.getByRole('button', { name: 'Call', exact: true }).click()
   await expect(pick).not.toHaveClass(/text-signal/)
 })
 

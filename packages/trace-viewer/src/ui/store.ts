@@ -627,10 +627,18 @@ function revealNetworkResource(resourceId: string): void {
 
 function setInspectingLocator(value: boolean): void {
   // Picking happens on the selected action's snapshot, not on a screencast frame.
-  if (value)
+  if (value) {
     stopPlay()
+    detailTab.value = 'locator'
+  }
   inspectingLocator.value = value
 }
+
+// Like upstream, picking lives with the Locator tab: leaving the tab stops it.
+watch(detailTab, (tab) => {
+  if (tab !== 'locator')
+    inspectingLocator.value = false
+})
 
 function pickLocator(locator: PickedLocator): void {
   pickedLocator.value = locator
@@ -638,7 +646,7 @@ function pickLocator(locator: PickedLocator): void {
   editedAriaSnapshot.value = null
   // A new pick replaces both editors, so its locator is what gets matched again.
   lastEditedQuery.value = 'locator'
-  inspectingLocator.value = false
+  // Picking goes on, like upstream, until Escape or the Pick button.
   detailTab.value = 'locator'
 }
 
