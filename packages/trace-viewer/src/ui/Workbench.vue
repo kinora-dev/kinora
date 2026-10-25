@@ -20,12 +20,7 @@ import { useTraceStore } from './store'
 const store = useTraceStore()
 const unsupportedTraceVersion = computed(() => store.errorKind.value === 'unsupported-trace-version')
 
-// Back/Forward after a drop: reopen the trace the URL now names.
-useEventListener(window, 'popstate', () => {
-  const param = store.traceParam()
-  if (param && param !== store.traceUri.value)
-    void store.load(param)
-})
+useEventListener(window, 'popstate', () => store.openFromHistory())
 // Same storage as the dashboard's theme toggle, so both stay in sync.
 const THEMES = [
   { value: 'auto', label: 'System', icon: Monitor },
@@ -90,11 +85,13 @@ onMounted(() => {
 <template>
   <TooltipProvider :delay-duration="300">
     <div class="relative grid h-full grid-rows-[auto_minmax(0,1fr)] bg-background text-foreground">
+      <!-- Takes pointer events so a drop above the snapshot iframe, whose events never reach this window, still lands here. -->
       <div
         v-if="isDragging"
-        class="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+        data-testid="drop-overlay"
+        class="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
       >
-        <div class="rounded-xl border-2 border-dashed border-signal px-10 py-8 text-sm font-medium">
+        <div class="pointer-events-none rounded-xl border-2 border-dashed border-signal px-10 py-8 text-sm font-medium">
           Drop trace.zip to open it
         </div>
       </div>

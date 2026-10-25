@@ -219,7 +219,8 @@ async function registerServiceWorker(): Promise<void> {
       loadProgress.value = event.data.params
   }
   const registration = await navigator.serviceWorker.register('sw.bundle.js', { updateViaCache: 'none' })
-  await registration.update()
+  // A failed update check (offline, 5xx) keeps the active worker, which can still serve the trace.
+  await registration.update().catch(() => {})
   if (!navigator.serviceWorker.controller) {
     // A fresh install claims the page once it activates. An already active worker that does not
     // control the page (a hard reload) never will, so only a reload helps there.
@@ -338,11 +339,13 @@ function isUnsupportedTraceVersion(message: string): boolean {
 // by the service worker, which range-reads the zip exactly as for a remote trace.
 // Nothing is uploaded.
 let objectUrl: string | null = null
+let objectName = ''
 
 async function loadFile(file: File): Promise<void> {
   if (objectUrl)
     URL.revokeObjectURL(objectUrl)
   objectUrl = URL.createObjectURL(file)
+  objectName = file.name
   // Like upstream: a reload must not bring back the trace that was open before the drop, and Back
   // returns to it. A `blob:` trace param is ignored on load, since it dies with the page.
   const url = new URL(location.href)
@@ -355,6 +358,31 @@ async function loadFile(file: File): Promise<void> {
 function traceParam(): string | null {
   const param = new URLSearchParams(location.search).get('trace')
   return param && !param.startsWith('blob:') ? param : null
+}
+
+// Back/Forward: reopen the trace the URL names, the last dropped one included while its blob lives,
+// or go back to the drop zone when it names none.
+function openFromHistory(): void {
+  const param = new URLSearchParams(location.search).get('trace')
+  if (param === traceUri.value)
+    return
+  if (param && param === objectUrl)
+    void load(objectUrl, objectName)
+  else if (param && !param.startsWith('blob:'))
+    void load(param)
+  else if (!param)
+    close()
+}
+
+function close(): void {
+  ++loadGeneration
+  stopPlay()
+  model.value = null
+  traceUri.value = ''
+  traceName.value = ''
+  selectedId.value = null
+  hoveredActionId.value = null
+  status.value = 'idle'
 }
 
 // Hide descendants of collapsed nodes: skip rows deeper than the last collapsed one.
@@ -826,6 +854,7 @@ export function useTraceStore() {
     ensureServiceWorker,
     consumePendingLoad,
     traceParam,
+    openFromHistory,
     select,
     selectIndex,
     step,

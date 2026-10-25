@@ -11,7 +11,10 @@ const store = useTraceStore()
 const input = useTemplateRef<HTMLInputElement>('input')
 
 function onPick(event: Event): void {
-  const file = (event.target as HTMLInputElement).files?.[0]
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  // Cleared so picking the same file again (e.g. after an error) still fires `change`.
+  target.value = ''
   if (file)
     void store.loadFile(file)
 }
