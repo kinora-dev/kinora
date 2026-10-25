@@ -221,7 +221,12 @@ function highlightRow(row: NetworkRow): void {
   store.setHighlightedTime(start === undefined ? null : { start, end: start + (row.duration ?? 0) })
 }
 
-function toggleCat(cat: ResourceCategory): void {
+// Like upstream: a click shows one type, Ctrl/Cmd+click adds or removes it.
+function pickCat(cat: ResourceCategory, event: MouseEvent): void {
+  if (!event.ctrlKey && !event.metaKey) {
+    activeCats.value = new Set([cat])
+    return
+  }
   const next = new Set(activeCats.value)
   if (next.has(cat))
     next.delete(cat)
@@ -321,6 +326,18 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
       <span v-if="loadingBodies && query && searchesBodies" class="shrink-0 text-[11px] text-muted-foreground">searching bodies…</span>
       <div class="flex items-center gap-1">
         <button
+          type="button"
+          aria-label="All types"
+          :aria-pressed="!activeCats.size"
+          :class="cn(
+            'rounded px-1.5 py-0.5 text-[11px] transition-colors',
+            !activeCats.size ? 'bg-signal/15 text-signal' : 'text-muted-foreground hover:text-foreground',
+          )"
+          @click="activeCats = new Set()"
+        >
+          All
+        </button>
+        <button
           v-for="cat in RESOURCE_CATEGORIES"
           :key="cat"
           type="button"
@@ -328,7 +345,9 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
             'rounded px-1.5 py-0.5 text-[11px] transition-colors',
             activeCats.has(cat) ? 'bg-signal/15 text-signal' : 'text-muted-foreground hover:text-foreground',
           )"
-          @click="toggleCat(cat)"
+          :aria-pressed="activeCats.has(cat)"
+          title="Ctrl/Cmd+click to combine types"
+          @click="pickCat(cat, $event)"
         >
           {{ cat }}
         </button>

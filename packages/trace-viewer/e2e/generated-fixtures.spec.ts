@@ -321,3 +321,23 @@ test('network columns sort ascending first and the status shows its text on hove
   await expect(page.getByTestId('net-row').first()).toContainText('cart')
   await expect(page.getByTestId('net-row').filter({ hasText: 'missing' }).getByTitle('Not Found')).toBeVisible()
 })
+
+test('a type filter click shows one type, Ctrl/Cmd+click combines them, All clears them', async ({ page }) => {
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
+  const rows = page.getByTestId('net-row')
+  await expect(rows).toHaveCount(4)
+
+  // Every request of this fixture is a fetch().
+  await page.getByRole('button', { name: 'HTML', exact: true }).click()
+  await expect(rows).toHaveCount(0)
+  await page.getByRole('button', { name: 'Fetch', exact: true }).click({ modifiers: ['ControlOrMeta'] })
+  await expect(page.getByRole('button', { name: 'HTML', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(rows).toHaveCount(4)
+  await page.getByRole('button', { name: 'HTML', exact: true }).click()
+  await expect(rows).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'All types' }).click()
+  await expect(rows).toHaveCount(4)
+})
