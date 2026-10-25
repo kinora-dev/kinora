@@ -9,7 +9,7 @@ import { getAPIRequestCodeGen } from '../../core/ui/codegen'
 import { generateCurlCommand, generateFetchCall } from '../../core/ui/devtools'
 import { copyText } from '../lib/clipboard'
 import { formatMs } from '../lib/format'
-import { bodyLang, bodyUrl, formatBody, formatSize, isTextMime, statusClass, statusLabel } from '../lib/network'
+import { bodyLang, bodyUrl, decodeText, formatBody, formatSize, isTextMime, statusClass, statusLabel } from '../lib/network'
 import { useTraceStore } from '../store'
 import WebSocketMessages from './WebSocketMessages.vue'
 
@@ -62,7 +62,7 @@ const general = computed(() => [
   { name: 'Method', value: props.row.method },
   { name: 'Status Code', value: `${statusLabel(props.row.status)} ${resource.value.response?.statusText ?? ''}`.trim(), class: statusClass(props.row.status) },
   { name: 'Start', value: formatMs(props.row.start), testid: 'net-started' },
-  { name: 'Duration', value: formatMs(props.row.duration) },
+  { name: 'Duration', value: formatMs(props.row.duration) || '-' },
   { name: 'Size', value: formatSize(props.row.size) },
   { name: 'Content Type', value: props.row.contentType },
   ...(props.row.route ? [{ name: 'Route', value: props.row.route, class: props.row.route === 'aborted' ? 'text-fail' : 'text-info' }] : []),
@@ -80,7 +80,7 @@ const sections = computed(() => ({
 interface Body { text?: string, mime: string, imageUrl?: string, font?: ArrayBuffer, downloadUrl?: string }
 const requestBody = ref<Body>()
 const responseBody = ref<Body>()
-const BODY_LIMIT = 200_000
+const loadingBodies = ref(false)
 
 function headerValue(headers: { name: string, value: string }[] | undefined, name: string): string {
   return headers?.find(h => h.name.toLowerCase() === name)?.value ?? ''
@@ -90,15 +90,20 @@ async function loadRequestBody(): Promise<Body | undefined> {
   const postData = resource.value.request.postData
   if (!postData)
     return undefined
-  const mime = postData.mimeType || headerValue(resource.value.request.headers, 'content-type')
+  // The trace stores `application/octet-stream` when the request had no header; prefer the header, like upstream.
+  const mime = headerValue(resource.value.request.headers, 'content-type') || postData.mimeType
   if (postData.text)
-    return { text: postData.text.slice(0, BODY_LIMIT), mime }
+    return { text: postData.text, mime }
   const url = bodyUrl(store.model.value, postData._file)
-  if (!url)
-    return undefined
-  if (!isTextMime(mime.toLowerCase()))
-    return { mime, downloadUrl: url }
-  return { text: (await (await fetch(url)).text()).slice(0, BODY_LIMIT), mime }
+  return url ? loadBody(url, mime) : undefined
+}
+
+// Kinora deviation: upstream always shows bodies as text; a binary one is offered as a download instead.
+async function loadBody(url: string, mime: string): Promise<Body> {
+  if (isTextMime(mime.toLowerCase()))
+    return { text: await (await fetch(url)).text(), mime }
+  const text = decodeText(await (await fetch(url)).arrayBuffer())
+  return text === undefined ? { mime, downloadUrl: url } : { text, mime }
 }
 
 async function loadResponseBody(): Promise<Body | undefined> {
@@ -106,25 +111,25 @@ async function loadResponseBody(): Promise<Body | undefined> {
   const mime = content?.mimeType ?? ''
   const url = bodyUrl(store.model.value, content?._file)
   if (!url)
-    return content?.text ? { text: content.text.slice(0, BODY_LIMIT), mime } : undefined
+    return content?.text ? { text: content.text, mime } : undefined
   const m = mime.toLowerCase()
   if (m.startsWith('image/'))
     return { mime, imageUrl: url }
   if (m.includes('font'))
     return { mime, font: await (await fetch(url)).arrayBuffer() }
-  if (!isTextMime(m))
-    return { mime, downloadUrl: url }
-  return { text: (await (await fetch(url)).text()).slice(0, BODY_LIMIT), mime }
+  return loadBody(url, mime)
 }
 
 watch(resource, async (r) => {
   requestBody.value = undefined
   responseBody.value = undefined
+  loadingBodies.value = true
   const [req, res] = await Promise.all([loadRequestBody().catch(() => undefined), loadResponseBody().catch(() => undefined)])
   if (r !== resource.value)
     return
   requestBody.value = req
   responseBody.value = res
+  loadingBodies.value = false
 }, { immediate: true })
 
 function formatted(body: Body | undefined, pretty: boolean): { text: string, error?: boolean } {
@@ -321,10 +326,10 @@ async function copyAsPlaywright(): Promise<void> {
 
     <!-- Response -->
     <div v-else class="flex min-h-0 flex-1 flex-col overflow-auto p-2">
-      <div v-if="!responseBody" class="p-1 text-muted-foreground">
+      <div v-if="!responseBody && !loadingBodies" class="p-1 text-muted-foreground">
         Response body is not available for this request.
       </div>
-      <template v-else>
+      <template v-else-if="responseBody">
         <div v-if="responseBody.text !== undefined" class="flex items-center gap-1 px-1 pb-1">
           <span class="font-semibold text-foreground/90">Response body</span>
           <span v-if="responseText.error" class="text-[11px] text-fail">Formatting failed</span>

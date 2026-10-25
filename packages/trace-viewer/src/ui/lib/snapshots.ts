@@ -66,8 +66,20 @@ export function collectSnapshots(model: TraceModel | null, action: ActionEntry |
   if (!model)
     return {}
   const targets = collectPhaseTargets(action, (callId, phase) => model.hasDomSnapshotForCall(callId, phase))
-  const toSnapshot = (t: PhaseTarget | undefined): Snapshot | undefined => t && { callId: t.action.callId, phase: t.phase, point: t.action.point }
-  return { action: toSnapshot(targets.action), before: toSnapshot(targets.before), after: toSnapshot(targets.after) }
+  // Tabs falling back to the same target share one snapshot, so the selected action's point
+  // reaches them too (upstream mutates the shared object the same way).
+  const shared = new Map<PhaseTarget, Snapshot>()
+  const toSnapshot = (t: PhaseTarget | undefined): Snapshot | undefined => {
+    if (!t)
+      return undefined
+    if (!shared.has(t))
+      shared.set(t, { callId: t.action.callId, phase: t.phase, point: t.action.point })
+    return shared.get(t)
+  }
+  const snapshots = { action: toSnapshot(targets.action), before: toSnapshot(targets.before), after: toSnapshot(targets.after) }
+  if (snapshots.action)
+    snapshots.action.point = action?.point
+  return snapshots
 }
 
 // ARIA mode counts a phase as recorded when it has a screenshot or an ARIA snapshot.

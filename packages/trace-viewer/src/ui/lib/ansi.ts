@@ -32,10 +32,15 @@ export function ansiSegments(text: string): StyledSegment[] {
   let style: Record<string, string> = {}
   let color: string | undefined
   let background: string | undefined
+  // SGR 7: matchers highlight the differing characters of a diff with inverse video.
+  let reverse = false
   const pattern = new RegExp(`${String.fromCharCode(0x1B)}\\[([\\d;]*)m|([^${String.fromCharCode(0x1B)}]+)`, 'g')
   for (const [, codes, chunk] of text.matchAll(pattern)) {
     if (chunk !== undefined) {
-      const segmentStyle = { ...style, ...(color && { color }), ...(background && { backgroundColor: background }) }
+      const colors = reverse
+        ? { color: 'var(--background)', backgroundColor: color ?? 'var(--foreground)' }
+        : { ...(color && { color }), ...(background && { backgroundColor: background }) }
+      const segmentStyle = { ...style, ...colors }
       segments.push(Object.keys(segmentStyle).length ? { text: chunk, style: segmentStyle } : { text: chunk })
       continue
     }
@@ -43,6 +48,10 @@ export function ansiSegments(text: string): StyledSegment[] {
       if (code === 0) {
         style = {}
         color = background = undefined
+        reverse = false
+      }
+      else if (code === 7 || code === 27) {
+        reverse = code === 7
       }
       else if (SGR_STYLES[code]) {
         style = { ...style, ...SGR_STYLES[code] }

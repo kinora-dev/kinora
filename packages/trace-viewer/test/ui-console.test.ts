@@ -13,6 +13,15 @@ describe('ansiSegments', () => {
     expect(ansiSegments(`${ESC}[32mok${ESC}[39m`)).toEqual([{ text: 'ok', style: { color: 'var(--pass)' } }])
   })
 
+  it('swaps colours for inverse video until it is turned off', () => {
+    expect(ansiSegments(`a${ESC}[7mb${ESC}[27mc`)).toEqual([
+      { text: 'a' },
+      { text: 'b', style: { color: 'var(--background)', backgroundColor: 'var(--foreground)' } },
+      { text: 'c' },
+    ])
+    expect(ansiSegments(`${ESC}[31;7mx`)).toEqual([{ text: 'x', style: { color: 'var(--background)', backgroundColor: 'var(--fail)' } }])
+  })
+
   it('keeps plain text as one segment', () => {
     expect(ansiSegments('plain')).toEqual([{ text: 'plain' }])
   })

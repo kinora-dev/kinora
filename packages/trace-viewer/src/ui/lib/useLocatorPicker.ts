@@ -130,9 +130,14 @@ export function useLocatorPicker() {
       // The snapshot document may be gone mid-swap.
     }
     for (const previous of recorders) {
-      if (!found.includes(previous)) {
+      if (found.includes(previous))
+        continue
+      try {
         previous.recorder.injectedScript.setHighlights([])
         previous.recorder.setUIState({ ...uiState, mode: 'none' }, {})
+      }
+      catch {
+        // Its document is detached (e.g. ARIA mode unmounted the DOM snapshot).
       }
     }
     recorders = found

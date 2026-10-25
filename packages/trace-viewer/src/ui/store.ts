@@ -430,6 +430,8 @@ function clearTimeRange(): void {
 
 function showSelection(id: string): void {
   selectedId.value = id
+  // A selection replaces any hover preview, like upstream, so keyboard steps and playback show what they select.
+  hoveredActionId.value = null
   sourceReveal.value = null
   pickedLocator.value = null
 }

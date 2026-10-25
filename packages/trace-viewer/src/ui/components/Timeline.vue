@@ -177,11 +177,6 @@ const statusColor: Record<string, string> = {
   step: 'bg-muted-foreground/40 hover:bg-muted-foreground/70',
 }
 
-function selectMarker(id: string): void {
-  store.select(id)
-  store.setHoveredAction(null)
-}
-
 const currentTitle = computed(() =>
   store.selectedAction.value ? actionTitle(store.selectedAction.value) : 'No action selected',
 )
@@ -422,7 +417,7 @@ function seekToTime(t: number): void {
           class="absolute -top-1 bottom-[-4px] z-20 w-1 -translate-x-1/2 rounded-full bg-fail shadow-[0_0_0_2px_color-mix(in_oklch,var(--background)_80%,transparent)] transition-transform hover:scale-x-150"
           :style="{ left: `${marker.left}%` }"
           :title="marker.title"
-          @click.stop="selectMarker(marker.id)"
+          @click.stop="store.select(marker.id)"
           @mouseenter="store.setHoveredAction(marker.id)"
           @mouseleave="store.setHoveredAction(null)"
         />

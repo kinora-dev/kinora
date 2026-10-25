@@ -22,7 +22,8 @@ export interface NetworkRow {
   category: ResourceCategory
   contentType: string
   size: number
-  duration: number
+  // Undefined while the request was still pending when tracing stopped (HAR `time: -1`).
+  duration?: number
   // Relative to the trace start; undefined when the request has no recorded time.
   start?: number
   // The page (page#1, ...) or service worker that issued the request.
@@ -64,7 +65,8 @@ export function resourceCategory(resource: ResourceEntry): ResourceCategory {
     return 'Font'
   if (type === 'image' || mime.startsWith('image/'))
     return 'Image'
-  if (type === 'fetch' || type === 'xhr')
+  // API requests (`page.request`) carry no resource type; upstream classifies JSON as Fetch.
+  if (type === 'fetch' || type === 'xhr' || mime.startsWith('application/json'))
     return 'Fetch'
   return 'Other'
 }
@@ -113,7 +115,7 @@ function toNetworkRow(r: ResourceEntry, context: RowContext = {}): NetworkRow {
     category: resourceCategory(r),
     contentType: contentType(r),
     size: responseSize(r),
-    duration: r.time ?? 0,
+    duration: r.time !== undefined && r.time >= 0 ? r.time : undefined,
     start: r._monotonicTime === undefined ? undefined : r._monotonicTime - (context.startTime ?? 0),
     source: (owner && context.ownerTitles?.get(owner)) || '',
     route: routeOutcome(r),
@@ -163,6 +165,17 @@ export function resourceAtUrl(resources: ResourceEntry[], url: string, atOrBefor
 
 export function isTextMime(mime: string): boolean {
   return mime.startsWith('text/') || mime.includes('json') || mime.includes('xml') || mime.includes('javascript') || mime.includes('form-urlencoded') || mime.includes('graphql')
+}
+
+// The body as UTF-8 text, or undefined when it looks binary (invalid UTF-8 or NUL bytes).
+export function decodeText(buffer: ArrayBuffer): string | undefined {
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer)
+    return text.includes('\0') ? undefined : text
+  }
+  catch {
+    return undefined
+  }
 }
 
 export type NetworkMatch = 'url' | 'headers' | 'request body' | 'response body'
@@ -228,9 +241,9 @@ export function statusClass(status: number): string {
     return 'text-fail'
   if (!status)
     return 'text-muted-foreground'
-  if (status >= 500 || status >= 400)
+  if (status >= 400)
     return 'text-fail'
-  if (status >= 300)
+  if (status >= 300 && status !== 304)
     return 'text-flaky'
   return 'text-pass'
 }

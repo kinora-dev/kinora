@@ -25,6 +25,12 @@ describe('stringifyCallValue', () => {
 }`)
     expect(stringifyCallValue(undefined)).toBe('undefined')
   })
+
+  it('keeps numbers JSON cannot represent', () => {
+    expect(stringifyCallValue(Number.NaN)).toBe('NaN')
+    expect(stringifyCallValue(-Infinity)).toBe('-Infinity')
+    expect(stringifyCallValue(-0)).toBe('-0')
+  })
 })
 
 describe('expectedTextValue', () => {
@@ -32,6 +38,10 @@ describe('expectedTextValue', () => {
     expect(expectedTextValue([{ string: 'Order complete' }])).toBe('Order complete')
     expect(expectedTextValue(['one', { string: 'two' }])).toBe('one\ntwo')
     expect(expectedTextValue(undefined)).toBeUndefined()
+  })
+
+  it('shows regular expressions and empty strings', () => {
+    expect(expectedTextValue([{ regexSource: 'foo', regexFlags: 'i' }, { string: '' }])).toBe('/foo/i\n""')
   })
 })
 

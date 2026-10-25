@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allResources, bodyLang, bodyUrl, contentType, formatBody, formatSize, formatXml, networkMatches, resourceAtUrl, resourceCategory, resourceName, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../src/ui/lib/network'
+import { allResources, bodyLang, bodyUrl, contentType, decodeText, formatBody, formatSize, formatXml, networkMatches, resourceAtUrl, resourceCategory, resourceName, resourcesForAction, resourcesInWindow, routeOutcome, searchableRequestFile, searchableResponseFile, statusClass, statusLabel } from '../src/ui/lib/network'
 
 type Res = Parameters<typeof resourceCategory>[0]
 
@@ -52,6 +52,10 @@ describe('resourceCategory', () => {
     expect(resourceCategory(res({ mime: 'image/png' }))).toBe('Image')
     expect(resourceCategory(res({ type: 'manifest', mime: 'application/manifest+json' }))).toBe('Other')
   })
+
+  it('counts untyped API requests returning JSON as Fetch', () => {
+    expect(resourceCategory(res({ mime: 'application/json; charset=utf-8' }))).toBe('Fetch')
+  })
 })
 
 describe('formatSize', () => {
@@ -69,6 +73,7 @@ describe('statusClass', () => {
     expect(statusClass(0)).toBe('text-muted-foreground')
     expect(statusClass(200)).toBe('text-pass')
     expect(statusClass(301)).toBe('text-flaky')
+    expect(statusClass(304)).toBe('text-pass')
     expect(statusClass(404)).toBe('text-fail')
     expect(statusClass(503)).toBe('text-fail')
   })
@@ -103,6 +108,11 @@ describe('network list columns', () => {
     expect(statusClass(-1)).toBe('text-fail')
     expect(statusLabel(0)).toBe('-')
     expect(statusLabel(204)).toBe('204')
+  })
+
+  it('leaves the duration of a request still pending at the end of the trace empty', () => {
+    expect(allResources([res({ time: -1 })], {})[0].duration).toBeUndefined()
+    expect(allResources([res({ time: 12 })], {})[0].duration).toBe(12)
   })
 
   it('marks APIRequestContext calls as api', () => {
@@ -156,6 +166,14 @@ describe('formatBody', () => {
   it('indents XML', () => {
     expect(formatXml('<a><b>1</b><c/></a>')).toBe('<a>\n  <b>1</b>\n  <c/>\n</a>')
     expect(formatBody('<a><b>1</b></a>', 'application/xml')).toBe('<a>\n  <b>1</b>\n</a>')
+  })
+})
+
+describe('decodeText', () => {
+  it('decodes UTF-8 text and rejects binary', () => {
+    expect(decodeText(new TextEncoder().encode('--b\r\nname=é').buffer)).toBe('--b\r\nname=é')
+    expect(decodeText(new Uint8Array([0x50, 0x4B, 0x03, 0x04, 0x00]).buffer)).toBeUndefined()
+    expect(decodeText(new Uint8Array([0xFF, 0xFE, 0xFD]).buffer)).toBeUndefined()
   })
 })
 

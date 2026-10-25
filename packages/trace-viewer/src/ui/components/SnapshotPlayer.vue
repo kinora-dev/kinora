@@ -89,9 +89,12 @@ function toggleInspector(): void {
   store.setInspectingLocator(!store.inspectingLocator.value)
 }
 
-// The picker needs the DOM snapshot.
+// The picker needs the DOM snapshot; ARIA mode unmounts it, so drop its iframe.
 watch(mode, (value) => {
-  if (value === 'aria' && store.inspectingLocator.value)
+  if (value !== 'aria')
+    return
+  setIframe(null)
+  if (store.inspectingLocator.value)
     store.setInspectingLocator(false)
 })
 

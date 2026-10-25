@@ -41,6 +41,9 @@ export function stringifyCallValue(value: unknown): string {
     return 'undefined'
   if (value instanceof RegExp || value instanceof Date)
     return String(value)
+  // JSON would turn NaN and ±Infinity into `null`.
+  if (typeof value === 'number')
+    return Object.is(value, -0) ? '-0' : String(value)
   try {
     return JSON.stringify(value, null, 2)
   }
@@ -56,11 +59,16 @@ export function expectedTextValue(value: unknown): string | undefined {
     .map((item) => {
       if (typeof item === 'string')
         return item
-      if (item && typeof item === 'object' && 'string' in item)
-        return String((item as { string: unknown }).string)
+      if (!item || typeof item !== 'object')
+        return undefined
+      const { string, regexSource, regexFlags } = item as { string?: string, regexSource?: string, regexFlags?: string }
+      if (regexSource !== undefined)
+        return `/${regexSource}/${regexFlags ?? ''}`
+      if (string !== undefined)
+        return string || '""'
       return undefined
     })
-    .filter((item): item is string => !!item)
+    .filter((item): item is string => item !== undefined)
     .join('\n') || undefined
 }
 

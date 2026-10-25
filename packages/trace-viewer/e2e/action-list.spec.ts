@@ -26,6 +26,14 @@ test('hovering an action previews it in the detail tabs', async ({ page }) => {
   await expect(page.getByTestId('call-title')).toHaveText('Fill "alex@example.com"')
 })
 
+test('keyboard steps show the selected action, not the row under the mouse', async ({ page }) => {
+  await page.getByRole('button', { name: 'Call', exact: true }).click()
+  await action(page, 'Set content').click()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByTestId('current-action')).not.toHaveText('Set content')
+  await expect(page.getByTestId('call-title')).toHaveText((await page.getByTestId('current-action').textContent())!)
+})
+
 test('console badge reveals the action console output', async ({ page }) => {
   const badge = action(page, 'Click').getByTestId('action-console-badge')
   await expect(badge).toHaveAccessibleName('Reveal console, 1 warning')

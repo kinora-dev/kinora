@@ -214,7 +214,7 @@ function saveSplit(sizes: number[]): void {
 // Shows when the hovered request ran on the timeline.
 function highlightRow(row: NetworkRow): void {
   const start = row.resource._monotonicTime
-  store.setHighlightedTime(start === undefined ? null : { start, end: start + row.duration })
+  store.setHighlightedTime(start === undefined ? null : { start, end: start + (row.duration ?? 0) })
 }
 
 function toggleCat(cat: ResourceCategory): void {
@@ -427,7 +427,7 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
                   </div>
                   <span v-else-if="cell.column.id === 'status'" :class="statusClass(row.original.status)">{{ statusLabel(row.original.status) }}</span>
                   <span v-else-if="cell.column.id === 'size'" class="text-muted-foreground">{{ formatSize(row.original.size) }}</span>
-                  <span v-else-if="cell.column.id === 'duration'" class="text-muted-foreground">{{ formatMs(row.original.duration) }}</span>
+                  <span v-else-if="cell.column.id === 'duration'" class="text-muted-foreground">{{ formatMs(row.original.duration) || '-' }}</span>
                   <span v-else-if="cell.column.id === 'start'" class="text-muted-foreground">{{ formatMs(row.original.start) }}</span>
                   <span v-else-if="cell.column.id === 'route'" :class="row.original.route === 'aborted' ? 'text-fail' : 'text-info'">{{ row.original.route ?? '' }}</span>
                   <span v-else class="text-muted-foreground" :title="String(cell.getValue() ?? '')">{{ cell.getValue() }}</span>

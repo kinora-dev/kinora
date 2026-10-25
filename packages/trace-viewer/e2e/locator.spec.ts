@@ -124,3 +124,17 @@ test('a new pick matches its locator again after the ARIA snapshot was edited', 
   await expect(page.getByTestId('locator-matches')).toHaveText(/^1 match/)
   await expect(page.getByTestId('aria-matches')).toHaveCount(0)
 })
+
+test('picking and highlights still work after a round trip through ARIA mode', async ({ page }) => {
+  await openLocatorTab(page, 'aria-trace.zip', 'Click')
+  await expect(page.getByTestId('locator-matches')).toHaveText(/^1 match/)
+
+  await page.getByRole('button', { name: 'ARIA', exact: true }).click()
+  await page.getByTestId('action').filter({ hasText: 'Fill' }).first().click()
+  await page.getByRole('button', { name: 'DOM', exact: true }).click()
+  await expect(highlights(page)).toHaveCount(1)
+
+  await page.getByRole('button', { name: 'Pick locator' }).first().click()
+  await page.frameLocator('iframe[name="snapshot"]').getByRole('button', { name: 'Complete checkout' }).click()
+  await expect(page.getByTestId('locator-source')).toHaveText('Snapshot picker')
+})
