@@ -54,13 +54,21 @@ export function useTraceDrop(): { isDragging: Ref<boolean> } {
   })
 
   // Embedding API, same as upstream: a parent or opener posts `{ method: 'load', params: { trace: Blob } }`
-  // and hears `{ method: 'ready' }` once the viewer listens.
+  // and hears `{ method: 'ready' }` once the viewer can open it.
   useEventListener(window, 'message', (e: MessageEvent) => {
     const { method, params } = e.data ?? {}
     if (method === 'load' && params?.trace instanceof Blob)
       void store.loadFile(new File([params.trace], 'trace.zip', { type: 'application/zip' }))
   })
-  onMounted(() => {
+  // Like upstream, only once the service worker controls the page: the reload a fresh install may
+  // need would drop a trace posted earlier, since a `blob:` trace does not survive it.
+  onMounted(async () => {
+    try {
+      await store.ensureServiceWorker()
+    }
+    catch {
+      return
+    }
     window.opener?.postMessage({ method: 'ready' }, '*')
     if (window.parent !== window)
       window.parent.postMessage({ method: 'ready' }, '*')
