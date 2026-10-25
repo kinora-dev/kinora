@@ -15,9 +15,10 @@ const bounds = computed(() => {
   if (!m)
     return { min: 0, max: 1, span: 1 }
   const r = store.timeRange.value
-  const min = r ? r.start : m.startTime
+  const trace = store.boundaries.value
+  const min = r ? r.start : trace.min
   // Unzoomed, leave 5% free on the right so the last actions don't touch the edge (upstream).
-  const max = r ? r.end : m.endTime + (m.endTime - m.startTime) / 20
+  const max = r ? r.end : trace.max + (trace.max - trace.min) / 20
   return { min, max, span: Math.max(1, max - min) }
 })
 
@@ -28,7 +29,7 @@ const segments = computed(() => {
       const a = item.action
       const start = a.startTime ?? min
       // Unfinished actions (`endTime: 0`, e.g. the one a test timed out in) run to the trace end.
-      const end = a.endTime || store.model.value?.endTime || start
+      const end = a.endTime || store.boundaries.value.max
       return { duration: formatMs(actionDuration(a)), end, id: item.id, start, status: actionStatus(a), title: actionTitle(a) }
     })
     .filter(s => s.end >= min && s.start <= max)
@@ -58,7 +59,7 @@ const cursor = computed(() => {
     return undefined
   return {
     left: ((time - min) / span) * 100,
-    label: formatMs(time - (store.model.value?.startTime ?? min)),
+    label: formatMs(time - store.boundaries.value.min),
   }
 })
 
@@ -98,7 +99,7 @@ function onFilmstripMove(e: MouseEvent, frames: { url: string, timestamp: number
 
 const track = ref<HTMLElement | null>(null)
 const { width: trackWidth } = useElementSize(track)
-const ticks = computed(() => rulerTicks(bounds.value.min, bounds.value.max, trackWidth.value, store.model.value?.startTime ?? bounds.value.min))
+const ticks = computed(() => rulerTicks(bounds.value.min, bounds.value.max, trackWidth.value, store.boundaries.value.min))
 
 const highlight = computed(() => {
   const range = store.highlightedTime.value
@@ -186,7 +187,7 @@ const hoveredDetails = computed(() => {
   const segment = segments.value.find(segment => segment.id === id)
   if (!segment)
     return null
-  const origin = store.model.value?.startTime ?? bounds.value.min
+  const origin = store.boundaries.value.min
   return {
     ...segment,
     left: Math.min(86, Math.max(0, segment.left)),
@@ -196,18 +197,17 @@ const hoveredDetails = computed(() => {
 })
 const rangeLabel = computed(() => {
   const range = store.timeRange.value
-  const model = store.model.value
-  if (!range || !model)
+  if (!range)
     return ''
-  return `${formatMs(range.start - model.startTime)} - ${formatMs(range.end - model.startTime)}`
+  const origin = store.boundaries.value.min
+  return `${formatMs(range.start - origin)} - ${formatMs(range.end - origin)}`
 })
 // The scrubber works in ms from the trace start, over the zoomed window when there is one.
 const scrubber = computed(() => {
-  const model = store.model.value
-  const origin = model?.startTime ?? 0
+  const { min: origin, max: end } = store.boundaries.value
   const range = store.timeRange.value
   const min = (range?.start ?? origin) - origin
-  const max = (range?.end ?? model?.endTime ?? origin) - origin
+  const max = (range?.end ?? end) - origin
   const span = Math.max(1, max - min)
   const marks = store.items.value
     .map(item => item.action.startTime - origin)
@@ -217,10 +217,10 @@ const scrubber = computed(() => {
 })
 const scrubberValue = computed({
   get: () => {
-    const origin = store.model.value?.startTime ?? 0
+    const origin = store.boundaries.value.min
     return (store.playhead.value ?? store.selectedAction.value?.startTime ?? origin) - origin
   },
-  set: value => store.scrubTo((store.model.value?.startTime ?? 0) + Number(value)),
+  set: value => store.scrubTo(store.boundaries.value.min + Number(value)),
 })
 
 // Select what was running at that time, never an action that had not started yet (upstream).
@@ -305,6 +305,7 @@ function seekToTime(t: number): void {
           class="relative h-1 w-full cursor-pointer appearance-none rounded-full bg-muted/70 accent-signal disabled:opacity-30"
           title="Scrub through the trace"
           :disabled="!store.items.value.length"
+          @change="store.snapToTime(store.boundaries.value.min + Number(($event.target as HTMLInputElement).value))"
         >
       </div>
       <button

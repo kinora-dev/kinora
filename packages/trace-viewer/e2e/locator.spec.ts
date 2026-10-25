@@ -104,7 +104,11 @@ test('picking works while paused on a screencast frame', async ({ page }) => {
   await openLocatorTab(page, 'demo.zip', 'Fill "alex@example.com"')
   const start = Number((await page.getByTestId('timeline-current-time').textContent())!.replace('ms', ''))
   await page.getByTestId('action-scrubber').hover()
-  await page.getByTestId('action-scrubber').fill(String(start + 1))
+  // Mid-drag: `input` only, since releasing (`change`) snaps to an action.
+  await page.getByTestId('action-scrubber').evaluate((el: HTMLInputElement, value) => {
+    el.value = value
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+  }, String(start + 1))
   await expect(page.getByTestId('playback-frame')).toBeVisible()
 
   await page.getByRole('button', { name: 'Pick locator' }).first().click()

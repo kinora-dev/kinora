@@ -106,6 +106,14 @@ test('stepping from a step folded away continues after its parent', async ({ pag
   await expect(page.getByTestId('current-action')).toHaveText('Set content')
 })
 
+test('folding a step keeps the full action count', async ({ page }) => {
+  const count = page.getByTestId('action-count')
+  const total = await count.textContent()
+  await action(page, 'Before Hooks').getByTestId('action-expander').click()
+  await expect(action(page, 'Fixture "browser"')).toBeHidden()
+  await expect(count).toHaveText(total!)
+})
+
 test('arrow keys in another panel leave the selected action alone', async ({ page }) => {
   await action(page, 'Fill "alex@example.com"').click()
   await page.getByRole('button', { name: /^Network/ }).click()

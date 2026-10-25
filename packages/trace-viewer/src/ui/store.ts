@@ -453,9 +453,12 @@ const snapshots = computed(() => collectSnapshots(model.value, activeAction.valu
 const currentSnapshot = computed<Snapshot | undefined>(() => snapshots.value[snapshotTab.value])
 const currentSnapshotUrl = computed(() => snapshotUrl(traceUri.value, currentSnapshot.value, { canvasFromScreenshot: canvasFromScreenshot.value }))
 
+// A trace without timed events keeps its initial inverted bounds; show 30s instead, like upstream.
 const boundaries = computed(() => {
   const m = model.value
-  return { min: m?.startTime ?? 0, max: m?.endTime ?? 1 }
+  if (!m)
+    return { min: 0, max: 1 }
+  return m.startTime > m.endTime ? { min: 0, max: 30_000 } : { min: m.startTime, max: m.endTime }
 })
 
 function setTimeRange(a: number, b: number): void {
@@ -741,6 +744,19 @@ function scrubTo(time: number): void {
     showSelection(item.id)
 }
 
+// Releasing the scrubber snaps to the closest action start in the window, like upstream, and
+// shows its snapshot instead of the screencast frame.
+function snapToTime(time: number): void {
+  const list = playbackItems.value
+  let index = indexAt(list, time, entry => entry.action.startTime)
+  const next = list[index + 1]
+  if (next && (index < 0 || next.action.startTime - time < time - list[index].action.startTime))
+    index++
+  const item = list[Math.max(0, index)]
+  if (item)
+    select(item.id)
+}
+
 function togglePlay(): void {
   if (playing.value) {
     pausePlay()
@@ -831,6 +847,7 @@ export function useTraceStore() {
     revealAttachment,
     revealConsole,
     selectAtTime,
+    snapToTime,
     editedLocator,
     editedAriaSnapshot,
     snapshotQuery,

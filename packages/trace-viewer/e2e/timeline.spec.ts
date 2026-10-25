@@ -56,12 +56,21 @@ test('scrubber moves through time and follows the running action', async ({ page
 
   // Off the action list: a hovered action previews its own snapshot over the frame.
   await page.getByTestId('action-scrubber').hover()
-  await page.getByTestId('action-scrubber').fill(String(fillStart + 1))
+  // Mid-drag: `input` only, since releasing (`change`) snaps to an action.
+  await page.getByTestId('action-scrubber').evaluate((el: HTMLInputElement, value) => {
+    el.value = value
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+  }, String(fillStart + 1))
   await expect(page.getByTestId('current-action')).toHaveText('Fill "alex@example.com"')
   await expect(page.getByTestId('timeline-current-time')).toHaveText(`${fillStart + 1}ms`)
   // The screencast follows the scrubber.
   await expect(page.getByTestId('playback-frame')).toBeVisible()
   expect(await page.getByTestId('scrubber-mark').count()).toBeGreaterThan(5)
+
+  // Releasing snaps to the closest action start and shows its snapshot.
+  await page.getByTestId('action-scrubber').dispatchEvent('change')
+  await expect(page.getByTestId('playback-frame')).toHaveCount(0)
+  await expect(page.getByTestId('timeline-current-time')).toHaveText(`${fillStart}ms`)
 })
 
 test('film strip previews the frame under the pointer', async ({ page }) => {

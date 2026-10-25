@@ -82,10 +82,10 @@ function pluralize(count: number, noun: string): string {
 
 const countLabel = computed(() => {
   const total = store.items.value.length
-  const shown = rows.value.filter(r => !r.context).length
-  return shown === total && !filtering.value && !store.timeRange.value
-    ? String(total)
-    : `${shown} / ${total}`
+  // Folded steps are not filtered out, so only a filter or a zoom shows a partial count.
+  if (!filtering.value && !store.timeRange.value)
+    return String(total)
+  return `${rows.value.filter(r => !r.context).length} / ${total}`
 })
 </script>
 
@@ -94,7 +94,7 @@ const countLabel = computed(() => {
     <div class="flex h-11 shrink-0 items-center border-b border-border px-3">
       <div class="flex items-baseline gap-2">
         <span class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Actions</span>
-        <span class="font-mono text-[11px] text-muted-foreground/70">{{ countLabel }}</span>
+        <span data-testid="action-count" class="font-mono text-[11px] text-muted-foreground/70">{{ countLabel }}</span>
         <template v-if="store.hiddenActionCount.value">
           <span aria-hidden="true" class="text-[11px] text-muted-foreground/40">·</span>
           <span class="font-mono text-[11px] text-muted-foreground/70">{{ store.hiddenActionCount.value }} hidden</span>
