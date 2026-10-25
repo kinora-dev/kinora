@@ -299,3 +299,16 @@ test('the selected step lists what the page logged inside it', async ({ page }) 
   await expect(bodies.filter({ hasText: 'warned in step' })).toBeVisible()
   await expect(bodies.filter({ hasText: 'runner line in step' })).toBeVisible()
 })
+
+test('a request out of the selected action scope comes back with the action', async ({ page }) => {
+  await openTrace(page, 'network-rich-trace.zip')
+  await page.getByTestId('action').filter({ hasText: 'Expect "toHaveText"' }).click()
+  await page.getByRole('button', { name: /^Network/ }).click()
+  await page.getByTestId('net-row').filter({ hasText: 'error' }).click()
+  await expect(page.getByTestId('net-detail')).toBeVisible()
+
+  await page.getByTestId('action').filter({ hasText: 'Set content' }).click()
+  await expect(page.getByTestId('net-detail')).toHaveCount(0)
+  await page.getByTestId('action').filter({ hasText: 'Expect "toHaveText"' }).click()
+  await expect(page.getByTestId('net-detail')).toBeVisible()
+})

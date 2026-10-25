@@ -186,10 +186,12 @@ const hoveredDetails = computed(() => {
   const segment = segments.value.find(segment => segment.id === id)
   if (!segment)
     return null
+  const origin = store.model.value?.startTime ?? bounds.value.min
   return {
     ...segment,
     left: Math.min(86, Math.max(0, segment.left)),
-    range: `${formatMs(segment.start - bounds.value.min)} - ${formatMs(segment.end - bounds.value.min)}`,
+    // From the trace start, like the ruler, even when zoomed.
+    range: `${formatMs(segment.start - origin)} - ${formatMs(segment.end - origin)}`,
   }
 })
 const rangeLabel = computed(() => {

@@ -196,9 +196,10 @@ const table = useTable({
 })
 
 const selected = computed(() => rows.value.find(r => r.id === selectedId.value) ?? null)
-// A request hidden by a filter stays unselected, like upstream, instead of coming back later.
+// Like upstream, a request hidden by a filter stays unselected, while one only out of the
+// selected action's scope comes back with it.
 watch(rows, () => {
-  if (selectedId.value && !selected.value)
+  if (selectedId.value && !selected.value && scopedRows.value.some(r => r.id === selectedId.value))
     selectedId.value = null
 })
 

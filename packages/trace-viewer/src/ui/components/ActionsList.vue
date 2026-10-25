@@ -54,9 +54,10 @@ const rows = computed(() => {
   })
 })
 
-// A selection made elsewhere (timeline, playback, keyboard) opens the steps hiding it and scrolls to it.
+// A selection made elsewhere (timeline, playback, keyboard) opens the steps hiding it and scrolls to it,
+// as does opening the trace or clearing the filter or zoom.
 const list = ref<HTMLElement | null>(null)
-watch(() => store.selectedId.value, async (id) => {
+watch([() => store.selectedId.value, () => !store.actionFilter.value, () => !store.timeRange.value], async ([id]) => {
   const index = store.items.value.findIndex(item => item.id === id)
   if (index === -1)
     return
@@ -73,7 +74,7 @@ watch(() => store.selectedId.value, async (id) => {
     store.collapsed.value = opened
   await nextTick()
   list.value?.querySelector('[data-selected]')?.scrollIntoView({ block: 'nearest' })
-})
+}, { immediate: true })
 
 function pluralize(count: number, noun: string): string {
   return count ? `${count} ${noun}${count === 1 ? '' : 's'}` : ''

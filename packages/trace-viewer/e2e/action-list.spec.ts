@@ -34,6 +34,21 @@ test('keyboard steps show the selected action, not the row under the mouse', asy
   await expect(page.getByTestId('call-title')).toHaveText((await page.getByTestId('current-action').textContent())!)
 })
 
+test('opening a trace scrolls its selected action into view', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 360 })
+  await page.goto('/?trace=fixtures/error-trace.zip')
+  await expect(page.locator('[data-testid="action"][data-selected]')).toBeInViewport()
+})
+
+test('Left and Right move between listed rows while filtering', async ({ page }) => {
+  await page.getByPlaceholder('Filter actions').fill('browser')
+  await action(page, 'Fixture "browser"').click()
+  await page.keyboard.press('ArrowLeft')
+  await expect(page.getByTestId('current-action')).toHaveText('Before Hooks')
+  await page.getByPlaceholder('Filter actions').fill('')
+  await expect(action(page, 'Launch browser')).toBeVisible()
+})
+
 test('console badge reveals the action console output', async ({ page }) => {
   const badge = action(page, 'Click').getByTestId('action-console-badge')
   await expect(badge).toHaveAccessibleName('Reveal console, 1 warning')

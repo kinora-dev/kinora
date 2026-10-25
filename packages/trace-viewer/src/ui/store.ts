@@ -3,11 +3,11 @@ import type { StackFrame } from '@trace/trace'
 import type { LocatorMatches } from './lib/locatorMatch'
 import type { Snapshot, SnapshotTab } from './lib/snapshots'
 import type { TimeRange } from './lib/timeline'
-import { buildActionTree, TraceModel } from '@isomorphic/trace/traceModel'
+import { buildActionTree, nextActionByStartTime, TraceModel } from '@isomorphic/trace/traceModel'
 import { useStorage } from '@vueuse/core'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { actionTitle, actionTitleParts, filterTree } from './lib/action'
-import { consoleEntries } from './lib/console'
+import { consoleEntries, inActionConsoleScope } from './lib/console'
 import { allResources, resourcesForAction, resourcesInWindow } from './lib/network'
 import { advance, indexAt } from './lib/playback'
 import { collectSnapshots, snapshotInfoUrl, snapshotUrl } from './lib/snapshots'
@@ -104,6 +104,8 @@ const editedAriaSnapshot = ref<string | null>(null)
 // What the Locator tab wants resolved against the snapshot (the last edited of the two editors,
 // like upstream's `lastEdited`), and how many elements it found.
 const snapshotQuery = ref<SnapshotQuery | null>(null)
+// Which Locator tab editor drives the highlights; kept here so it survives the tab remounting.
+const lastEditedQuery = ref<SnapshotQuery['kind']>('locator')
 const queryMatches = ref<LocatorMatches | null>(null)
 const playing = ref(false)
 const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 2] as const
@@ -120,6 +122,18 @@ const SW_RELOAD_ATTEMPTS_KEY = 'kinora.traceViewer.swReloadAttempts'
 interface PendingLoad {
   uri: string
   name: string
+}
+
+const ariaModeSetting = useStorage('kinora-tv-aria-mode', false)
+// A trace with ARIA data but no DOM snapshots can only be shown in ARIA mode.
+const canToggleAria = computed(() => !!model.value?.hasDomSnapshots && !!model.value?.hasAriaSnapshots)
+const snapshotMode = computed<'dom' | 'aria'>(() => {
+  const aria = canToggleAria.value ? ariaModeSetting.value : !!model.value?.hasAriaSnapshots
+  return aria ? 'aria' : 'dom'
+})
+
+function setSnapshotMode(mode: 'dom' | 'aria'): void {
+  ariaModeSetting.value = mode === 'aria'
 }
 
 // Every tab, the timeline and playback work on the actions of the shown groups only, like upstream.
@@ -271,9 +285,11 @@ async function load(uri: string, name = ''): Promise<void> {
     timeRange.value = null
     sourceReveal.value = null
     networkReveal.value = null
+    attachmentReveal.value = null
     pickedLocator.value = null
     editedLocator.value = null
     editedAriaSnapshot.value = null
+    lastEditedQuery.value = 'locator'
     inspectingLocator.value = false
     selectedId.value = defaultSelection()
     sessionStorage.removeItem(PENDING_LOAD_KEY)
@@ -478,12 +494,23 @@ function canStep(delta: number): boolean {
   return !!stepTarget(delta)
 }
 
+// Filtering or zooming lists the tree unfolded, so Left/Right only move between listed rows.
+const foldingShown = computed(() => !actionFilter.value.trim() && !timeRange.value)
+
 // Left collapses an open step, otherwise moves to the parent step.
 function collapseOrParent(): void {
   const index = selectedIndex.value
   const item = items.value[index]
   if (!item)
     return
+  if (!foldingShown.value) {
+    const rows = listedRows.value
+    const position = rows.findIndex(row => row.item.id === item.id)
+    const parent = rows.slice(0, Math.max(0, position)).findLast(row => row.item.depth < item.depth)
+    if (parent)
+      select(parent.item.id)
+    return
+  }
   if (item.hasChildren && !collapsed.value.has(item.id)) {
     toggleCollapse(item.id)
     return
@@ -499,6 +526,13 @@ function expandOrChild(): void {
   const item = items.value[index]
   if (!item?.hasChildren)
     return
+  if (!foldingShown.value) {
+    const rows = listedRows.value
+    const next = rows[rows.findIndex(row => row.item.id === item.id) + 1]
+    if (next && next.item.depth > item.depth)
+      select(next.item.id)
+    return
+  }
   if (collapsed.value.has(item.id))
     toggleCollapse(item.id)
   else
@@ -574,6 +608,8 @@ function pickLocator(locator: PickedLocator): void {
   pickedLocator.value = locator
   editedLocator.value = null
   editedAriaSnapshot.value = null
+  // A new pick replaces both editors, so its locator is what gets matched again.
+  lastEditedQuery.value = 'locator'
   inspectingLocator.value = false
   detailTab.value = 'locator'
 }
@@ -583,6 +619,12 @@ const playbackItems = computed(() => {
   return items.value
     .filter(item => !range || actionInWindow(item.action, range))
     .sort((a, b) => a.action.startTime - b.action.startTime)
+})
+
+// Like upstream, a new action list (zoom, action groups) stops playback rather than playing a stale one.
+watch(playbackItems, () => {
+  if (playing.value)
+    stopPlay()
 })
 
 const screencastFrames = computed(() => buildScreencastFrames(model.value))
@@ -601,12 +643,13 @@ const scopedConsoleEntries = computed(() => {
     stdio = stdio.filter(e => inWindow(e.timestamp, range))
   }
   else if (consoleScope.value === 'selected') {
-    // Up to the next action like upstream's badges, but never short of the action's own end: a
-    // step's next action is its first child, which would leave out what its children logged.
-    const own = new Set(action ? m.eventsForAction(action) : [])
-    const end = action ? action.endTime || action.startTime : 0
-    events = action ? events.filter(e => own.has(e) || (e.time >= action.startTime && e.time <= end)) : []
-    stdio = action ? stdio.filter(e => e.timestamp >= action.startTime && e.timestamp <= end) : []
+    // Browser events and runner output share one window.
+    let next = action && nextActionByStartTime(action)
+    while (next && next.class === 'Route')
+      next = nextActionByStartTime(next)
+    const inScope = (time: number) => !!action && inActionConsoleScope(time, action, next?.startTime)
+    events = events.filter(e => inScope(e.time))
+    stdio = stdio.filter(e => inScope(e.timestamp))
   }
   const pageTitle = (id: string | undefined) => (id && m.resourceOwnerRefToTitle.get(id)) || ''
   return consoleEntries({ events, stdio, pageTitle })
@@ -733,6 +776,10 @@ export function useTraceStore() {
     scopedNetworkRows,
     shownGroups,
     hiddenActionCount,
+    lastEditedQuery,
+    canToggleAria,
+    snapshotMode,
+    setSnapshotMode,
     canStep,
     collapsed,
     toggleCollapse,

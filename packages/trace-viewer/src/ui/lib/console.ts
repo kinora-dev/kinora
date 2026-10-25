@@ -101,6 +101,17 @@ export interface ConsoleSources {
 
 // Console messages, page errors and runner stdio in time order, repeats folded like upstream:
 // the same line from the same source within a second becomes one entry with a count.
+// Whether console output at `time` belongs to an action: up to the next action like upstream's
+// badges, but never short of the action's own end (a step's next action is its first child).
+// An unfinished action keeps everything after its start.
+export function inActionConsoleScope(time: number, action: { startTime: number, endTime: number }, nextStart: number | undefined): boolean {
+  if (time < action.startTime)
+    return false
+  if (nextStart === undefined || time < nextStart)
+    return true
+  return !action.endTime || time <= action.endTime
+}
+
 export function consoleEntries({ events, stdio, pageTitle }: ConsoleSources): ConsoleEntry[] {
   const items: Omit<ConsoleEntry, 'repeat'>[] = []
   for (const event of events) {

@@ -141,6 +141,8 @@ const flashing = ref<string>()
 watch(() => store.attachmentReveal.value, async (reveal) => {
   if (!reveal)
     return
+  // Consumed, so remounting the tab does not replay it.
+  store.attachmentReveal.value = null
   // Unlike upstream, a revealed text attachment also opens, since that is what the user asked to see.
   for (const att of others.value) {
     if (att.callId === reveal.callId && att.isText && att.url)

@@ -95,6 +95,11 @@ function readSource(file: string, model: NonNullable<typeof store.model.value>):
   return text
 }
 
+// A new stack (selected, hovered or revealed) opens on its top frame, like upstream.
+watch([frames, revealVersion], () => {
+  selectedFrame.value = 0
+})
+
 watch([frames, selectedFrame], async (_, __, onCleanup) => {
   // A newer frame or action replaced this one before its source arrived.
   let stale = false
@@ -114,10 +119,6 @@ watch([frames, selectedFrame], async (_, __, onCleanup) => {
   content.value = text
   loading.value = false
 }, { immediate: true })
-
-watch([() => store.selectedId.value, revealVersion], () => {
-  selectedFrame.value = 0
-})
 
 watch(frame, () => (openError.value = ''))
 </script>

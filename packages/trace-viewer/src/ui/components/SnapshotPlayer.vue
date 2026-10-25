@@ -15,14 +15,9 @@ import TextTooltip from './TextTooltip.vue'
 type SnapshotMode = 'dom' | 'aria'
 
 const store = useTraceStore()
-const ariaSetting = useStorage('kinora-tv-aria-mode', false)
 const actualSize = useStorage('kinora-tv-snapshot-actual-size', false)
-// A trace with ARIA data but no DOM snapshots can only be shown in ARIA mode.
-const canToggleAria = computed(() => !!store.model.value?.hasDomSnapshots && !!store.model.value?.hasAriaSnapshots)
-const mode = computed<SnapshotMode>(() => {
-  const aria = canToggleAria.value ? ariaSetting.value : !!store.model.value?.hasAriaSnapshots
-  return aria ? 'aria' : 'dom'
-})
+const canToggleAria = store.canToggleAria
+const mode = store.snapshotMode
 const viewport = computed(() => store.snapshotInfo.value.viewport)
 const pageUrl = computed(() => store.snapshotInfo.value.url ?? '')
 const frameSrc = computed(() => store.currentSnapshotUrl.value ?? 'about:blank')
@@ -47,7 +42,7 @@ function fileUrl(file: string | undefined): string | undefined {
 }
 
 function setMode(value: SnapshotMode): void {
-  ariaSetting.value = value === 'aria'
+  store.setSnapshotMode(value)
 }
 
 const ariaTerms = computed(() => {

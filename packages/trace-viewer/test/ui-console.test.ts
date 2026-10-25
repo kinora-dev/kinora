@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ansiSegments } from '../src/ui/lib/ansi'
-import { consoleEntries, formatConsoleArgs, parseConsoleCss } from '../src/ui/lib/console'
+import { consoleEntries, formatConsoleArgs, inActionConsoleScope, parseConsoleCss } from '../src/ui/lib/console'
 
 const ESC = String.fromCharCode(0x1B)
 
@@ -88,5 +88,22 @@ describe('consoleEntries', () => {
       pageTitle: () => 'page#1',
     })
     expect(entry).toMatchObject({ kind: 'pageError', level: 'error', label: 'page error', text: 'boom', stack: 'Error: boom\n    at x' })
+  })
+})
+
+describe('inActionConsoleScope', () => {
+  it('runs up to the next action, and never short of the action end', () => {
+    const action = { startTime: 10, endTime: 30 }
+    expect(inActionConsoleScope(9, action, 40)).toBe(false)
+    expect(inActionConsoleScope(35, action, 40)).toBe(true)
+    expect(inActionConsoleScope(40, action, 40)).toBe(false)
+    // A step's next action is its first child.
+    expect(inActionConsoleScope(25, action, 12)).toBe(true)
+    expect(inActionConsoleScope(31, action, 12)).toBe(false)
+  })
+
+  it('keeps everything after the start of an unfinished or last action', () => {
+    expect(inActionConsoleScope(500, { startTime: 10, endTime: 0 }, 12)).toBe(true)
+    expect(inActionConsoleScope(500, { startTime: 10, endTime: 30 }, undefined)).toBe(true)
   })
 })
