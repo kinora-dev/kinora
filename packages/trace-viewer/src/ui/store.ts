@@ -370,7 +370,7 @@ function openFromHistory(): void {
     void load(objectUrl, objectName)
   else if (param && !param.startsWith('blob:'))
     void load(param)
-  else if (!param)
+  else
     close()
 }
 
