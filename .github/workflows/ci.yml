@@ -255,9 +255,12 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
 
-      # An Azure apt mirror node sometimes crawls (~20 kB/s): give up fast so apt falls back to the next mirror.
-      - name: Fail over slow apt mirrors
-        run: printf 'Acquire::http::Timeout "10";\nAcquire::Retries "3";\n' | sudo tee /etc/apt/apt.conf.d/99-timeouts
+      # Azure can trickle data for minutes without hitting apt's inactivity timeout.
+      # The runner's mirror list also feeds Playwright's install-deps on browser cache hits.
+      - name: Use Ubuntu archive mirror
+        run: |
+          sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' /etc/apt/apt-mirrors.txt
+          printf 'Acquire::http::Timeout "10";\nAcquire::Retries "3";\n' | sudo tee /etc/apt/apt.conf.d/99-timeouts
 
       # On a cache hit the browser binary is restored; OS deps live system-wide and aren't cached.
       - name: Install Playwright browser
@@ -319,9 +322,12 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
 
-      # An Azure apt mirror node sometimes crawls (~20 kB/s): give up fast so apt falls back to the next mirror.
-      - name: Fail over slow apt mirrors
-        run: printf 'Acquire::http::Timeout "10";\nAcquire::Retries "3";\n' | sudo tee /etc/apt/apt.conf.d/99-timeouts
+      # Azure can trickle data for minutes without hitting apt's inactivity timeout.
+      # The runner's mirror list also feeds Playwright's install-deps on browser cache hits.
+      - name: Use Ubuntu archive mirror
+        run: |
+          sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' /etc/apt/apt-mirrors.txt
+          printf 'Acquire::http::Timeout "10";\nAcquire::Retries "3";\n' | sudo tee /etc/apt/apt.conf.d/99-timeouts
 
       - name: Install Playwright browser
         if: steps.playwright-cache.outputs.cache-hit != 'true'
