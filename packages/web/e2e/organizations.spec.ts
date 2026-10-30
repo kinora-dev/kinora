@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { DEMO, login, TEAMMATE } from './helpers'
+import { login, TEAMMATE } from './helpers'
 
 const workspaceButton = /workspace/i
 
@@ -40,32 +40,6 @@ test.describe('organizations', () => {
     await expect(page.getByLabel('Invite by email')).toHaveCount(0)
     await expect(page.locator('#token-name')).toHaveCount(0)
     await expect(page.getByText(/Only admins can create or revoke tokens/i)).toBeVisible()
-  })
-
-  test('re-login resets the switcher to the owned workspace', async ({ page }) => {
-    await login(page)
-
-    // switch to the member workspace (full reload -> switcher reflects Acme)
-    await page.getByRole('button', { name: workspaceButton }).click()
-    await page.getByRole('menuitem', { name: /Acme QA/i }).click()
-    await expect(page).toHaveURL('/')
-    await expect(page.getByRole('button', { name: /Acme QA's workspace/i })).toBeVisible()
-
-    // sign out (SPA nav to /login, no full reload)
-    await page.locator('button[title="Demo User"]').click()
-    await page.getByRole('menuitem', { name: 'Sign out' }).click()
-    await expect(page).toHaveURL('/login')
-
-    // log back in WITHOUT a page reload (form submit only) so the SPA keeps its state -
-    // this is the path where a stale switcher would surface.
-    await page.locator('input[type="email"]').fill(DEMO.email)
-    await page.locator('input[type="password"]').fill(DEMO.password)
-    await page.locator('button[type="submit"]').click()
-    await expect(page).toHaveURL('/')
-
-    // owned org, and the switcher must reflect it (not the stale Acme)
-    await expect(page.getByRole('button', { name: /Demo User's workspace/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Acme QA's workspace/i })).toHaveCount(0)
   })
 
   test('shows an error for an invalid invitation', async ({ page }) => {
@@ -114,6 +88,27 @@ test.describe('organizations', () => {
 
     // Joined: the active workspace is the inviter's, shown in the switcher.
     await expect(page.getByRole('button', { name: /Demo User's workspace/i })).toBeVisible()
+
+    // A new session reopens the last workspace used. Signing back in through the form only
+    // (no reload) keeps the SPA state, which is where a stale switcher would surface.
+    const relogin = async () => {
+      await page.locator(`button[title="${email}"]`).click()
+      await page.getByRole('menuitem', { name: 'Sign out' }).click()
+      await expect(page).toHaveURL('/login')
+      await page.locator('input[type="email"]').fill(email)
+      await page.locator('input[type="password"]').fill('password123')
+      await page.locator('button[type="submit"]').click()
+      await expect(page).toHaveURL('/')
+    }
+    await relogin()
+    await expect(page.getByRole('button', { name: /Demo User's workspace/i })).toBeVisible()
+
+    await page.getByRole('button', { name: workspaceButton }).click()
+    await page.getByRole('menuitem', { name: `${email}'s workspace` }).click()
+    await expect(page.getByRole('button', { name: `${email}'s workspace` })).toBeVisible()
+    await relogin()
+    await expect(page.getByRole('button', { name: `${email}'s workspace` })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Demo User's workspace/i })).toHaveCount(0)
   })
 
   test('an owner can rename their workspace', async ({ page }) => {

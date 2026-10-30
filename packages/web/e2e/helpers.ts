@@ -29,6 +29,29 @@ export async function login(page: Page, creds = DEMO): Promise<void> {
   await page.locator('button[type="submit"]').click()
   // Auth round-trip + SPA redirect races the default 5s under parallel CI load.
   await expect(page).toHaveURL('/', { timeout: 15_000 })
+  await activateOwnedWorkspace(page)
+}
+
+// A new session reopens the user's last workspace, which parallel tests switching the shared demo
+// user keep changing: pin each login to the owned workspace so tests do not depend on each other.
+async function activateOwnedWorkspace(page: Page): Promise<void> {
+  const api = `${SERVER_URL}/api/auth/organization`
+  const active = await (await page.request.get(`${api}/get-active-member`)).json() as { role?: string } | null
+  if (active?.role === 'owner')
+    return
+  const orgs = await (await page.request.get(`${api}/list`)).json() as { id: string }[]
+  for (const org of orgs) {
+    const { role } = await (await page.request.get(`${api}/get-active-member-role?organizationId=${org.id}`)).json() as { role?: string }
+    if (role !== 'owner')
+      continue
+    const origin = new URL(page.url()).origin
+    const res = await page.request.post(`${api}/set-active`, { data: { organizationId: org.id }, headers: { origin } })
+    if (!res.ok())
+      throw new Error(`set-active failed: ${res.status()} ${await res.text()}`)
+    // The SPA already loaded the previous workspace.
+    await page.reload()
+    return
+  }
 }
 
 export async function stubMe(page: Page, flags: { mailerEnabled?: boolean, emailVerified?: boolean }): Promise<void> {
