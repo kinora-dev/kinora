@@ -5,8 +5,6 @@ import {
   incidentMarkers,
   latestRun,
   recentPassRate,
-  sortedRuns,
-  trend,
 } from '@kinora/core'
 import { Badge } from '@kinora/ui/badge'
 import { HealthBadge } from '@kinora/ui/health-badge'
@@ -15,13 +13,14 @@ import { Skeleton } from '@kinora/ui/skeleton'
 import { Sparkline } from '@kinora/ui/sparkline'
 import { StatBlock } from '@kinora/ui/stat-block'
 import { ArrowLeft, Blocks, ChartArea, History, Settings } from '@lucide/vue'
+import { useRouteQuery } from '@vueuse/router'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import ErrorState from '@/components/app/ErrorState.vue'
 import StatStripSkeleton from '@/components/app/StatStripSkeleton.vue'
 import RunHistoryTable from '@/components/project/RunHistoryTable.vue'
 import RunHealthBadge from '@/components/viz/RunHealthBadge.vue'
-import { useManifest } from '@/composables/queries'
+import { useProjectRuns, useProjectSummary } from '@/composables/queries'
 import { useNewFeature } from '@/composables/useNewFeature'
 import { useOrg } from '@/composables/useOrg'
 
@@ -30,17 +29,36 @@ const props = defineProps<{ projectId: string }>()
 const { isAdmin } = useOrg()
 const { isNew: componentsIsNew } = useNewFeature('components')
 const { isNew: analyticsIsNew } = useNewFeature('analytics')
-const { state: manifest, isLoading, error, execute: retry } = useManifest()
+const { state: project, isLoading, error, execute: retrySummary } = useProjectSummary(props.projectId)
 
-const project = computed(() =>
-  manifest.value?.projects.find(p => p.id === props.projectId),
+const before = useRouteQuery<string | null>('before', null)
+const after = useRouteQuery<string | null>('after', null)
+const { state: runPage, isLoading: runsLoading, error: runsError, execute: retryRuns } = useProjectRuns(
+  props.projectId,
+  () => before.value ?? undefined,
+  () => after.value ?? undefined,
 )
-const runs = computed(() => (project.value ? sortedRuns(project.value) : []))
+
 const latest = computed(() => (project.value ? latestRun(project.value) : undefined))
-const rate = computed(() => recentPassRate(runs.value, HEALTH_WINDOW))
-const points = computed(() => (project.value ? trend(project.value) : []))
-const series = computed(() => points.value.map(t => t.passRate))
-const markers = computed(() => incidentMarkers(points.value))
+const rate = computed(() => recentPassRate(project.value?.runs ?? [], HEALTH_WINDOW))
+const series = computed(() => project.value?.trend.map(t => t.passRate) ?? [])
+const markers = computed(() => incidentMarkers(project.value?.trend ?? []))
+
+function retry() {
+  void retrySummary()
+  if (runsError.value)
+    void retryRuns()
+}
+
+function showNewer() {
+  before.value = null
+  after.value = runPage.value?.newer ?? null
+}
+
+function showOlder() {
+  after.value = null
+  before.value = runPage.value?.older ?? null
+}
 </script>
 
 <template>
@@ -137,7 +155,7 @@ const markers = computed(() => incidentMarkers(points.value))
             :value="latest ? formatPct(rate) : '-'"
           />
           <Separator orientation="vertical" class="h-10" />
-          <StatBlock label="Runs" :value="runs.length" />
+          <StatBlock label="Runs" :value="project.runCount" />
           <Separator orientation="vertical" class="h-10" />
           <StatBlock label="Tests" :value="latest?.counts.total ?? 0" />
           <div class="ml-auto w-40 text-muted-foreground">
@@ -147,7 +165,19 @@ const markers = computed(() => incidentMarkers(points.value))
       </div>
 
       <!-- Run history -->
-      <RunHistoryTable :runs="runs" :project-id="project.id" />
+      <ErrorState v-if="runsError" :error="runsError" @retry="retryRuns()" />
+      <Skeleton v-else-if="!runPage" class="h-[422px] rounded-xl" />
+      <RunHistoryTable
+        v-else
+        :runs="runPage.runs"
+        :total="project.runCount"
+        :project-id="project.id"
+        :has-newer="Boolean(runPage.newer)"
+        :has-older="Boolean(runPage.older)"
+        :loading="runsLoading"
+        @newer="showNewer"
+        @older="showOlder"
+      />
     </template>
   </div>
 </template>

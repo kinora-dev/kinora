@@ -1,25 +1,33 @@
 import { expect, test } from '@playwright/test'
-import { findTwoRuns, login, scanPage } from './helpers'
+import { createApiToken, login, postRun, runOf, scanPage, testOf } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await login(page)
 })
 
-test('sorting the run table resets the page and keeps the order in the URL', async ({ page }) => {
-  const { slug } = await findTwoRuns(page)
-  await page.goto(`/projects/${slug}?page=2`)
+test('pages the run table newest first and keeps the cursor in the URL', async ({ page }) => {
+  const slug = `paging-${Date.now()}`
+  const token = await createApiToken(page)
+  const now = Date.now()
+  for (let i = 0; i < 30; i++)
+    await postRun(page, token, runOf(slug, new Date(now - i * 60_000), [testOf('a.spec.ts', 'works', 'expected')]))
 
-  const health = page.getByRole('columnheader').getByRole('button', { name: 'Health' })
-  await health.click()
-  await expect(page).toHaveURL(/[?&]sort=health(&|$)/)
+  await page.goto(`/projects/${slug}`)
+  const rows = page.getByRole('row')
+  await expect(rows).toHaveCount(26)
+  await expect(page.getByText('30 runs', { exact: true })).toBeVisible()
+  const newest = (await rows.nth(1).getByRole('cell').first().textContent())!.trim()
+
+  await page.getByRole('button', { name: 'Older' }).click()
+  await expect(page).toHaveURL(/[?&]before=/)
+  await expect(rows).toHaveCount(6)
   await scanPage(page)
-  await expect(page).not.toHaveURL(/[?&]page=/)
-  await expect(page).not.toHaveURL(/[?&]dir=/)
 
-  await health.click()
-  await expect(page).toHaveURL(/[?&]dir=asc(&|$)/)
-
-  // A shared link restores the same order.
   await page.reload()
-  await expect(health.locator('svg.lucide-arrow-up')).toBeVisible()
+  await expect(rows).toHaveCount(6)
+
+  await page.getByRole('button', { name: 'Newer' }).click()
+  await expect(page).toHaveURL(/[?&]after=/)
+  await expect(rows).toHaveCount(26)
+  await expect(rows.nth(1).getByRole('cell').first()).toHaveText(newest)
 })
