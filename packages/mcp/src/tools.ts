@@ -48,7 +48,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
 
   server.registerTool('list_failures', {
     title: 'List failing tests of a run',
-    description: 'Failing and flaky tests of a run (defaults to the latest run): error message, file:line, and a trace.zip URL to open in the Playwright viewer. Start here to debug the last CI failures.',
+    description: 'Failing and flaky tests of a run (defaults to the latest run): error message, file:line, and a trace.zip URL to open in the Playwright viewer. Start here to debug the last CI failures. When the result has an `incident`, the run is an environment incident: its failures come from the app under test or the browser being down, not from the code, so re-run rather than fix the tests.',
     inputSchema: z.object({
       project: z.string().describe('Project slug (from list_projects).'),
       runId: z.string().optional().describe('Run id; omit for the latest run.'),
