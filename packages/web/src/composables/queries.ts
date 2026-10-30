@@ -37,6 +37,20 @@ export function useOverview(branch: MaybeRefOrGetter<string | undefined>, tag: M
   return query
 }
 
+export function useProjectSummary(projectId: string) {
+  return useAsyncState(() => trpc.dashboard.projectSummary.query({ projectId }), null, QUERY_OPTIONS)
+}
+
+export function useProjectRuns(projectId: string, before: MaybeRefOrGetter<string | undefined>, after: MaybeRefOrGetter<string | undefined>) {
+  const query = useAsyncState(
+    () => trpc.dashboard.projectRuns.query({ projectId, before: toValue(before), after: toValue(after) }),
+    null,
+    { ...QUERY_OPTIONS, resetOnExecute: false },
+  )
+  watch(() => [toValue(before), toValue(after)], () => void query.execute())
+  return query
+}
+
 export function useRun(projectId: string, runId: string) {
   return useAsyncState(() => trpc.dashboard.run.query({ projectId, runId }), null, QUERY_OPTIONS)
 }
