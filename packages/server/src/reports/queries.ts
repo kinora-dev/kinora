@@ -1,4 +1,4 @@
-import type { Counts, DashboardOverview, FailureCluster, NormError, NormTest, ProjectEntry, ProjectHistory, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
+import type { Counts, DashboardOverview, FailureCluster, NormError, NormTest, OverviewProject, ProjectEntry, ProjectHistory, ProjectRunsPage, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
 import type { SQL } from 'drizzle-orm'
 import type { CodeownersRule } from '../lib/codeowners'
 import { applyTotals, buildFailureClusters, buildTestHistories, downsampleTrend, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
@@ -163,14 +163,22 @@ function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string,
 }
 
 export async function loadOverview(organizationId: string, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
-  const generatedAt = new Date().toISOString()
   const projects = await listProjects(organizationId)
+  return summarizeProjects(projects, sql`${run.projectId} in (select ${project.id} from ${project} where ${project.organizationId} = ${organizationId})`, filter)
+}
+
+export async function loadProjectSummary(p: ProjectRow): Promise<OverviewProject> {
+  const { projects: [summary] } = await summarizeProjects([p], eq(run.projectId, p.id))
+  return summary
+}
+
+async function summarizeProjects(projects: ProjectRow[], inProjects: SQL, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
+  const generatedAt = new Date().toISOString()
   if (!projects.length)
     return { generatedAt, branches: [], tags: [], projects: [] }
 
   const { branch, tag } = filter
   const branchOf = sql<string | null>`${run.git}->>'branch'`
-  const inProjects = sql`${run.projectId} in (select ${project.id} from ${project} where ${project.organizationId} = ${organizationId})`
   const matching = and(inProjects, branch ? eq(branchOf, branch) : undefined, tag ? sql`${run.countsByTag} ? ${tag}` : undefined)
   const filtered = Boolean(branch || tag)
 
@@ -221,6 +229,39 @@ export async function loadOverview(organizationId: string, filter: { branch?: st
         trend: downsampleTrend(points).map(t => ({ passRate: t.passRate, ...(t.incident && { incident: t.incident }) })),
       }
     }),
+  }
+}
+
+export const RUN_PAGE_SIZE = 25
+
+export async function loadRunPage(p: ProjectRow, cursor: { before?: string, after?: string } = {}, limit = RUN_PAGE_SIZE): Promise<ProjectRunsPage> {
+  const anchorId = cursor.after ?? cursor.before
+  const anchor = anchorId ? await loadRun(p.id, anchorId) : undefined
+  if (!anchor)
+    return runPage(p, undefined, 'older', limit)
+  const page = await runPage(p, anchor.id, cursor.after ? 'newer' : 'older', limit)
+  return cursor.after && !page.newer ? runPage(p, undefined, 'older', limit) : page
+}
+
+async function runPage(p: ProjectRow, anchorId: string | undefined, direction: 'newer' | 'older', limit: number): Promise<ProjectRunsPage> {
+  const key = sql`(${run.startedAt}, ${run.id})`
+  const anchorKey = sql`(select ${run.startedAt}, ${run.id} from ${run} where ${run.id} = ${anchorId})`
+  const rows = await db
+    .select()
+    .from(run)
+    .where(and(eq(run.projectId, p.id), anchorId ? (direction === 'newer' ? sql`${key} > ${anchorKey}` : sql`${key} < ${anchorKey}`) : undefined))
+    .orderBy(...(direction === 'newer' ? [asc(run.startedAt), asc(run.id)] : [desc(run.startedAt), desc(run.id)]))
+    .limit(limit + 1)
+  const more = rows.length > limit
+  const page = rows.slice(0, limit)
+  if (direction === 'newer')
+    page.reverse()
+  const first = page[0]?.id
+  const last = page.at(-1)?.id
+  return {
+    runs: page.map(r => runSummary(p.slug, r)),
+    newer: direction === 'newer' ? (more ? first : undefined) : (anchorId ? first : undefined),
+    older: direction === 'newer' ? last : (more ? last : undefined),
   }
 }
 
