@@ -3,7 +3,7 @@ import type { Buffer } from 'node:buffer'
 import type { LoadedDemoTrace } from './demo-traces'
 import { randomUUID } from 'node:crypto'
 import process from 'node:process'
-import { countsByTagFrom, makeTestKey, STORY_ANNOTATION } from '@kinora/core'
+import { countsByTagFrom, detectIncident, makeTestKey, STORY_ANNOTATION } from '@kinora/core'
 import { eq } from 'drizzle-orm'
 import { db } from '../src/db'
 import { apikey, artifact, member, project, run, test, user as userTable } from '../src/db/schemas/index'
@@ -127,6 +127,9 @@ interface ProjectDef {
   slug: string
   name: string
   tests: TestDef[]
+  // Story ordinal of a run where the app under test was down: every test fails to reach it, and
+  // the run is judged an environment incident like a real upload.
+  outage?: { run: number, baseUrl: string }
 }
 
 // Component tests of a design system, one per story: feeds the Components page.
@@ -146,6 +149,8 @@ const PROJECTS: ProjectDef[] = [
     // Healthy with real flakiness + one test that just started flaking -> FLAKY badge.
     slug: 'web-app',
     name: 'Web App',
+    // Inside the overview's 20-run strip, so the hatched incident bar shows on the card.
+    outage: { run: 19, baseUrl: 'https://staging.acme.dev' },
     tests: [
       { file: 'tests/auth.spec.ts', title: 'logs in with valid credentials', profile: 'solid', tags: ['@smoke', '@critical'], a11y: [] },
       { file: 'tests/auth.spec.ts', title: 'rejects a wrong password', profile: 'mostlyGreen', tags: ['@smoke'] },
@@ -309,13 +314,24 @@ function errorsFor(def: TestDef, line: number, trace: LoadedDemoTrace | undefine
   return [{ message: trace.error.message, stack: isOwn(trace, def) ? trace.error.stack : `at ${def.file}:${line + 4}:5` }]
 }
 
+// What Chromium reports when the app's host refuses the connection.
+function outageError(def: TestDef, baseUrl: string, line: number): NormTest['errors'] {
+  const url = `${baseUrl}/${def.file.replace(/^tests\/|\.spec\.ts$/g, '')}`
+  return [{
+    message: `Error: page.goto: net::ERR_CONNECTION_REFUSED at ${url}\nCall log:\n  - navigating to "${url}", waiting until "load"\n`,
+    stack: `at ${def.file}:${line + 2}:16`,
+  }]
+}
+
 function makeTest(traces: LoadedDemoTrace[], pdef: ProjectDef, def: TestDef, i: number, fallbackLine: number): { test: NormTest, trace?: LoadedDemoTrace } {
-  const status = statusAt(def.profile, i)
+  const down = pdef.outage?.run === i && def.profile !== 'fixmeSkip'
+  const status = down ? 'unexpected' : statusAt(def.profile, i)
   const titlePath = [def.file, def.title]
   // A test of the demo suite keeps its real location, so the card matches the trace header.
   const at = traces.find(t => isOwn(t, def))
   const line = at?.line ?? fallbackLine
-  const trace = traceFor(traces, pdef, def, status)
+  // Nothing loaded during the outage, so there is no trace worth opening.
+  const trace = down ? undefined : traceFor(traces, pdef, def, status)
   const norm: NormTest = {
     testKey: makeTestKey(def.file, titlePath, 'chromium'),
     title: def.title,
@@ -330,7 +346,7 @@ function makeTest(traces: LoadedDemoTrace[], pdef: ProjectDef, def: TestDef, i: 
     retries: status === 'flaky' ? 1 : 0,
     tags: def.tags ?? [],
     annotations: annotationsFor(def, status),
-    errors: errorsFor(def, line, trace),
+    errors: down ? outageError(def, pdef.outage!.baseUrl, line) : errorsFor(def, line, trace),
     attachments: [],
     a11y: a11yFor(def, status),
   }
@@ -398,6 +414,10 @@ async function main(): Promise<void> {
         playwrightVersion: '1.60.0',
         git: { sha: Math.floor(rng() * 0xFFFFFFF).toString(16).padStart(7, '0'), branch: k % 4 === 1 ? 'develop' : 'main' },
         ci: { provider: 'github', runNumber: String(100 + k) },
+        ...(pdef.outage?.run === i && {
+          baseUrls: [pdef.outage.baseUrl],
+          incident: detectIncident(tests, [pdef.outage.baseUrl]),
+        }),
       })
 
       const traced: { id: string, storageKey: string, buf: Buffer }[] = []
