@@ -1,4 +1,4 @@
-import { countsFromTests } from '@kinora/core'
+import { countsFromTests, detectIncident } from '@kinora/core'
 import { and, eq, isNull, lt } from 'drizzle-orm'
 import { notifyRun } from '../alerts/notify'
 import { db } from '../db'
@@ -19,7 +19,7 @@ export async function closeStaleOpenRuns(now: Date): Promise<{ closed: number }>
   const closed = await db.update(run)
     .set({ status: 'incomplete', notifiedAt: now })
     .where(and(eq(run.status, 'open'), isNull(run.notifiedAt), lt(run.createdAt, new Date(now.getTime() - OPEN_RUN_TIMEOUT_MS))))
-    .returning({ id: run.id, projectId: run.projectId, startedAt: run.startedAt, git: run.git, groupKey: run.groupKey, status: run.status, shardsTotal: run.shardsTotal, shardsLanded: run.shardsLanded })
+    .returning({ id: run.id, projectId: run.projectId, startedAt: run.startedAt, git: run.git, groupKey: run.groupKey, status: run.status, shardsTotal: run.shardsTotal, shardsLanded: run.shardsLanded, baseUrls: run.baseUrls, incident: run.incident, incidentDecision: run.incidentDecision })
 
   for (const r of closed) {
     try {
@@ -27,6 +27,10 @@ export async function closeStaleOpenRuns(now: Date): Promise<{ closed: number }>
       if (!owner)
         continue
       const tests = await testsOfRun(r.id)
+      // The landed shards are all this run will have: judge them like a complete one.
+      const incident = r.incidentDecision ? r.incident : detectIncident(tests, r.baseUrls ?? [])
+      if (!r.incidentDecision)
+        await db.update(run).set({ incident }).where(and(eq(run.id, r.id), isNull(run.incidentDecision)))
       await notifyRun({
         organizationId: owner.organizationId,
         projectId: r.projectId,
@@ -36,6 +40,7 @@ export async function closeStaleOpenRuns(now: Date): Promise<{ closed: number }>
         counts: countsFromTests(tests),
         tests,
         incomplete: shardState(r).shardProgress,
+        incident: incident ?? undefined,
       })
     }
     catch (error) {

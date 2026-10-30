@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ciMetaSchema, countsSchema, gitMetaSchema, normTestSchema, runStatusSchema, shardProgressSchema } from './kinora'
+import { ciMetaSchema, countsSchema, gitMetaSchema, normTestSchema, runIncidentSchema, runStatusSchema, shardProgressSchema } from './kinora'
 
 // Upper bound on tests in one run upload. Far above any real Playwright run/shard; bounds the
 // bulk insert so a crafted body can't ask for millions of rows. Pairs with the JSON body limit.
@@ -20,6 +20,9 @@ export const ingestRunSchema = z.object({
     git: gitMetaSchema.optional(),
     ci: ciMetaSchema.optional(),
     shards: z.number().optional(),
+    // The `baseURL` of each Playwright project: tells the app's host apart from third-party ones
+    // when judging an environment incident.
+    baseUrls: z.array(z.string().max(2048)).max(100).optional(),
     // Direct shard uploads: every upload carrying the same groupKey lands in one run, `shard.current`
     // being its slot. A later `attempt` of a slot (CI re-run) replaces that slot's tests.
     groupKey: z.string().min(1).max(200).optional(),
@@ -61,6 +64,8 @@ export const ingestRunResultSchema = z.object({
   shardProgress: shardProgressSchema.optional(),
   counts: countsSchema.optional(),
   flaky: z.array(z.object({ testKey: z.string(), title: z.string(), file: z.string(), rerunAttempt: z.number().optional() })).optional(),
+  // The run is an environment incident: its failures say nothing about the change.
+  incident: runIncidentSchema.optional(),
 })
 export type IngestRunResult = z.infer<typeof ingestRunResultSchema>
 

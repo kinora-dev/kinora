@@ -1,6 +1,6 @@
-import type { NormTest, RunReport, RunSummary, TestHistory } from '../contracts/kinora'
+import type { NormTest, RunIncident, RunReport, RunSummary, TestHistory } from '../contracts/kinora'
 import { z } from 'zod'
-import { countsSchema, normTestSchema, runReportSchema, runSummarySchema, SCHEMA_VERSION, testHistorySchema } from '../contracts/kinora'
+import { countsSchema, normTestSchema, runIncidentSchema, runReportSchema, runSummarySchema, SCHEMA_VERSION, testHistorySchema } from '../contracts/kinora'
 import { IngestError, toIngestError } from './ingest-client'
 
 export interface ReadClientOptions {
@@ -20,6 +20,8 @@ export interface RunFailures {
   runId: string
   startedAt: string
   counts: RunReport['counts']
+  // The run is an environment incident: its failures come from the app or browser being down.
+  incident?: RunIncident
   failures: NormTest[]
 }
 
@@ -38,6 +40,7 @@ const failuresResponseSchema = z.object({
   runId: z.string(),
   startedAt: z.string(),
   counts: countsSchema,
+  incident: runIncidentSchema.optional(),
   failures: z.array(normTestSchema),
 })
 

@@ -59,6 +59,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
       runId: r.runId,
       startedAt: r.startedAt,
       counts: r.counts,
+      ...(r.incident && { incident: r.incident }),
       failures: r.failures.slice(0, MAX_FAILURES).map(formatFailure),
       ...(r.failures.length > MAX_FAILURES && { truncated: `showing ${MAX_FAILURES} of ${r.failures.length} failures` }),
     }),

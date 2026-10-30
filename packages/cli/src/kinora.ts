@@ -151,6 +151,8 @@ async function main(): Promise<void> {
 
   const shards = res.shardProgress ? `, ${res.shardProgress.landed} of ${res.shardProgress.total} shards` : ''
   console.log(`uploaded ${res.tests} tests to ${values.project} (run ${res.runId}${shards})`)
+  if (res.incident)
+    console.warn(`warning: environment incident, not counted: ${res.incident.reason}`)
 
   // Best-effort PR/MR comment (GitHub: the job's GITHUB_TOKEN; GitLab: GITLAB_TOKEN). Never fails the upload.
   // A grouped shard updates the comment with the shards landed so far; a server that predates
@@ -177,6 +179,7 @@ async function main(): Promise<void> {
           regression: res.regression,
           flaky: res.flaky,
           ...(res.shardProgress && { shards: { runId: res.runId, ...res.shardProgress } }),
+          ...(res.incident && { incident: res.incident }),
         }, policy)
         if (outcome !== 'skipped')
           console.log(`PR comment ${outcome}`)

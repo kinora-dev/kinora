@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import { randomUUID } from 'node:crypto'
 import { Readable, Transform } from 'node:stream'
 import { zValidator } from '@hono/zod-validator'
-import { countsByTagFrom, countsFromTests, flakyTestsOf, ingestRunSchema } from '@kinora/core'
+import { countsByTagFrom, countsFromTests, detectIncident, flakyTestsOf, ingestRunSchema } from '@kinora/core'
 import busboy from 'busboy'
 import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -111,16 +111,17 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
       throw new Error('project upsert returned no id')
 
     if (replayed)
-      return { projectId, runId: replayed.id, tests: input.tests.length, results: 0, startedAt: replayed.startedAt, shard: undefined, replayed: true }
+      return { projectId, runId: replayed.id, tests: input.tests.length, results: 0, startedAt: replayed.startedAt, incident: replayed.incident, shard: undefined, replayed: true }
 
     const { run: runInput } = input
     if (isGrouped(runInput)) {
       const shard = await landShard(tx, projectId, { ...input, run: runInput }, billable)
       await recordResults(tx, orgId, history ? startedAt : new Date(), shard.results)
-      return { projectId, runId: shard.runId, tests: input.tests.length, results: shard.results, startedAt: shard.startedAt, shard, replayed: false }
+      return { projectId, runId: shard.runId, tests: input.tests.length, results: shard.results, startedAt: shard.startedAt, incident: shard.incident, shard, replayed: false }
     }
 
     const runId = randomUUID()
+    const incident = detectIncident(input.tests, input.run.baseUrls)
     const inserted = await tx.insert(run).values({
       id: runId,
       projectId,
@@ -135,20 +136,23 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
       shards: input.run.shards,
       meterPending: billable,
       idempotencyKey,
+      baseUrls: input.run.baseUrls,
+      incident,
     }).onConflictDoNothing().returning({ id: run.id })
     if (inserted.length === 0) {
       // A concurrent attempt with the same key committed first.
       const prior = await findIdempotentRun(projectId, idempotencyKey!, tx)
       if (!prior)
         throw new Error('idempotent run conflict without a stored run')
-      return { projectId, runId: prior.id, tests: input.tests.length, results: 0, startedAt: prior.startedAt, shard: undefined, replayed: true }
+      return { projectId, runId: prior.id, tests: input.tests.length, results: 0, startedAt: prior.startedAt, incident: prior.incident, shard: undefined, replayed: true }
     }
     await insertTests(tx, runId, projectId, input.tests)
     await recordResults(tx, orgId, history ? startedAt : new Date(), input.tests.length)
 
-    return { projectId, runId, tests: input.tests.length, results: input.tests.length, startedAt, shard: undefined, replayed: false }
+    return { projectId, runId, tests: input.tests.length, results: input.tests.length, startedAt, incident, shard: undefined, replayed: false }
   })
   const { shard } = result
+  const incident = result.incident ?? undefined
 
   if (shard) {
     if (billable && shard.results > 0)
@@ -173,6 +177,7 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
       branch: input.run.git?.branch,
       counts: shard ? countsFromTests(runTests) : input.run.counts,
       tests: runTests,
+      incident,
     }).catch(error => logger.error({ error, runId: result.runId }, 'alert notify failed'))
   }
 
@@ -205,10 +210,10 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
   // Durable dashboard URL (client only knows the api origin). Regression is only computed when the
   // client asks (?regression=1, set by prComment users) so the hot path isn't taxed for everyone,
   // and never fails the response for an already-committed run. A grouped run still waiting for
-  // shards has nothing to compare yet.
+  // shards has nothing to compare yet, and an environment incident says nothing about the change.
   const runUrl = `${env.WEB_ORIGIN}/projects/${input.project.slug}/runs/${result.runId}`
   let regression
-  if (!backfill && complete && c.req.query('regression') === '1') {
+  if (!backfill && complete && !incident && c.req.query('regression') === '1') {
     try {
       regression = await computeRegression(result.projectId, runTests, {
         branch: input.run.git?.branch,
@@ -233,6 +238,7 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
     tests: result.tests,
     runUrl,
     ...(regression ? { regression } : {}),
+    ...(incident && { incident }),
     ...grouped,
   }, result.replayed ? 200 : 201)
 })
@@ -246,7 +252,7 @@ function idempotencyKeyOf(c: Context): string | undefined | null {
 async function findIdempotentRun(projectId: string, key: string, tx: Pick<typeof db, 'query'> = db) {
   return tx.query.run.findFirst({
     where: and(eq(run.projectId, projectId), eq(run.idempotencyKey, key)),
-    columns: { id: true, startedAt: true },
+    columns: { id: true, startedAt: true, incident: true },
   })
 }
 

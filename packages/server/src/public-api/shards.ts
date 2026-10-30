@@ -1,7 +1,7 @@
-import type { IngestRun, NormTest, RunStatus, ShardProgress } from '@kinora/core'
+import type { IngestRun, NormTest, RunIncident, RunStatus, ShardProgress } from '@kinora/core'
 import type { ShardSlot } from '../db/schemas/index'
 import { randomUUID } from 'node:crypto'
-import { countsByTagFrom, countsFromTests, mergeShardAttempt } from '@kinora/core'
+import { countsByTagFrom, countsFromTests, detectIncident, mergeShardAttempt } from '@kinora/core'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { artifact, run, test } from '../db/schemas/index'
@@ -51,6 +51,8 @@ export interface LandedShard {
   shardProgress: ShardProgress
   // The run became complete with this upload and nobody was notified yet.
   notify: boolean
+  // Judged once every shard landed, unless someone decided by hand.
+  incident: RunIncident | null
   // Blobs of the artifacts of replaced tests, deleted once the transaction committed.
   orphanedKeys: string[]
 }
@@ -95,6 +97,7 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     playwrightVersion: input.run.playwrightVersion,
     git: input.run.git,
     ci: input.run.ci,
+    baseUrls: input.run.baseUrls,
   }).onConflictDoNothing({ target: [run.projectId, run.groupKey], where: sql`group_key is not null` })
   const [current] = await tx.select().from(run).where(and(eq(run.projectId, projectId), eq(run.groupKey, groupKey))).for('update')
 
@@ -110,6 +113,7 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     shardProgress: progress(landed, total),
     notify: false,
     orphanedKeys: [],
+    incident: current.incident,
   })
   // A late upload of an attempt a re-run already superseded.
   if (prior && attempt < prior.attempt)
@@ -143,11 +147,12 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
   const slots = Object.values(landed)
   const start = Math.min(...slots.map(s => Date.parse(s.startedAt)))
   const end = Math.max(...slots.map(s => Date.parse(s.startedAt) + s.duration))
-  const all = await tx.select({ status: test.status, tags: test.tags }).from(test).where(eq(test.runId, current.id))
+  const all = await tx.select({ status: test.status, tags: test.tags, errors: test.errors }).from(test).where(eq(test.runId, current.id))
   const complete = Array.from({ length: total }, (_, i) => String(i + 1)).every(k => k in landed)
   // A shard landing after the timeout closed the run still completes it.
   const status: RunStatus = complete ? 'complete' : current.status
   const notify = complete && !current.notifiedAt
+  const incident = complete && !current.incidentDecision ? detectIncident(all, current.baseUrls ?? input.run.baseUrls) : current.incident
 
   await tx.update(run).set({
     counts: countsFromTests(all),
@@ -157,6 +162,7 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     shardsTotal: total,
     shardsLanded: landed,
     status,
+    incident,
     ...(notify && { notifiedAt: now }),
     ...(!prior && billable ? { meterPending: true } : {}),
   }).where(eq(run.id, current.id))
@@ -170,5 +176,6 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     shardProgress: progress(landed, total),
     notify,
     orphanedKeys,
+    incident,
   }
 }

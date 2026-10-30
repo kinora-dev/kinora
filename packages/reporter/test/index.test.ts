@@ -116,6 +116,25 @@ describe('reporter onEnd', () => {
     expect(payload.project).toEqual({ slug: 'web-app', name: 'web-app' })
   })
 
+  it('sends each project baseURL once and warns when the server flags an environment incident', async () => {
+    let body = ''
+    vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init: RequestInit) => {
+      body = init.body as string
+      const incident = { rule: 'host-unreachable', reason: '1 of 1 test failed.', host: 'staging.example.test' }
+      return new Response(JSON.stringify({ projectId: 'p', runId: 'r', tests: 1, incident }), { status: 201 })
+    }))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const reporter = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' } })
+    const projects = [{ use: { baseURL: 'https://staging.example.test' } }, { use: { baseURL: 'https://staging.example.test' } }, { use: {} }]
+    reporter.onBegin({ version: '1.60.0', projects } as unknown as FullConfig, fakeSuite([fakeTest()]))
+    await reporter.onEnd(fakeResult())
+
+    expect(JSON.parse(body).run.baseUrls).toEqual(['https://staging.example.test'])
+    expect(warn).toHaveBeenCalledWith('[kinora] environment incident, not counted: 1 of 1 test failed.')
+    warn.mockRestore()
+  })
+
   it('includes describe titles in the testKey, outermost first', async () => {
     let body = ''
     vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init: RequestInit) => {

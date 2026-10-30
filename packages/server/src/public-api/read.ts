@@ -55,6 +55,7 @@ export function registerReadRoutes(api: ReadApi): void {
       runId: report.runId,
       startedAt: report.startedAt,
       counts: report.counts,
+      ...(report.meta.incident && { incident: report.meta.incident }),
       failures: report.tests.filter(t => t.status === 'unexpected' || t.status === 'flaky'),
     })
   })

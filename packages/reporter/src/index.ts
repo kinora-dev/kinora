@@ -142,6 +142,7 @@ export default class KinoraReporter implements Reporter {
     const group = shard && this.options.groupKey !== false
       ? resolveShardGroup(process.env, { groupKey: this.options.groupKey, leg: this.prCommentLabel() })
       : undefined
+    const baseUrls = [...new Set((this.config?.projects ?? []).flatMap(p => p.use.baseURL ? [p.use.baseURL] : []))]
     const payload: IngestRun = {
       project: { slug: this.options.project.slug, name: this.options.project.name ?? this.options.project.slug },
       run: {
@@ -151,6 +152,7 @@ export default class KinoraReporter implements Reporter {
         playwrightVersion: this.config?.version,
         git: this.options.git ?? detected.git,
         ci: this.options.ci ?? detected.ci,
+        ...(baseUrls.length && { baseUrls }),
         ...(shard && group && { ...group, shard: { current: shard.current, total: shard.total } }),
       },
       tests,
@@ -177,6 +179,8 @@ export default class KinoraReporter implements Reporter {
       }
       // eslint-disable-next-line no-console -- a reporter's job is to report
       console.log(`[kinora] uploaded ${res.tests} tests + ${artifacts} artifacts (run ${res.runId}${res.shardProgress ? `, ${res.shardProgress.landed} of ${res.shardProgress.total} shards` : ''})`)
+      if (res.incident)
+        console.warn(`[kinora] environment incident, not counted: ${res.incident.reason}`)
 
       await this.maybePostPrComment(payload, res)
     }
@@ -228,6 +232,7 @@ export default class KinoraReporter implements Reporter {
         regression: res.regression,
         flaky: res.flaky ?? flakyTestsOf(payload.tests),
         ...(res.shardProgress && { shards: { runId: res.runId, ...res.shardProgress } }),
+        ...(res.incident && { incident: res.incident }),
       }, policy ?? 'always')
       if (outcome !== 'skipped')
         console.warn(`[kinora] PR comment ${outcome}`)

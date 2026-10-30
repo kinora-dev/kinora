@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import type { PwTestStatus, ScreenshotComparison } from '@kinora/core'
+import type { IncidentRule, PwTestStatus, ScreenshotComparison } from '@kinora/core'
 import { formatDuration, formatPct, partialRunLabel, passRate, runHealth, splitScreenshotComparisons, storiesOf, STORY_ANNOTATION, stripAnsi } from '@kinora/core'
 import { Button } from '@kinora/ui/button'
 import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
 import { StatBlock } from '@kinora/ui/stat-block'
 import { Tabs, TabsList, TabsTrigger } from '@kinora/ui/tabs'
-import { ArrowLeft, Clock, ExternalLink, Film, GitBranch, GitCommitHorizontal, GitCompareArrows, Link2, Paperclip } from '@lucide/vue'
+import { ArrowLeft, Clock, ExternalLink, Film, GitBranch, GitCommitHorizontal, GitCompareArrows, Link2, Paperclip, ServerCrash } from '@lucide/vue'
 import { useRouteQuery } from '@vueuse/router'
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { toast } from 'vue-sonner'
 import A11yViolations from '@/components/a11y/A11yViolations.vue'
@@ -29,6 +29,7 @@ import { useUrlPage } from '@/composables/useUrlPage'
 import { formatDateTimeLong } from '@/lib/format'
 import { testLabel } from '@/lib/test-display'
 import { isTraceAttachment, traceViewerHref } from '@/lib/trace'
+import { trpc } from '@/lib/trpc'
 import { commitUrl, httpsUrl } from '@/lib/url'
 
 const props = defineProps<{ projectId: string, runId: string }>()
@@ -51,9 +52,47 @@ const projectName = computed(
 // A run's pass rate is colored by the run's health, not its value: a run with real failures reads red.
 // A run missing shards stays neutral, its counts cover part of the suite only.
 const HEALTH_TONE = { passing: 'pass', flaky: 'flaky', failing: 'fail', empty: 'default' } as const
-const runState = computed(() => report.value && { counts: report.value.counts, status: report.value.meta.status, shardProgress: report.value.meta.shardProgress })
+const runState = computed(() => report.value && { counts: report.value.counts, status: report.value.meta.status, shardProgress: report.value.meta.shardProgress, incident: report.value.meta.incident })
 const partial = computed(() => runState.value && partialRunLabel(runState.value))
-const passTone = computed(() => (!runState.value || partial.value ? 'default' : HEALTH_TONE[runHealth(runState.value.counts)]))
+const incident = computed(() => report.value?.meta.incident)
+const passTone = computed(() => (!runState.value || partial.value || incident.value ? 'default' : HEALTH_TONE[runHealth(runState.value.counts)]))
+
+const INCIDENT_RULES: Record<IncidentRule, string> = {
+  'host-unreachable': 'Detected: most failures could not reach the app',
+  'browser-crash': 'Detected: most failures saw the browser crash or close',
+  'manual': 'Marked by hand',
+}
+const incidentSource = computed(() => {
+  const decision = report.value?.meta.incidentDecision
+  if (decision?.flagged)
+    return `Marked by ${decision.by} on ${formatDateTimeLong(decision.at)}`
+  return incident.value && INCIDENT_RULES[incident.value.rule]
+})
+// A flag someone cleared stays visible, so the run counting again is not a surprise.
+const incidentCleared = computed(() => {
+  const decision = report.value?.meta.incidentDecision
+  return decision && !decision.flagged ? decision : undefined
+})
+
+const savingIncident = ref(false)
+async function setIncident(flagged: boolean) {
+  if (!report.value)
+    return
+  savingIncident.value = true
+  try {
+    const state = await trpc.dashboard.setRunIncident.mutate({ projectId: props.projectId, runId: props.runId, flagged })
+    // Assigned field by field: a cleared incident arrives as a missing key, which a spread would skip.
+    report.value = { ...report.value, meta: { ...report.value.meta, incident: state.incident, incidentDecision: state.incidentDecision } }
+    toast.success(flagged ? 'Run marked as an environment incident' : 'Incident flag cleared, the run counts again')
+    void reloadManifest()
+  }
+  catch (err) {
+    toast.error(err instanceof Error ? err.message : 'Could not update the run')
+  }
+  finally {
+    savingIncident.value = false
+  }
+}
 
 // The run just before this one (older startedAt) in the same project, for "Compare with previous".
 const previousRunId = computed(() => {
@@ -226,7 +265,7 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
               <h1 class="text-xl font-semibold tracking-tight">
                 {{ formatDateTimeLong(report.startedAt) }}
               </h1>
-              <RunHealthBadge v-if="runState && partial" :run="runState" />
+              <RunHealthBadge v-if="runState && (partial || incident)" :run="runState" />
             </div>
             <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
               <span v-if="report.meta.git?.branch" class="flex items-center gap-1 whitespace-nowrap">
@@ -243,10 +282,23 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
                 </template>
               </span>
               <span v-if="report.meta.playwrightVersion" class="whitespace-nowrap">playwright {{ report.meta.playwrightVersion }}</span>
+              <span v-if="incidentCleared" class="whitespace-nowrap">incident flag cleared by {{ incidentCleared.by }}</span>
             </div>
           </div>
 
           <div class="flex shrink-0 flex-wrap items-center gap-2">
+            <Button
+              v-if="!incident && report.counts.unexpected > 0 && !isDemo"
+              variant="outline"
+              size="sm"
+              class="font-mono text-xs text-muted-foreground"
+              title="The failures come from the environment under test: leave this run out of histories, baselines and alerts"
+              :disabled="savingIncident"
+              @click="setIncident(true)"
+            >
+              <ServerCrash class="size-3.5" />
+              Mark as incident
+            </Button>
             <Button
               v-if="previousRunId"
               as-child
@@ -273,6 +325,37 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
             </Button>
             <CopyLinkButton />
           </div>
+        </div>
+
+        <div
+          v-if="incident"
+          role="status"
+          class="flex flex-col items-start gap-3 rounded-lg border border-border/70 bg-card/80 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="flex items-start gap-3">
+            <ServerCrash class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <div class="flex flex-col gap-1">
+              <p class="text-sm font-medium">
+                Environment incident · not counted
+              </p>
+              <p class="text-sm text-muted-foreground">
+                {{ incident.reason }} This run is left out of test histories, flaky scores, baselines and regression alerts.
+              </p>
+              <p class="font-mono text-xs text-muted-foreground">
+                {{ incidentSource }}
+              </p>
+            </div>
+          </div>
+          <Button
+            v-if="!isDemo"
+            variant="outline"
+            size="sm"
+            class="shrink-0 font-mono text-xs text-muted-foreground"
+            :disabled="savingIncident"
+            @click="setIncident(false)"
+          >
+            Clear the flag
+          </Button>
         </div>
 
         <div class="flex flex-wrap items-center gap-x-10 gap-y-4 rounded-lg border border-border/70 bg-card/80 px-6 py-5">

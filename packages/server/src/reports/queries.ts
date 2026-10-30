@@ -48,7 +48,18 @@ export function runSummary(slug: string, r: RunRow): RunSummary {
     reportPath: `reports/${slug}/${r.id}.json`,
     countsByTag: r.countsByTag,
     ...shardState(r),
+    ...incidentState(r),
   }
+}
+
+export function incidentState(r: Pick<RunRow, 'incident' | 'incidentDecision'>): Pick<RunSummary, 'incident' | 'incidentDecision'> {
+  return { incident: r.incident ?? undefined, incidentDecision: r.incidentDecision ?? undefined }
+}
+
+// Runs whose failures count: an environment incident stays in the run list but out of every
+// test's history, health and failure clusters.
+function countedRuns(runs: RunRow[]): RunRow[] {
+  return runs.filter(r => !r.incident)
 }
 
 // Only grouped runs carry a state: a single upload is complete by construction.
@@ -96,7 +107,7 @@ export function runReport(slug: string, r: RunRow, tests: TestRow[], urlsByTest?
     startedAt: r.startedAt.toISOString(),
     duration: r.duration,
     counts: r.counts,
-    meta: { playwrightVersion: r.playwrightVersion ?? undefined, git: r.git ?? undefined, ci: r.ci ?? undefined, shards: r.shards ?? r.shardsTotal ?? undefined, ...shardState(r) },
+    meta: { playwrightVersion: r.playwrightVersion ?? undefined, git: r.git ?? undefined, ci: r.ci ?? undefined, shards: r.shards ?? r.shardsTotal ?? undefined, ...shardState(r), ...incidentState(r) },
     tests: tests.map(t => toNormTest(t, urlsByTest?.get(t.id), codeowners)),
   }
 }
@@ -245,8 +256,9 @@ const storyFilter = (alias: string) => sql.raw(`${alias}.annotations @> '[{"type
 // and ~150 MB of JSON per page load. `componentsOnly`: just the tests that mount stories, without
 // failure clusters, for the Components page.
 export async function loadProjectHistory(p: ProjectRow, opts: { componentsOnly?: boolean } = {}): Promise<ProjectHistory> {
-  const runs = await windowRuns(p.id)
-  const entry = projectEntry(p, runs)
+  const window = await windowRuns(p.id)
+  const entry = projectEntry(p, window)
+  const runs = countedRuns(window)
   if (!runs.length)
     return { project: entry, histories: [], clusters: [] }
   const ids = sql.join(runs.map(r => sql`${r.id}`), sql`, `)
@@ -315,7 +327,7 @@ async function testHistoryOver(p: ProjectRow, runs: RunRow[], testKey: string): 
 
 // One test over the project's newest runs, every point: agents reading one test's history.
 export async function loadTestHistory(p: ProjectRow, testKey: string): Promise<TestHistory | undefined> {
-  return testHistoryOver(p, await windowRuns(p.id), testKey)
+  return testHistoryOver(p, countedRuns(await windowRuns(p.id)), testKey)
 }
 
 export interface TestHistoryPage {
@@ -329,7 +341,8 @@ export interface TestHistoryPage {
 // What the test history page shows: the test with every point, plus what it needs of the project
 // (its runs, the clusters this test is in), without the history of every other test.
 export async function loadTestHistoryPage(p: ProjectRow, testKey: string): Promise<TestHistoryPage> {
-  const runs = await windowRuns(p.id)
+  const window = await windowRuns(p.id)
+  const runs = countedRuns(window)
   const history = (await testHistoryOver(p, runs, testKey)) ?? null
   const clusters = history && (history.failed || history.flaky)
     ? (await windowClusters(p.slug, runs)).filter(c => c.testKeys.includes(testKey))
@@ -343,7 +356,7 @@ export async function loadTestHistoryPage(p: ProjectRow, testKey: string): Promi
         order by t.test_key, t.created_at desc`)
     : { rows: [] }
   return {
-    project: projectEntry(p, runs),
+    project: projectEntry(p, window),
     history,
     clusters,
     titles: Object.fromEntries(titleRows.rows.map(r => [r.testKey, { title: r.title, titlePath: r.titlePath }])),

@@ -1,4 +1,4 @@
-import type { Manifest, ProjectEntry, ProjectHistory, RunComparison, RunReport } from '@kinora/core'
+import type { Manifest, ProjectEntry, ProjectHistory, RunComparison, RunIncident, RunReport, RunSummary } from '@kinora/core'
 import type { ProjectAnalytics } from '../reports/analytics'
 import type { TestHistoryPage } from '../reports/queries'
 import { randomUUID } from 'node:crypto'
@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { db } from '../db'
 import { project, run, test, testQuarantine } from '../db/schemas/index'
 import { ANALYTICS_RANGES, isTimeZone, loadProjectAnalytics } from '../reports/analytics'
-import { findProject, loadProjectHistory, loadRun, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchTests, toNormTest } from '../reports/queries'
+import { findProject, incidentState, loadProjectHistory, loadRun, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchTests, toNormTest } from '../reports/queries'
 import { orgProcedure, router } from '../trpc/index'
 
 export { MAX_DASHBOARD_RUNS }
@@ -169,6 +169,31 @@ export const dashboardRouter = router({
       const p = await ownedProject(ctx.organizationId, input.projectId)
       await db.delete(testQuarantine).where(and(eq(testQuarantine.projectId, p.id), eq(testQuarantine.testKey, input.testKey)))
       return { ok: true }
+    }),
+
+  // Mark a run the rules missed as an environment incident, or clear a flag on real failures. The
+  // decision sticks: a later shard or upload never re-judges the run.
+  setRunIncident: orgProcedure
+    .input(z.object({
+      projectId: z.string().min(1),
+      runId: z.string().min(1),
+      flagged: z.boolean(),
+      reason: z.string().trim().max(500).optional(),
+    }))
+    .mutation(async ({ ctx, input }): Promise<Pick<RunSummary, 'incident' | 'incidentDecision'>> => {
+      const p = await ownedProject(ctx.organizationId, input.projectId)
+      const r = await loadRun(p.id, input.runId)
+      if (!r)
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Run not found' })
+      // Marking an already flagged run keeps what the rules found.
+      const incident: RunIncident | null = !input.flagged
+        ? null
+        : r.incident ?? { rule: 'manual', reason: input.reason || 'Marked as an environment incident.' }
+      const [row] = await db.update(run).set({
+        incident,
+        incidentDecision: { flagged: input.flagged, by: ctx.user.name || ctx.user.email, at: new Date().toISOString() },
+      }).where(eq(run.id, r.id)).returning()
+      return incidentState(row)
     }),
 
   compareRuns: orgProcedure

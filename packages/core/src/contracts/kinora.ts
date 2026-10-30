@@ -42,6 +42,26 @@ export type RunStatus = z.infer<typeof runStatusSchema>
 export const shardProgressSchema = z.object({ landed: z.number(), total: z.number() })
 export type ShardProgress = z.infer<typeof shardProgressSchema>
 
+// A run whose failures come from the environment under test (the app down, the browser crashing)
+// rather than from the tests: left out of histories, baselines and regression alerts (lib/incident).
+export const incidentRuleSchema = z.enum(['host-unreachable', 'browser-crash', 'manual'])
+export type IncidentRule = z.infer<typeof incidentRuleSchema>
+
+export const runIncidentSchema = z.object({
+  rule: incidentRuleSchema,
+  reason: z.string(),
+  host: z.string().optional(),
+})
+export type RunIncident = z.infer<typeof runIncidentSchema>
+
+// Someone marked or cleared the flag by hand: detection never overrides it.
+export const incidentDecisionSchema = z.object({
+  flagged: z.boolean(),
+  by: z.string(),
+  at: z.string(), // ISO 8601
+})
+export type IncidentDecision = z.infer<typeof incidentDecisionSchema>
+
 // One row per run, stored in the manifest. Kept small: powers the overview
 // grid and history charts without fetching full reports.
 export const runSummarySchema = z.object({
@@ -60,6 +80,8 @@ export const runSummarySchema = z.object({
   countsByTag: z.record(z.string(), countsSchema).default({}),
   status: runStatusSchema.optional(),
   shardProgress: shardProgressSchema.optional(),
+  incident: runIncidentSchema.optional(),
+  incidentDecision: incidentDecisionSchema.optional(),
 })
 export type RunSummary = z.infer<typeof runSummarySchema>
 
@@ -162,6 +184,8 @@ export const runReportSchema = z.object({
     shards: z.number().optional(),
     status: runStatusSchema.optional(),
     shardProgress: shardProgressSchema.optional(),
+    incident: runIncidentSchema.optional(),
+    incidentDecision: incidentDecisionSchema.optional(),
   }),
   tests: z.array(normTestSchema),
 })

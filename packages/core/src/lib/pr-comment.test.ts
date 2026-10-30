@@ -78,6 +78,19 @@ describe('buildPrCommentBody', () => {
     expect(body).toContain('<!-- kinora:pr:web -->')
   })
 
+  it('names an environment incident instead of comparing the run', () => {
+    const body = buildPrCommentBody({
+      projectSlug: 'web',
+      projectName: 'Web',
+      counts,
+      regression: { base: 'base-branch', newlyFailing: [{ testKey: 'k', title: 'login', file: 'a.spec.ts' }], newlyFlaky: [], fixed: 0 },
+      incident: { reason: '9 of 10 tests failed, 9 of them navigating or connecting to staging.example.test (connection refused).' },
+    })
+    expect(body).toContain('⚠️ **kinora** · Web · environment incident')
+    expect(body).toContain('**Environment incident, not counted.** 9 of 10 tests failed')
+    expect(body).not.toContain('newly failing')
+  })
+
   it('truncates a long failing list', () => {
     const many = Array.from({ length: 20 }, (_, i) => ({ testKey: `k${i}`, title: `t${i}`, file: 'f' }))
     const body = buildPrCommentBody({ projectSlug: 'web', projectName: 'Web', counts, regression: { base: 'previous-run', newlyFailing: many, newlyFlaky: [], fixed: 0 } })

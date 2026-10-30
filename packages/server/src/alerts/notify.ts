@@ -1,4 +1,4 @@
-import type { Counts, NormTest, ShardProgress } from '@kinora/core'
+import type { Counts, NormTest, RunIncident, ShardProgress } from '@kinora/core'
 import type { AlertPayload, AlertPolicy } from './core'
 import { compareRuns, countsFromTests } from '@kinora/core'
 import { and, eq, gt, isNull, or } from 'drizzle-orm'
@@ -24,6 +24,7 @@ export interface NotifyRunInput {
   counts: Counts
   tests: NormTest[]
   incomplete?: ShardProgress
+  incident?: RunIncident
 }
 
 export async function notifyRun(input: NotifyRunInput): Promise<void> {
@@ -52,8 +53,9 @@ export async function notifyRun(input: NotifyRunInput): Promise<void> {
   const muted = new Set(mutedRows.map(q => q.testKey))
   const activeTests = input.tests.filter(t => !muted.has(t.testKey))
 
-  const prevTests = await previousRunTests(input.projectId, input.startedAt, input.branch)
-  const deltas = compareRuns(prevTests, input.tests).filter(d => !muted.has(d.testKey))
+  // An environment incident is not compared: every test would read as newly failing.
+  const prevTests = input.incident ? [] : await previousRunTests(input.projectId, input.startedAt, input.branch)
+  const deltas = input.incident ? [] : compareRuns(prevTests, input.tests).filter(d => !muted.has(d.testKey))
   const newlyFailing = deltas.filter(d => d.change === 'broken')
   const newlyFlaky = deltas.filter(d => d.change === 'newly-flaky')
 
@@ -76,9 +78,10 @@ export async function notifyRun(input: NotifyRunInput): Promise<void> {
     newlyFlaky: newlyFlaky.map(d => d.title),
     codeOwners,
     ...(input.incomplete && { incomplete: input.incomplete }),
+    ...(input.incident && { incident: input.incident }),
   }
   const fires = (policy: AlertPolicy): boolean =>
-    shouldFire(policy, payload.counts, payload.newlyFailing.length, payload.newlyFlaky.length, !!payload.incomplete)
+    shouldFire(policy, payload.counts, payload.newlyFailing.length, payload.newlyFlaky.length, !!payload.incomplete, !!payload.incident)
 
   if (activeSlack && fires(activeSlack.policy)) {
     try {

@@ -1,5 +1,5 @@
 import type { RunRegression } from '../contracts/ingest'
-import type { Counts, NormTest, ShardProgress } from '../contracts/kinora'
+import type { Counts, NormTest, RunIncident, ShardProgress } from '../contracts/kinora'
 import { rerunAttemptOf } from './shards'
 
 type ListedTest = RunRegression['newlyFlaky'][number]
@@ -48,6 +48,8 @@ export interface PrCommentInput {
   // A grouped (sharded) run: until every shard landed, the comment shows the shards landed so far
   // and updates as the next ones land. `runId` keeps a slower shard from overwriting a newer state.
   shards?: ShardProgress & { runId: string }
+  // The run is an environment incident: no verdict on the change, so no regression lists.
+  incident?: Pick<RunIncident, 'reason'>
 }
 
 // The flaky tests of a run, as the comment lists them.
@@ -187,18 +189,21 @@ export function buildPrCommentBody(input: PrCommentInput): string {
   const { counts, shards } = input
   const partial = shards && shards.landed < shards.total ? shards : undefined
   // A run missing shards is never compared: its baseline diff would count the missing tests.
-  const regression = partial ? undefined : input.regression
+  const { incident } = input
+  const regression = partial || incident ? undefined : input.regression
   const failed = counts.unexpected
-  const icon = failed > 0 ? '❌' : partial ? '⏳' : counts.flaky > 0 ? '⚠️' : '✅'
+  const icon = incident ? '⚠️' : failed > 0 ? '❌' : partial ? '⏳' : counts.flaky > 0 ? '⚠️' : '✅'
   const lines: string[] = []
   // Re-run marks apply to every list a flaky test shows up in, new flakes included.
   const reruns = new Map((input.flaky ?? []).flatMap(t => t.rerunAttempt ? [[t.testKey, t.rerunAttempt] as const] : []))
 
-  lines.push(`${icon} **kinora** · ${input.projectName}${partial ? ` · ${partial.landed} of ${partial.total} shards landed` : ''}`)
+  lines.push(`${icon} **kinora** · ${input.projectName}${partial ? ` · ${partial.landed} of ${partial.total} shards landed` : ''}${incident ? ' · environment incident' : ''}`)
   lines.push('')
   lines.push(`\`${counts.expected + counts.flaky}/${counts.total} passed\` · **${failed} failed** · ${counts.flaky} flaky · ${counts.skipped} skipped${partial ? ' so far' : ''}`)
   if (partial)
     lines.push('', 'The other shards have not uploaded yet: this comment updates as they land.')
+  if (incident)
+    lines.push('', `**Environment incident, not counted.** ${incident.reason} Re-run once the environment is back, or clear the flag on the run page if it is wrong.`)
 
   const compared = regression && regression.base !== 'none' ? regression : undefined
   const vs = compared?.base === 'base-branch' ? 'base branch' : 'previous run'
@@ -220,7 +225,7 @@ export function buildPrCommentBody(input: PrCommentInput): string {
     if (!compared.newlyFailing.length && !newlyFlaky.length && compared.fixed === 0)
       lines.push(`\nNo change vs ${vs}.`)
   }
-  else if (otherFlaky.length) {
+  else if (otherFlaky.length && !incident) {
     pushTests(lines, `**${otherFlaky.length} flaky**:`, otherFlaky, input.runUrl, reruns)
   }
 

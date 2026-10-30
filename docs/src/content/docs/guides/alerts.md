@@ -41,11 +41,15 @@ and only pings you when something actually breaks or starts flaking.
 - The lists of newly failing and newly flaky tests (capped, with an "and N more" overflow).
 - For a sharded run closed with shards missing, how many landed ("3 of 4 shards"). Webhooks get
   it as `incomplete: { landed, total }`.
+- For an [environment incident](/guides/environment-incidents/) (the app under test was down), one
+  message naming the outage instead of the test lists, whatever the policy. Webhooks get it as
+  `incident: { rule, reason, host }`.
 
 A sharded run alerts once, when its last shard lands, or when it is closed as incomplete.
 
-Regressions are computed by comparing the run against the previous run on the same branch, so an
-alert distinguishes a fresh break from a test that was already red.
+Regressions are computed by comparing the run against the previous run on the same branch
+(skipping environment incidents), so an alert distinguishes a fresh break from a test that was
+already red.
 
 ## Bulk-imported runs
 
