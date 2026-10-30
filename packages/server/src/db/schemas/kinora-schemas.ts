@@ -64,7 +64,6 @@ export const run = pgTable('run', {
   incidentDecision: jsonb('incident_decision').$type<IncidentDecision>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, table => [
-  index('run_projectId_idx').on(table.projectId),
   index('run_project_started_idx').on(table.projectId, table.startedAt, table.id),
   uniqueIndex('run_project_idempotency_uniq').on(table.projectId, table.idempotencyKey).where(sql`idempotency_key is not null`),
   uniqueIndex('run_project_groupkey_uniq').on(table.projectId, table.groupKey).where(sql`group_key is not null`),
