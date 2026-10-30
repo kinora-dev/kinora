@@ -177,6 +177,12 @@ describe('downsampleTrend', () => {
     expect(out.map(p => Number(p.runId.slice(1)))).toEqual([...out.map(p => Number(p.runId.slice(1)))].sort((a, b) => a - b))
   })
 
+  it('keeps an incident marker when the incident is not the bucket worst run', () => {
+    const points = Array.from({ length: 500 }, (_, i) => ({ ...point(i, i === 237 ? 0.5 : 1), ...(i === 238 && { passRate: 0.9, incident: 'Staging down.' }) }))
+    const out = downsampleTrend(points, 50)
+    expect(out.filter(p => p.incident)).toEqual([expect.objectContaining({ runId: 'r237', passRate: 0.5, incident: 'Staging down.' })])
+  })
+
   it('keeps the worst run of each bucket so a failure stays visible', () => {
     const points = Array.from({ length: 500 }, (_, i) => point(i, i === 237 ? 0.2 : 1))
     expect(downsampleTrend(points, 50).filter(p => p.passRate < 1).map(p => p.runId)).toEqual(['r237'])

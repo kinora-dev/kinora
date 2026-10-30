@@ -132,6 +132,7 @@ describe('dashboard overview', () => {
     const overview = (await caller(a)).dashboard.overview
 
     expect((await overview()).branches).toEqual(['feat/x', 'main'])
+    expect((await overview({ branch: 'main' })).branches).toEqual(['feat/x', 'main'])
     const [main] = (await overview({ branch: 'main' })).projects
     expect(main.runCount).toBe(2)
     expect(main.runs.map(r => r.git?.branch)).toEqual(['main', 'main'])
@@ -143,6 +144,7 @@ describe('dashboard overview', () => {
     const overview = (await caller(a)).dashboard.overview
 
     expect((await overview()).tags).toEqual(['@slow', '@smoke'])
+    expect((await overview({ tag: '@slow' })).tags).toEqual(['@slow', '@smoke'])
     const [p] = (await overview({ tag: '@slow' })).projects
     expect(p.runCount).toBe(1)
     expect(p.runs[0].counts).toEqual(slow)
