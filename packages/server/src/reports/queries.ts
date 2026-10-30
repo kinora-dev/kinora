@@ -1,8 +1,8 @@
-import type { DashboardOverview, FailureCluster, NormError, NormTest, ProjectEntry, ProjectHistory, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
+import type { Counts, DashboardOverview, FailureCluster, NormError, NormTest, ProjectEntry, ProjectHistory, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
 import type { SQL } from 'drizzle-orm'
 import type { CodeownersRule } from '../lib/codeowners'
 import { applyTotals, buildFailureClusters, buildTestHistories, downsampleTrend, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
-import { and, asc, count, desc, eq, ilike, inArray, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, lte, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { artifact, project, run, test } from '../db/schemas/index'
 import { matchCodeowners, parseCodeowners } from '../lib/codeowners'
@@ -144,6 +144,24 @@ function inRunWindow(where: SQL | undefined): SQL {
   return sql`${run.id} in (select id from (select ${run.id}, row_number() over (partition by ${run.projectId} order by ${run.startedAt} desc, ${run.id} desc) as rn from ${run} where ${where}) w where w.rn <= ${MAX_DASHBOARD_RUNS})`
 }
 
+function runWindowOptions(where: SQL | undefined) {
+  return db.execute<{ branches: string[], tags: string[] }>(sql`with w as (
+    select git, counts_by_tag from (select ${run.git}, ${run.countsByTag}, row_number() over (partition by ${run.projectId} order by ${run.startedAt} desc, ${run.id} desc) as rn from ${run} where ${where}) x where x.rn <= ${MAX_DASHBOARD_RUNS}
+  ) select array(select distinct git->>'branch' from w where git->>'branch' is not null) as branches, array(select distinct jsonb_object_keys(counts_by_tag) from w) as tags`)
+}
+
+function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string, T[]> {
+  const out = new Map<string, T[]>()
+  for (const r of rows) {
+    const list = out.get(r.projectId)
+    if (list)
+      list.push(r)
+    else
+      out.set(r.projectId, [r])
+  }
+  return out
+}
+
 export async function loadOverview(organizationId: string, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
   const generatedAt = new Date().toISOString()
   const projects = await listProjects(organizationId)
@@ -151,45 +169,46 @@ export async function loadOverview(organizationId: string, filter: { branch?: st
     return { generatedAt, branches: [], tags: [], projects: [] }
 
   const { branch, tag } = filter
-  const branchOf = sql<string>`${run.git}->>'branch'`
+  const branchOf = sql<string | null>`${run.git}->>'branch'`
   const inProjects = inArray(run.projectId, projects.map(p => p.id))
   const matching = and(inProjects, branch ? eq(branchOf, branch) : undefined, tag ? sql`${run.countsByTag} ? ${tag}` : undefined)
-  const countsOf = (r: Pick<RunRow, 'counts' | 'countsByTag'>) => (tag ? r.countsByTag[tag] ?? r.counts : r.counts)
 
-  const [totals, windowRows, branches, tags] = await Promise.all([
+  const [totals, windowRows, options] = await Promise.all([
     db.select({ projectId: run.projectId, n: count() }).from(run).where(matching).groupBy(run.projectId),
     db
-      .select({ id: run.id, projectId: run.projectId, startedAt: run.startedAt, duration: run.duration, counts: run.counts, countsByTag: run.countsByTag, incident: run.incident })
+      .select({
+        id: run.id,
+        projectId: run.projectId,
+        startedAt: run.startedAt,
+        duration: run.duration,
+        incident: run.incident,
+        counts: tag ? sql<Counts>`${run.countsByTag} -> ${tag}` : run.counts,
+        branch: branchOf,
+        tags: sql<string[]>`array(select jsonb_object_keys(${run.countsByTag}))`,
+      })
       .from(run)
       .where(and(matching, inRunWindow(matching)))
       .orderBy(desc(run.startedAt), desc(run.id)),
-    db
-      .selectDistinct({ name: branchOf })
-      .from(run)
-      .where(and(inProjects, isNotNull(branchOf), inRunWindow(inProjects)))
-      .orderBy(branchOf),
-    db.execute<{ name: string }>(sql`select distinct jsonb_object_keys(${run.countsByTag}) as name from ${run} where ${and(inProjects, inRunWindow(inProjects))} order by name`),
+    branch || tag ? runWindowOptions(inProjects).then(r => r.rows[0]) : undefined,
   ])
 
   const runCount = new Map(totals.map(t => [t.projectId, t.n]))
-  const byProject = new Map<string, typeof windowRows>()
-  for (const r of windowRows)
-    byProject.set(r.projectId, [...(byProject.get(r.projectId) ?? []), r])
-
-  const latestIds = [...byProject.values()].flatMap(rows => rows.slice(0, HEALTH_WINDOW).map(r => r.id))
-  const latestRows = latestIds.length ? await db.query.run.findMany({ where: inArray(run.id, latestIds), orderBy: desc(run.startedAt) }) : []
+  const windowByProject = groupByProject(windowRows)
+  const latestIds = [...windowByProject.values()].flatMap(rows => rows.slice(0, HEALTH_WINDOW).map(r => r.id))
+  const latestByProject = groupByProject(latestIds.length ? await db.query.run.findMany({ where: inArray(run.id, latestIds), orderBy: [desc(run.startedAt), desc(run.id)] }) : [])
+  const branches = options?.branches ?? windowRows.flatMap(r => (r.branch ? [r.branch] : []))
+  const tags = options?.tags ?? windowRows.flatMap(r => r.tags)
 
   return {
     generatedAt,
-    branches: branches.map(b => b.name),
-    tags: tags.rows.map(t => t.name),
+    branches: [...new Set(branches)].sort(),
+    tags: [...new Set(tags)].sort(),
     projects: projects.map((p) => {
-      const rows = byProject.get(p.id) ?? []
-      const points = trendOf(rows.map(r => ({
+      const points = trendOf((windowByProject.get(p.id) ?? []).map(r => ({
         runId: r.id,
         startedAt: r.startedAt.toISOString(),
         duration: r.duration,
-        counts: countsOf(r),
+        counts: r.counts,
         incident: r.incident ?? undefined,
       })))
       return {
@@ -197,7 +216,7 @@ export async function loadOverview(organizationId: string, filter: { branch?: st
         name: p.name,
         description: p.description ?? undefined,
         runCount: runCount.get(p.id) ?? 0,
-        runs: latestRows.filter(r => r.projectId === p.id).map(r => ({ ...runSummary(p.slug, r), counts: countsOf(r), countsByTag: {} })),
+        runs: (latestByProject.get(p.id) ?? []).map(r => ({ ...runSummary(p.slug, r), counts: tag ? r.countsByTag[tag] ?? r.counts : r.counts, countsByTag: {} })),
         trend: downsampleTrend(points).map(t => ({ passRate: t.passRate, ...(t.incident && { incident: t.incident }) })),
       }
     }),
