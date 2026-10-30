@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { DEMO, login, scanPage } from './helpers'
 
@@ -41,7 +42,7 @@ test('signs up and reaches the app', async ({ page }) => {
   await page.goto('/signup')
   // The @test.dev domain makes Polar reject the customer -> this also asserts sign-up
   // succeeds even when the billing provider fails (non-fatal customer creation).
-  const email = `signup-${Date.now()}@test.dev`
+  const email = `signup-${randomUUID()}@test.dev`
   await page.locator('input[type="email"]').fill(email)
   await page.locator('input[type="password"]').nth(0).fill('password123')
   await page.locator('input[type="password"]').nth(1).fill('password123')
