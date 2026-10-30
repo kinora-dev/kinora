@@ -22,8 +22,9 @@ of the executed tests failed, and either:
 A failure counts as reaching the app's host when it is a network error (`net::ERR_CONNECTION_REFUSED`,
 a name that does not resolve, a reset connection, `ECONNREFUSED` from a request fixture) or a
 `page.goto` that timed out, and the address it names is the host of a Playwright project's
-`baseURL`. The [reporter](/guides/reporter/) sends the `baseURL`s; without one (a
-[CLI upload](/guides/cli/), Vitest), the host most failures named stands in for it.
+`baseURL`. The [reporter](/guides/reporter/) sends the `baseURL`s, and a
+[CLI upload](/guides/cli/) takes them with `--base-url`. Without one (Vitest, a CLI upload without
+the option), the host most failures named stands in for it.
 
 What never counts: a third-party host going down (a CDN, an analytics script), and a failing
 assertion, however many tests it breaks. A login page broken by a commit is a regression, not an

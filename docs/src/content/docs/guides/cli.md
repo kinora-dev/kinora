@@ -68,9 +68,15 @@ npx @kinora/cli import ./reports --project web-app --token <project-token> --con
 --group-key <key>     sharded report: the run its shards are assembled into
                       (default: env KINORA_GROUP_KEY, then GITHUB_RUN_ID / CI_PIPELINE_ID)
 --no-group            upload a sharded report as a run of its own
+--base-url <url>      the app's baseURL, repeatable (one per Playwright project), or env
+                      KINORA_BASE_URL (comma-separated). See below
 --concurrency <n>     parallel uploads for bulk import (default: 6)
 -h, --help
 ```
+
+A JSON report does not carry the `baseURL` of your Playwright projects. Pass it with `--base-url`
+so kinora tells an [environment incident](/guides/environment-incidents/) on your app's host from
+a third-party host going down. Without it, the host most failures named stands in for it.
 
 On GitHub Actions and GitLab CI, `git` and `ci` metadata (including the repo URL) auto-detect from
 the standard `GITHUB_*` / `CI_*` env vars; the flags override them. Pass the flags explicitly on

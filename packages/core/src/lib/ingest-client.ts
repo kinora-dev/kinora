@@ -16,6 +16,8 @@ export interface BuildIngestRunOptions {
   shards?: number
   // Group a sharded report (its `config.shard`) into the run of its CI run. Ignored when unsharded.
   group?: ShardGroup
+  // The app's `baseURL`s, which a JSON report does not carry (see IngestRun `baseUrls`).
+  baseUrls?: string[]
 }
 
 // Map a raw Playwright JSON report into the ingest wire payload. Shared by the
@@ -38,6 +40,7 @@ export function buildIngestRun(raw: unknown, opts: BuildIngestRunOptions): Inges
       git: opts.git,
       ci: opts.ci,
       shards: opts.shards,
+      ...(opts.baseUrls?.length && { baseUrls: opts.baseUrls }),
       ...(shard && opts.group && { ...opts.group, shard }),
     },
     tests: report.tests,

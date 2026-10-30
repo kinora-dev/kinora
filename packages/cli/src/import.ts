@@ -8,6 +8,7 @@ export interface ImportOptions {
   url: string
   token: string
   concurrency?: number
+  baseUrls?: string[]
 }
 
 // Backfill every results.json under a directory as historical runs (no traces, no alerts).
@@ -30,7 +31,7 @@ export async function importReports(opts: ImportOptions): Promise<{ imported: nu
     await Promise.all(chunk.map(async (file) => {
       try {
         const raw: unknown = JSON.parse(await readFile(file, 'utf8'))
-        await client.uploadRun(buildIngestRun(raw, { project: { slug, name } }))
+        await client.uploadRun(buildIngestRun(raw, { project: { slug, name }, baseUrls: opts.baseUrls }))
         imported++
       }
       catch (err) {

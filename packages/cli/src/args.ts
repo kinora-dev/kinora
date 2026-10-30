@@ -14,3 +14,12 @@ export function parseAttachmentKinds(raw: string | undefined): AttachmentKind[] 
 
   return kinds as AttachmentKind[]
 }
+
+// `--base-url` (repeatable, one per Playwright project), else KINORA_BASE_URL (comma-separated).
+export function parseBaseUrls(flags: string[] | undefined, env: string | undefined): string[] | undefined {
+  const urls = (flags?.length ? flags : env?.split(',') ?? []).map(u => u.trim()).filter(Boolean)
+  const invalid = urls.filter(u => !URL.canParse(u) || !/^https?:$/.test(new URL(u).protocol))
+  if (invalid.length)
+    throw new Error(`invalid --base-url: ${invalid.join(', ')} (expected an http(s) URL)`)
+  return urls.length ? urls : undefined
+}

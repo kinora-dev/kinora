@@ -29,6 +29,20 @@ function capture(response: object) {
   return { sent, fetch }
 }
 
+describe('uploadReport, base URLs', () => {
+  it('sends the base URLs the JSON report lacks', async () => {
+    const { sent, fetch } = capture({})
+    await uploadReport(RAW, { project: { slug: 'web-app' }, url: 'https://api.example.com', token: 't', fetch, baseUrls: ['https://staging.example.test'] })
+    expect(sent.run?.baseUrls).toEqual(['https://staging.example.test'])
+  })
+
+  it('leaves them out when none are given', async () => {
+    const { sent, fetch } = capture({})
+    await uploadReport(RAW, { project: { slug: 'web-app' }, url: 'https://api.example.com', token: 't', fetch })
+    expect(sent.run).not.toHaveProperty('baseUrls')
+  })
+})
+
 describe('uploadReport, sharded reports', () => {
   const sharded = { ...RAW, config: { version: '1.60.0', shard: { current: 2, total: 3 } } }
   const opts = { project: { slug: 'web-app' }, url: 'https://api.example.com', token: 't' }

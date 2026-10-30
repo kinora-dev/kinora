@@ -19,6 +19,8 @@ export interface UploadOptions {
   uploadAttachments?: AttachmentKind[]
   // A sharded report lands in the run of this CI run (see resolveShardGroup).
   group?: ShardGroup
+  // The app's `baseURL`s, so the server can tell an environment incident on its host.
+  baseUrls?: string[]
 }
 
 // Parse a Playwright json report and upload it to a kinora server. Shares the
@@ -29,6 +31,7 @@ export async function uploadReport(raw: unknown, opts: UploadOptions): Promise<U
     git: opts.git,
     ci: opts.ci,
     group: opts.group,
+    baseUrls: opts.baseUrls,
   })
   const client = createIngestClient({
     baseUrl: opts.url,

@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
 import { DEFAULT_KINORA_URL, detectCiEnv, IngestError, postPrComment, resolvePrContext, resolveShardGroup } from '@kinora/core'
-import { parseAttachmentKinds } from './args'
+import { parseAttachmentKinds, parseBaseUrls } from './args'
 import { importReports } from './import'
 import { uploadReport } from './upload'
 
@@ -38,6 +38,9 @@ Options:
   --group-key <key>     Sharded report (--shard): the run its shards are assembled into
                         (default: env KINORA_GROUP_KEY, then GITHUB_RUN_ID / CI_PIPELINE_ID)
   --no-group            Upload a sharded report as a run of its own
+  --base-url <url>      The app's baseURL, repeatable (one per Playwright project), or env
+                        KINORA_BASE_URL (comma-separated). A JSON report does not carry it, and it
+                        tells an environment incident on the app's host from a third-party outage
   --concurrency <n>     Parallel uploads for bulk import (default 6)
   --upload-attachments <kinds>
                         Comma-separated: trace, snapshot (both default), video, screenshot.
@@ -49,6 +52,15 @@ Options:
 function attachmentKinds(raw: string | undefined): AttachmentKind[] | undefined {
   try {
     return parseAttachmentKinds(raw)
+  }
+  catch (err) {
+    fail(err instanceof Error ? err.message : String(err))
+  }
+}
+
+function baseUrlsOf(flags: string[] | undefined): string[] | undefined {
+  try {
+    return parseBaseUrls(flags, process.env.KINORA_BASE_URL)
   }
   catch (err) {
     fail(err instanceof Error ? err.message : String(err))
@@ -83,6 +95,7 @@ async function main(): Promise<void> {
       'upload-attachments': { type: 'string' },
       'group-key': { type: 'string' },
       'no-group': { type: 'boolean' },
+      'base-url': { type: 'string', multiple: true },
       'help': { type: 'boolean', short: 'h' },
     },
   })
@@ -99,6 +112,7 @@ async function main(): Promise<void> {
   const token = values.token ?? process.env.KINORA_TOKEN
   if (!token)
     fail('--token or KINORA_TOKEN is required')
+  const baseUrls = baseUrlsOf(values['base-url'])
 
   // Bulk import: kinora import <dir> - backfill every results.json under a directory.
   if (positionals[0] === 'import') {
@@ -111,6 +125,7 @@ async function main(): Promise<void> {
       url,
       token,
       concurrency: values.concurrency ? Number(values.concurrency) : undefined,
+      baseUrls,
     })
     console.log(`imported ${imported} runs into ${values.project}${failed ? ` (${failed} skipped)` : ''}`)
     return
@@ -146,6 +161,7 @@ async function main(): Promise<void> {
     ci,
     regression: !!values['pr-comment'],
     uploadAttachments: attachmentKinds(values['upload-attachments']),
+    baseUrls,
     group: values['no-group'] ? undefined : resolveShardGroup(process.env, { groupKey: values['group-key'], leg: values['pr-label'] }),
   })
 
