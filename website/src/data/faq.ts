@@ -46,6 +46,11 @@ export const HOME_FAQS: Faq[] = [
     docs: [{ label: 'Flaky and broken tests', href: DOCS.flakyTests, event: 'docs-faq-flaky' }],
   },
   {
+    q: 'What happens when my staging environment is down?',
+    a: 'Every test fails at once, and none of those failures says anything about your tests. kinora recognizes such a run as an environment incident: nearly every test failed, and most failures could not reach your app\'s baseURL or saw the browser crash. The run is kept out of test histories, flaky scores, regression baselines and alerts, which send one message naming the outage instead. You can also stop the run before any test starts when the app does not answer, with the check-base-url global setup of @kinora/reporter.',
+    docs: [{ label: 'Environment incidents', href: DOCS.environmentIncidents, event: 'docs-faq-incidents' }],
+  },
+  {
     q: 'Does kinora track accessibility?',
     a: 'Yes. It records the axe scans of your Playwright tests (attach the scan to the test, or use the scanA11y helper of @kinora/reporter) and the checks of Storybook\'s a11y addon. You get the rules broken with their impact, the elements they hit, and hotspots that rank your test files and components by violations. Violations can fail the test or stay warnings.',
     docs: [{ label: 'Accessibility guide', href: DOCS.a11y, event: 'docs-faq-a11y' }],
