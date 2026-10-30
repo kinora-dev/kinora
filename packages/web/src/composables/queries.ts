@@ -27,6 +27,16 @@ export function useManifest() {
   return useAsyncState(() => trpc.dashboard.manifest.query(), null, QUERY_OPTIONS)
 }
 
+export function useOverview(branch: MaybeRefOrGetter<string | undefined>, tag: MaybeRefOrGetter<string | undefined>) {
+  const query = useAsyncState(
+    () => trpc.dashboard.overview.query({ branch: toValue(branch), tag: toValue(tag) }),
+    null,
+    { ...QUERY_OPTIONS, resetOnExecute: false },
+  )
+  watch(() => [toValue(branch), toValue(tag)], () => void query.execute())
+  return query
+}
+
 export function useRun(projectId: string, runId: string) {
   return useAsyncState(() => trpc.dashboard.run.query({ projectId, runId }), null, QUERY_OPTIONS)
 }

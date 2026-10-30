@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import {
-  collectBranches,
-  collectTags,
   denom,
-  filterRuns,
   formatPct,
   latestRun,
   runHealth,
@@ -19,16 +16,21 @@ import StatStripSkeleton from '@/components/app/StatStripSkeleton.vue'
 import FilterCombobox from '@/components/FilterCombobox.vue'
 import OverviewEmpty from '@/components/project/OverviewEmpty.vue'
 import ProjectCard from '@/components/project/ProjectCard.vue'
-import { useManifest } from '@/composables/queries'
-
-const { state: manifest, isLoading, error, execute: retry } = useManifest()
-
-const projects = computed(() => manifest.value?.projects ?? [])
-const branches = computed(() => collectBranches(projects.value))
-const tags = computed(() => collectTags(projects.value))
+import { useOverview } from '@/composables/queries'
 
 const branch = useRouteQuery('branch', 'all')
 const tag = useRouteQuery('tag', 'all')
+
+const { state: overview, isLoading, error, execute: retry } = useOverview(
+  () => (branch.value === 'all' ? undefined : branch.value),
+  () => (tag.value === 'all' ? undefined : tag.value),
+)
+const loading = computed(() => isLoading.value && !overview.value)
+
+const projects = computed(() => overview.value?.projects ?? [])
+const branches = computed(() => overview.value?.branches ?? [])
+const tags = computed(() => overview.value?.tags ?? [])
+
 const hasFilters = computed(() => branch.value !== 'all' || tag.value !== 'all')
 
 function clearFilters() {
@@ -36,15 +38,7 @@ function clearFilters() {
   tag.value = 'all'
 }
 
-// Projects with runs filtered (and, for tag, counts swapped). Empty ones drop out.
-const displayProjects = computed(() =>
-  projects.value
-    .map(p => ({
-      ...p,
-      runs: filterRuns(p.runs, branch.value === 'all' ? null : branch.value, tag.value === 'all' ? null : tag.value),
-    }))
-    .filter(p => p.runs.length > 0),
-)
+const displayProjects = computed(() => projects.value.filter(p => p.runCount > 0))
 
 const stats = computed(() => {
   const latest = displayProjects.value.map(latestRun).filter(r => r != null)
@@ -59,7 +53,7 @@ const stats = computed(() => {
     if (runHealth(r.counts) === 'failing')
       failing++
   }
-  const runs = displayProjects.value.reduce((s, p) => s + p.runs.length, 0)
+  const runs = displayProjects.value.reduce((s, p) => s + p.runCount, 0)
   return {
     projects: displayProjects.value.length,
     runs,
@@ -73,7 +67,7 @@ const stats = computed(() => {
 <template>
   <div class="flex flex-col gap-8">
     <!-- Page header (hidden on a brand-new account so the empty state stands alone) -->
-    <div v-if="isLoading || error || projects.length" class="flex flex-col gap-6">
+    <div v-if="loading || error || projects.length" class="flex flex-col gap-6">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 class="text-2xl font-semibold tracking-tight">
@@ -85,7 +79,7 @@ const stats = computed(() => {
         </div>
 
         <!-- Filters -->
-        <div v-if="!isLoading && !error" class="flex items-center gap-2">
+        <div v-if="!loading && !error" class="flex items-center gap-2">
           <!-- Clear sits left so the comboboxes (right-aligned) don't shift when it toggles. -->
           <Button v-if="hasFilters" variant="ghost" size="sm" class="h-9 font-mono text-xs" @click="clearFilters">
             Clear
@@ -111,7 +105,7 @@ const stats = computed(() => {
         </div>
       </div>
 
-      <StatStripSkeleton v-if="isLoading && !error" :count="5" />
+      <StatStripSkeleton v-if="loading && !error" :count="5" />
       <div
         v-else-if="!error && projects.length"
         class="flex flex-wrap items-center gap-x-10 gap-y-4 rounded-lg border border-border/70 bg-card/80 px-6 py-5"
@@ -135,7 +129,7 @@ const stats = computed(() => {
     <ErrorState v-if="error" :error="error" @retry="retry()" />
 
     <!-- Loading -->
-    <div v-else-if="isLoading" class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+    <div v-else-if="loading" class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
       <Skeleton v-for="i in 6" :key="i" class="h-54 rounded-xl" />
     </div>
 
