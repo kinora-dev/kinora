@@ -9,6 +9,7 @@ import { Button } from '@kinora/ui/button'
 import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
 import { StatBlock } from '@kinora/ui/stat-block'
+import { Loader2 } from '@lucide/vue'
 import { useRouteQuery } from '@vueuse/router'
 import { computed } from 'vue'
 import ErrorState from '@/components/app/ErrorState.vue'
@@ -79,7 +80,8 @@ const stats = computed(() => {
         </div>
 
         <!-- Filters -->
-        <div v-if="!loading && !error" class="flex items-center gap-2">
+        <div v-if="!loading && !error" class="flex items-center gap-2" :aria-busy="isLoading">
+          <Loader2 v-if="isLoading" class="size-4 animate-spin text-muted-foreground" />
           <!-- Clear sits left so the comboboxes (right-aligned) don't shift when it toggles. -->
           <Button v-if="hasFilters" variant="ghost" size="sm" class="h-9 font-mono text-xs" @click="clearFilters">
             Clear
