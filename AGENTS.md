@@ -106,6 +106,8 @@ One codebase, two deployment modes gated by `KINORA_CLOUD` (env). Self-host (`fa
 
 Drizzle (query layer) + Postgres. Schema in `src/db/schemas/` split into `auth-schemas.ts` (better-auth tables) and `kinora-schemas.ts` (`project`, `run`, `test`, `artifact`). jsonb columns (`counts`, `git`, `ci`, `titlePath`, `errors`, `attachments`, ...) are typed from `@kinora/core` types via `.$type<>()`, so the DB row shape and the contract stay in sync. Schema changes are migrated via knex (see Commands).
 
+**Environment incidents**: a run whose failures come from the app under test being down (`detectIncident` in `core/src/lib/incident.ts`, judged at ingest, on a grouped run's last shard, and by the shard sweep) gets `run.incident` set, unless someone decided by hand (`incident_decision`, never overridden). Such a run stays in run lists and analytics but is left out of test histories, health and failure clusters (`countedRuns` in `reports/queries.ts`) and of regression baselines (`latestRunId` in `reports/regression.ts`); a new query over a project's runs for verdicts should leave it out too.
+
 Binary artifacts (trace.zip) go through the `Storage` interface in `src/lib/storage.ts`: local FS (`STORAGE_DIR`) by default, or any S3-compatible store (AWS / R2 / MinIO / Hetzner) when all five `S3_*` env vars are set. The dashboard `run` query resolves `storageKey` -> absolute URL at read time and merges it into each test's attachments.
 
 ### Frontend
