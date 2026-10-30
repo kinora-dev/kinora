@@ -106,7 +106,9 @@ export function downsampleTrend(points: TrendPoint[], max = OVERVIEW_TREND_POINT
     return points
   return Array.from({ length: max }, (_, i) => {
     const bucket = points.slice(Math.floor(i * points.length / max), Math.floor((i + 1) * points.length / max))
-    return bucket.reduce((worst, p) => (p.passRate <= worst.passRate ? p : worst))
+    const worst = bucket.reduce((w, p) => (p.passRate <= w.passRate ? p : w))
+    const incident = worst.incident ?? bucket.find(p => p.incident)?.incident
+    return incident ? { ...worst, incident } : worst
   })
 }
 
