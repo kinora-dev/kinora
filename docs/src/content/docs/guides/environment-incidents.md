@@ -49,6 +49,13 @@ incident. A test that timed out and then saw its browser close is a timeout, not
 The run itself stays: its tests, errors and traces are kept like any other run's, and analytics
 still count it.
 
+## Stopping a run before it starts
+
+With [`@kinora/reporter/check-base-url`](/guides/reporter/#checking-the-app-is-up) in
+`globalSetup`, Playwright checks that each `baseURL` answers before any worker starts, and stops
+the run when one does not. No test runs, so the outage costs no CI time and no run reaches the
+dashboard.
+
 ## Marking and clearing by hand
 
 The rules can miss an outage or flag a real regression. On the run page:

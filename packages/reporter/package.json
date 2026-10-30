@@ -22,7 +22,8 @@
   "exports": {
     ".": "./dist/index.mjs",
     "./ct": "./dist/ct.mjs",
-    "./a11y": "./dist/a11y.mjs"
+    "./a11y": "./dist/a11y.mjs",
+    "./check-base-url": "./dist/check-base-url.mjs"
   },
   "main": "./dist/index.mjs",
   "files": [

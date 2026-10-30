@@ -139,6 +139,36 @@ attachments from the JSON report, when they are attached with a `body` (as above
 Storybook stories get the same views through the a11y addon: see
 [Vitest and Storybook](/guides/vitest/#accessibility).
 
+## Checking the app is up
+
+When the environment under test is down, every test fails and the run only tells you that. Add
+`@kinora/reporter/check-base-url` to `globalSetup` and Playwright checks that the `baseURL` of
+each project in the run answers before any worker starts:
+
+```ts
+export default defineConfig({
+  // List it after a setup of yours that starts the app.
+  globalSetup: ['@kinora/reporter/check-base-url', './global-setup.ts'],
+  reporter: [['@kinora/reporter', { project: { slug: 'web-app' } }]],
+})
+```
+
+A `baseURL` is down when it refuses the connection, does not resolve, does not answer within 10
+seconds, or answers `502`, `503` or `504` (a gateway whose app is down), on each of 3 tries. Any
+other answer, a `404` or a `500` included, is the app answering. When one is down, the run stops
+with a message naming it and Playwright's failure exit code: no test runs, so the outage costs
+no CI time and no run reaches the dashboard.
+
+The request goes through Playwright's request context with the project's `proxy` and
+`ignoreHTTPSErrors`, and only the projects the run selects (`--project`, with their
+dependencies) are checked. A browser on a remote grid (`connectOptions`) reaches the app from the
+grid's network, not from the machine the check runs on: the message says so for such a project.
+Set `KINORA_CHECK_BASE_URL=false` to run the tests anyway. Needs Playwright 1.49 or later for a
+`globalSetup` list.
+
+A run that still fails because the environment went down is flagged as an
+[environment incident](/guides/environment-incidents/).
+
 ## CI example (GitHub Actions)
 
 ```yaml

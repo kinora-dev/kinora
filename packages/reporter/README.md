@@ -93,6 +93,20 @@ A scan you build yourself works too, as long as it is attached to the test with
 An assertion alone is invisible to a reporter. More in the
 [accessibility guide](https://docs.kinora.dev/guides/reporter/#accessibility).
 
+## Checking the app is up
+
+List `@kinora/reporter/check-base-url` in `globalSetup` and the run stops before any test when a
+project's `baseURL` does not answer (refused, unresolved, timed out, or a `502` / `503` / `504`):
+
+```ts
+export default defineConfig({
+  globalSetup: ['@kinora/reporter/check-base-url', './global-setup.ts'],
+})
+```
+
+`KINORA_CHECK_BASE_URL=false` skips it. More in the
+[reporter guide](https://docs.kinora.dev/guides/reporter/#checking-the-app-is-up).
+
 ## Documentation
 
 Full reporter options, PR/MR comments, CI examples, and self-hosting are in the docs:
