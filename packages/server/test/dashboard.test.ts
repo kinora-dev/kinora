@@ -228,7 +228,11 @@ describe('dashboard project runs', () => {
     const projectRuns = (await caller(a)).dashboard.projectRuns
 
     expect((await projectRuns({ projectId: 'web-app', after: ids[3] })).runs.map(r => r.runId)).toEqual(ids.slice(0, RUN_PAGE_SIZE))
-    expect((await projectRuns({ projectId: 'web-app', before: 'gone' })).runs.map(r => r.runId)).toEqual(ids.slice(0, RUN_PAGE_SIZE))
+    for (const cursor of [{ before: 'gone' }, { after: 'gone' }]) {
+      const page = await projectRuns({ projectId: 'web-app', ...cursor })
+      expect(page.runs.map(r => r.runId)).toEqual(ids.slice(0, RUN_PAGE_SIZE))
+      expect(page.newer).toBeUndefined()
+    }
   })
 
   it('summarizes the project with its full run count', async () => {
