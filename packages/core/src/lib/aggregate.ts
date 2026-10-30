@@ -80,6 +80,12 @@ export interface DashboardOverview {
   projects: OverviewProject[]
 }
 
+export interface ProjectRunsPage {
+  runs: RunSummary[]
+  newer?: string
+  older?: string
+}
+
 export const OVERVIEW_TREND_POINTS = 50
 
 export function trend(p: ProjectEntry): TrendPoint[] {

@@ -1,10 +1,11 @@
 import type { Counts, IngestRun } from '@kinora/core'
 import { randomUUID } from 'node:crypto'
 import { diagnose, makeTestKey, STORY_ANNOTATION } from '@kinora/core'
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../src/db'
 import { artifact, project, run, test, testQuarantine } from '../src/db/schemas/index'
+import { RUN_PAGE_SIZE } from '../src/reports/queries'
 import { MAX_DASHBOARD_RUNS } from '../src/router/dashboard'
 import { caller, createApiKey, createUser, ingest, runPayload } from './helpers'
 
@@ -171,6 +172,80 @@ describe('dashboard overview', () => {
 
     expect((await (await caller(a)).dashboard.overview()).projects).toHaveLength(1)
     expect(await (await caller(b)).dashboard.overview()).toMatchObject({ projects: [], branches: [], tags: [] })
+  })
+})
+
+describe('dashboard project runs', () => {
+  const MINUTE = 60_000
+
+  async function seed(n: number, startedAt = (i: number, now: number) => new Date(now - (i + 1) * MINUTE)) {
+    const a = await createUser('a@test.dev')
+    await ingest(await createApiKey(a.id), runPayload('web-app', '@smoke', 'expected'))
+    const p = await db.query.project.findFirst({ where: eq(project.slug, 'web-app') })
+    const now = Date.now()
+    await db.insert(run).values(Array.from({ length: n }, (_, i) => ({
+      id: randomUUID(),
+      projectId: p!.id,
+      startedAt: startedAt(i, now),
+      duration: 0,
+      counts: { total: 1, expected: 1, unexpected: 0, flaky: 0, skipped: 0 },
+    })))
+    const all = await db.select({ id: run.id }).from(run).where(eq(run.projectId, p!.id)).orderBy(desc(run.startedAt), desc(run.id))
+    return { a, ids: all.map(r => r.id) }
+  }
+
+  it('pages every run newest first, older and back newer', async () => {
+    const { a, ids } = await seed(MAX_DASHBOARD_RUNS + 9)
+    const projectRuns = (await caller(a)).dashboard.projectRuns
+
+    const seen: string[] = []
+    let page = await projectRuns({ projectId: 'web-app' })
+    expect(page.newer).toBeUndefined()
+    while (true) {
+      seen.push(...page.runs.map(r => r.runId))
+      if (!page.older)
+        break
+      page = await projectRuns({ projectId: 'web-app', before: page.older })
+    }
+    expect(seen).toEqual(ids)
+
+    const second = await projectRuns({ projectId: 'web-app', before: ids[RUN_PAGE_SIZE - 1] })
+    expect((await projectRuns({ projectId: 'web-app', after: second.newer! })).runs.map(r => r.runId)).toEqual(ids.slice(0, RUN_PAGE_SIZE))
+  })
+
+  it('orders runs that started at the same time by id', async () => {
+    const at = new Date()
+    const { a, ids } = await seed(RUN_PAGE_SIZE + 5, () => at)
+    const projectRuns = (await caller(a)).dashboard.projectRuns
+
+    const first = await projectRuns({ projectId: 'web-app' })
+    const second = await projectRuns({ projectId: 'web-app', before: first.older! })
+    expect([...first.runs, ...second.runs].map(r => r.runId)).toEqual(ids)
+  })
+
+  it('fills a newer page near the top and starts over on an unknown cursor', async () => {
+    const { a, ids } = await seed(RUN_PAGE_SIZE + 5)
+    const projectRuns = (await caller(a)).dashboard.projectRuns
+
+    expect((await projectRuns({ projectId: 'web-app', after: ids[3] })).runs.map(r => r.runId)).toEqual(ids.slice(0, RUN_PAGE_SIZE))
+    expect((await projectRuns({ projectId: 'web-app', before: 'gone' })).runs.map(r => r.runId)).toEqual(ids.slice(0, RUN_PAGE_SIZE))
+  })
+
+  it('summarizes the project with its full run count', async () => {
+    const { a } = await seed(MAX_DASHBOARD_RUNS + 9)
+
+    const summary = await (await caller(a)).dashboard.projectSummary({ projectId: 'web-app' })
+    expect(summary).toMatchObject({ id: 'web-app', runCount: MAX_DASHBOARD_RUNS + 10 })
+    expect(summary.runs).toHaveLength(20)
+    expect(summary.trend).toHaveLength(50)
+  })
+
+  it('hides another workspace project', async () => {
+    await seed(1)
+    const b = await createUser('b@test.dev')
+
+    await expect((await caller(b)).dashboard.projectRuns({ projectId: 'web-app' })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect((await caller(b)).dashboard.projectSummary({ projectId: 'web-app' })).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 })
 
