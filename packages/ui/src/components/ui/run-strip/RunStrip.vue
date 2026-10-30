@@ -18,6 +18,15 @@ const emit = defineEmits<{ select: [run: RunSummary] }>()
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 
+const HEALTH_COLORS = { passing: 'bg-pass', flaky: 'bg-flaky', failing: 'bg-fail', empty: 'bg-muted-foreground/40' } as const
+
+function barColor(r: RunSummary, health: keyof typeof HEALTH_COLORS, partial: string | undefined): string {
+  // An environment incident is hatched: its failures say nothing about the tests.
+  if (r.incident)
+    return 'bg-[repeating-linear-gradient(135deg,var(--color-muted-foreground)_0_2px,transparent_2px_4px)] ring-1 ring-inset ring-muted-foreground/50'
+  return partial ? 'bg-muted-foreground/40' : HEALTH_COLORS[health]
+}
+
 // Chronological, oldest first, capped to the most recent `limit`.
 const bars = computed(() =>
   [...props.runs]
@@ -31,15 +40,7 @@ const bars = computed(() =>
         health,
         partial,
         pct: passRate(r.counts),
-        color: partial
-          ? 'bg-muted-foreground/40'
-          : health === 'passing'
-            ? 'bg-pass'
-            : health === 'flaky'
-              ? 'bg-flaky'
-              : health === 'failing'
-                ? 'bg-fail'
-                : 'bg-muted-foreground/40',
+        color: barColor(r, health, partial),
         date: dateFmt.format(new Date(r.startedAt)),
       }
     }),
@@ -71,6 +72,9 @@ const bars = computed(() =>
           </div>
           <div v-if="b.partial" class="tabular-nums text-background/70">
             {{ b.partial }}
+          </div>
+          <div v-if="b.run.incident" class="text-background/70">
+            Environment incident, not counted
           </div>
         </TooltipContent>
       </Tooltip>

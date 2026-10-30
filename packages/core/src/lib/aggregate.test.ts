@@ -1,6 +1,6 @@
 import type { Counts, ProjectEntry, RunSummary } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
-import { collectBranches, collectTags, denom, filterRuns, formatDuration, formatPct, latestRun, passRate, recentPassRate, runHealth, sortedRuns, trend } from './aggregate'
+import { collectBranches, collectTags, denom, filterRuns, formatDuration, formatPct, incidentMarkers, latestRun, passRate, recentPassRate, runHealth, sortedRuns, trend } from './aggregate'
 
 function counts(o: Partial<Counts>): Counts {
   return { total: 0, expected: 0, unexpected: 0, flaky: 0, skipped: 0, ...o }
@@ -139,6 +139,19 @@ describe('trend', () => {
     expect(pts.map(t => t.runId)).toEqual(['old', 'new'])
     expect(pts[1].passRate).toBeCloseTo(0.5)
     expect(pts[1].unexpected).toBe(2)
+  })
+
+  it('marks the environment incidents, by their index in the trend', () => {
+    const incident = { rule: 'host-unreachable' as const, reason: '4 of 4 tests failed.' }
+    const p: ProjectEntry = {
+      id: 'p',
+      name: 'P',
+      runs: [
+        makeRun({ runId: 'down', startedAt: '2026-01-02T00:00:00Z', counts: counts({ total: 4, unexpected: 4 }), incident }),
+        makeRun({ runId: 'ok', startedAt: '2026-01-01T00:00:00Z', counts: counts({ total: 4, expected: 4 }) }),
+      ],
+    }
+    expect(incidentMarkers(trend(p))).toEqual([{ index: 1, label: 'Environment incident, not counted: 4 of 4 tests failed.' }])
   })
 })
 

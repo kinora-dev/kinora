@@ -2,6 +2,7 @@
 import {
   formatPct,
   HEALTH_WINDOW,
+  incidentMarkers,
   latestRun,
   recentPassRate,
   sortedRuns,
@@ -37,7 +38,9 @@ const project = computed(() =>
 const runs = computed(() => (project.value ? sortedRuns(project.value) : []))
 const latest = computed(() => (project.value ? latestRun(project.value) : undefined))
 const rate = computed(() => recentPassRate(runs.value, HEALTH_WINDOW))
-const series = computed(() => (project.value ? trend(project.value).map(t => t.passRate) : []))
+const points = computed(() => (project.value ? trend(project.value) : []))
+const series = computed(() => points.value.map(t => t.passRate))
+const markers = computed(() => incidentMarkers(points.value))
 </script>
 
 <template>
@@ -138,7 +141,7 @@ const series = computed(() => (project.value ? trend(project.value).map(t => t.p
           <Separator orientation="vertical" class="h-10" />
           <StatBlock label="Tests" :value="latest?.counts.total ?? 0" />
           <div class="ml-auto w-40 text-muted-foreground">
-            <Sparkline :values="series" :height="44" :width="160" />
+            <Sparkline :values="series" :markers="markers" :height="44" :width="160" />
           </div>
         </div>
       </div>

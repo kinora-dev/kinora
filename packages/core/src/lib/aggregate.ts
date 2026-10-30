@@ -60,6 +60,8 @@ export interface TrendPoint {
   flaky: number
   total: number
   duration: number
+  // Why the run is an environment incident, when it is one: explains a dip in the trend.
+  incident?: string
 }
 
 export function trend(p: ProjectEntry): TrendPoint[] {
@@ -73,7 +75,13 @@ export function trend(p: ProjectEntry): TrendPoint[] {
       flaky: r.counts.flaky,
       total: r.counts.total,
       duration: r.duration,
+      ...(r.incident && { incident: r.incident.reason }),
     }))
+}
+
+// The points of a trend to call out on its chart, by index: the environment incidents.
+export function incidentMarkers(points: TrendPoint[]): { index: number, label: string }[] {
+  return points.flatMap((p, index) => p.incident ? [{ index, label: `Environment incident, not counted: ${p.incident}` }] : [])
 }
 
 export function collectBranches(projects: ProjectEntry[]): string[] {

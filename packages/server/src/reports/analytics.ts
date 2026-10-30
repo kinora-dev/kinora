@@ -20,6 +20,8 @@ export interface OutcomeBucket {
   flaky: number
   unexpected: number
   skipped: number
+  // Runs flagged as environment incidents: still counted here, but they explain a dip.
+  incidents: number
 }
 
 export interface ProjectAnalytics {
@@ -108,6 +110,7 @@ export async function loadProjectAnalytics(projectId: string, days: AnalyticsRan
         flaky: total('flaky'),
         unexpected: total('unexpected'),
         skipped: total('skipped'),
+        incidents: sql<number>`(count(*) filter (where ${run.incident} is not null))::int`,
       })
       .from(run)
       .where(and(inRange, branch ? eq(branchOf, branch) : undefined))

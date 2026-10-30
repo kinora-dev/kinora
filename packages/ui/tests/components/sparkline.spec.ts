@@ -12,6 +12,15 @@ test.describe('Sparkline', () => {
     expect(y).toBe(3)
   })
 
+  test('calls out a marked point with its label', async ({ mount }) => {
+    const component = await mount('Sparkline/WithMarkers')
+    const marker = component.locator('[data-marker]')
+    await expect(marker).toHaveCount(1)
+    await expect(marker.locator('title')).toHaveText('Environment incident: staging.example.test')
+    const points = (await component.locator('polyline').getAttribute('points'))!.split(' ')
+    await expect(marker.locator('circle')).toHaveAttribute('cx', points[5].split(',')[0])
+  })
+
   test('draws nothing without values', async ({ mount }) => {
     const component = await mount('Sparkline/Empty')
     await expect(component.locator('svg')).toBeAttached()

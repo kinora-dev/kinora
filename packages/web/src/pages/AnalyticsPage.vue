@@ -50,8 +50,8 @@ const outcomesConfig = {
 
 const outcomes = computed(() => state.value?.outcomes ?? [])
 const totals = computed(() => outcomes.value.reduce(
-  (t, b) => ({ runs: t.runs + b.runs, expected: t.expected + b.expected, flaky: t.flaky + b.flaky, unexpected: t.unexpected + b.unexpected }),
-  { runs: 0, expected: 0, flaky: 0, unexpected: 0 },
+  (t, b) => ({ runs: t.runs + b.runs, expected: t.expected + b.expected, flaky: t.flaky + b.flaky, unexpected: t.unexpected + b.unexpected, incidents: t.incidents + b.incidents }),
+  { runs: 0, expected: 0, flaky: 0, unexpected: 0, incidents: 0 },
 ))
 // Rates over the results that ran: skipped tests say nothing about stability.
 const results = computed(() => totals.value.expected + totals.value.flaky + totals.value.unexpected)
@@ -88,6 +88,9 @@ function bucketLabel(t: number): string {
   last.setDate(last.getDate() + 6)
   return `${shortDate(t)} - ${shortDate(last.getTime())}`
 }
+
+// The buckets holding an environment incident: what explains a dip in the chart.
+const incidentBuckets = computed(() => outcomes.value.filter(b => b.incidents > 0).map(b => bucketLabel(at(b.date))))
 </script>
 
 <template>
@@ -142,6 +145,10 @@ function bucketLabel(t: number): string {
         <StatBlock label="Flaky" :value="rate(totals.flaky)" :tone="totals.flaky ? 'flaky' : 'default'" />
         <Separator orientation="vertical" class="h-10" />
         <StatBlock label="Failed" :value="rate(totals.unexpected)" :tone="totals.unexpected ? 'fail' : 'default'" />
+        <template v-if="totals.incidents">
+          <Separator orientation="vertical" class="h-10" />
+          <StatBlock label="Env. incidents" :value="totals.incidents" />
+        </template>
       </div>
 
       <Card>
@@ -173,6 +180,9 @@ function bucketLabel(t: number): string {
           />
           <p v-else class="py-10 text-center font-mono text-xs text-muted-foreground">
             {{ outcomes.length ? `Only one ${per} with runs in this range: not enough to draw a trend.` : 'No runs in this range.' }}
+          </p>
+          <p v-if="incidentBuckets.length" data-testid="incident-buckets" class="mt-3 font-mono text-xs text-muted-foreground">
+            Environment incidents on {{ incidentBuckets.join(', ') }}: the app under test was down, so their failures say nothing about the tests.
           </p>
         </CardContent>
       </Card>

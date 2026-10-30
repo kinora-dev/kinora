@@ -18,6 +18,14 @@ test.describe('RunStrip', () => {
     await expect(fills.nth(2)).toContainClass('bg-fail')
   })
 
+  test('hatches an environment incident instead of coloring it by health', async ({ mount }) => {
+    const component = await mount('RunStrip/WithIncident')
+    const fill = component.getByRole('button').nth(2).locator('span')
+    await expect(fill).not.toContainClass('bg-fail')
+    await component.getByRole('button').nth(2).hover()
+    await expect(component.page().getByRole('tooltip')).toContainText('Environment incident, not counted')
+  })
+
   test('selects the run of the bar that is clicked', async ({ mount }) => {
     const component = await mount('RunStrip/Default')
     await component.getByRole('button').nth(2).click()

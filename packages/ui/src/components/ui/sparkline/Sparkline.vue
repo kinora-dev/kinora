@@ -8,6 +8,9 @@ const props = withDefaults(
     height?: number
     min?: number
     max?: number
+    // Points to call out (an environment incident behind a dip): a dashed guide and a ring, the
+    // label as its tooltip.
+    markers?: { index: number, label: string }[]
   }>(),
   { width: 220, height: 44, min: 0, max: 1 },
 )
@@ -38,6 +41,10 @@ const area = computed(() => {
   return `${pad},${props.height - pad} ${top} ${props.width - pad},${props.height - pad}`
 })
 const last = computed(() => points.value.at(-1))
+const marked = computed(() => (props.markers ?? []).flatMap((m) => {
+  const p = points.value[m.index]
+  return p ? [{ x: p[0], y: p[1], label: m.label }] : []
+}))
 </script>
 
 <template>
@@ -65,6 +72,28 @@ const last = computed(() => points.value.at(-1))
       stroke-linecap="round"
       vector-effect="non-scaling-stroke"
     />
+    <g v-for="(m, i) in marked" :key="i" data-marker>
+      <title>{{ m.label }}</title>
+      <line
+        :x1="m.x"
+        :x2="m.x"
+        :y1="pad"
+        :y2="height - pad"
+        stroke="currentColor"
+        stroke-opacity="0.45"
+        stroke-dasharray="2 2"
+        vector-effect="non-scaling-stroke"
+      />
+      <circle
+        :cx="m.x"
+        :cy="m.y"
+        r="2.6"
+        fill="var(--background, white)"
+        stroke="currentColor"
+        stroke-width="1.2"
+        vector-effect="non-scaling-stroke"
+      />
+    </g>
     <circle
       v-if="last"
       :cx="last[0]"

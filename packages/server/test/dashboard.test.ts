@@ -90,7 +90,7 @@ describe('dashboard analytics', () => {
   const day = (d: Date) => d.toISOString().slice(0, 10)
 
   // An ingest creates the project; the extra runs are inserted directly to backdate them.
-  async function seed(runs: { daysAgo: number, counts: Partial<Counts>, branch?: string }[]) {
+  async function seed(runs: { daysAgo: number, counts: Partial<Counts>, branch?: string, incident?: boolean }[]) {
     const a = await createUser('a@test.dev')
     await ingest(await createApiKey(a.id), runPayload('web-app', '@smoke', 'expected'))
     const p = await db.query.project.findFirst({ where: eq(project.slug, 'web-app') })
@@ -104,6 +104,7 @@ describe('dashboard analytics', () => {
       duration: 0,
       counts: { total: 0, expected: 0, unexpected: 0, flaky: 0, skipped: 0, ...r.counts },
       git: r.branch ? { branch: r.branch } : undefined,
+      incident: r.incident ? { rule: 'manual' as const, reason: 'Staging down.' } : undefined,
     })))
     return { a, now }
   }
@@ -111,15 +112,15 @@ describe('dashboard analytics', () => {
   it('sums run outcomes per day over the range, oldest first', async () => {
     const { a, now } = await seed([
       { daysAgo: 3, counts: { expected: 8, flaky: 1, unexpected: 1 } },
-      { daysAgo: 3, counts: { expected: 9, skipped: 1 } },
+      { daysAgo: 3, counts: { expected: 9, skipped: 1 }, incident: true },
       { daysAgo: 45, counts: { expected: 5 } },
     ])
 
     const res = await (await caller(a)).dashboard.analytics({ projectId: 'web-app' })
     expect(res).toMatchObject({ days: 30, bucket: 'day' })
     expect(res.outcomes).toEqual([
-      { date: day(new Date(now - 3 * DAY)), runs: 2, expected: 17, flaky: 1, unexpected: 1, skipped: 1 },
-      { date: day(new Date(now)), runs: 1, expected: 1, flaky: 0, unexpected: 0, skipped: 0 },
+      { date: day(new Date(now - 3 * DAY)), runs: 2, expected: 17, flaky: 1, unexpected: 1, skipped: 1, incidents: 1 },
+      { date: day(new Date(now)), runs: 1, expected: 1, flaky: 0, unexpected: 0, skipped: 0, incidents: 0 },
     ])
   })
 
