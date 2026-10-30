@@ -1,4 +1,4 @@
-import type { Manifest, ProjectEntry, ProjectHistory, RunComparison, RunIncident, RunReport, RunSummary } from '@kinora/core'
+import type { DashboardOverview, Manifest, OverviewProject, ProjectEntry, ProjectHistory, ProjectRunsPage, RunComparison, RunIncident, RunReport, RunSummary } from '@kinora/core'
 import type { ProjectAnalytics } from '../reports/analytics'
 import type { TestHistoryPage } from '../reports/queries'
 import { randomUUID } from 'node:crypto'
@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { db } from '../db'
 import { project, run, test, testQuarantine } from '../db/schemas/index'
 import { ANALYTICS_RANGES, isTimeZone, loadProjectAnalytics } from '../reports/analytics'
-import { findProject, incidentState, loadProjectHistory, loadRun, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchTests, toNormTest } from '../reports/queries'
+import { findProject, incidentState, loadOverview, loadProjectHistory, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchTests, toNormTest } from '../reports/queries'
 import { orgProcedure, router } from '../trpc/index'
 
 export { MAX_DASHBOARD_RUNS }
@@ -46,6 +46,28 @@ export const dashboardRouter = router({
     }))
     return { schemaVersion: SCHEMA_VERSION, generatedAt: new Date().toISOString(), projects: entries }
   }),
+
+  overview: orgProcedure
+    .input(z.object({
+      branch: z.string().min(1).max(255).optional(),
+      tag: z.string().min(1).max(255).optional(),
+    }).default({}))
+    .query(({ ctx, input }): Promise<DashboardOverview> => loadOverview(ctx.organizationId, input)),
+
+  projectSummary: orgProcedure
+    .input(z.object({ projectId: z.string().min(1) }))
+    .query(async ({ ctx, input }): Promise<OverviewProject> => loadProjectSummary(await ownedProject(ctx.organizationId, input.projectId))),
+
+  projectRuns: orgProcedure
+    .input(z.object({
+      projectId: z.string().min(1),
+      before: z.string().min(1).max(255).optional(),
+      after: z.string().min(1).max(255).optional(),
+    }).refine(i => !(i.before && i.after), 'Pass before or after, not both'))
+    .query(async ({ ctx, input }): Promise<ProjectRunsPage> => {
+      const p = await ownedProject(ctx.organizationId, input.projectId)
+      return loadRunPage(p, input)
+    }),
 
   run: orgProcedure
     .input(z.object({ projectId: z.string().min(1), runId: z.string().min(1) }))

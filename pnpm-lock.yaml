@@ -729,9 +729,6 @@ importers:
       '@sentry/vue':
         specifier: ^11.9.0
         version: 11.9.0(vue@3.5.44(typescript@6.0.3))
-      '@tanstack/vue-table':
-        specifier: ^9.3.1
-        version: 9.3.1(vue@3.5.44(typescript@6.0.3))
       '@trpc/client':
         specifier: ^11.19.0
         version: 11.19.0(@trpc/server@11.19.0(typescript@6.0.3))(typescript@6.0.3)
