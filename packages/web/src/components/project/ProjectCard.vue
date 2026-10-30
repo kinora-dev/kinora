@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { ProjectEntry } from '@kinora/core'
-import { formatDuration, formatPct, HEALTH_WINDOW, incidentMarkers, latestRun, recentPassRate, trend } from '@kinora/core'
+import type { OverviewProject } from '@kinora/core'
+import { formatDuration, formatPct, HEALTH_WINDOW, incidentMarkers, latestRun, recentPassRate } from '@kinora/core'
 import { Card } from '@kinora/ui/card'
 import { HealthBadge } from '@kinora/ui/health-badge'
 import { RunStrip } from '@kinora/ui/run-strip'
@@ -10,15 +10,14 @@ import { computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import RunHealthBadge from '@/components/viz/RunHealthBadge.vue'
 
-const props = defineProps<{ project: ProjectEntry }>()
+const props = defineProps<{ project: OverviewProject }>()
 
 const router = useRouter()
 
 const latest = computed(() => latestRun(props.project))
 const rate = computed(() => recentPassRate(props.project.runs, HEALTH_WINDOW))
-const points = computed(() => trend(props.project))
-const series = computed(() => points.value.map(t => t.passRate))
-const markers = computed(() => incidentMarkers(points.value))
+const series = computed(() => props.project.trend.map(t => t.passRate))
+const markers = computed(() => incidentMarkers(props.project.trend))
 
 const rel = computed(() => {
   if (!latest.value)
@@ -81,7 +80,7 @@ const rel = computed(() => {
     <div
       class="mt-4 flex items-center justify-between gap-3 border-t border-border/70 bg-muted/30 px-5 py-2.5 font-mono text-[11px] text-muted-foreground"
     >
-      <span class="tabular-nums">{{ project.runs.length }} runs</span>
+      <span class="tabular-nums">{{ project.runCount }} runs</span>
       <span v-if="latest" class="tabular-nums">
         {{ latest.counts.total }} tests &middot; {{ formatDuration(latest.duration) }}
       </span>

@@ -1,7 +1,8 @@
-import type { FailureCluster, NormError, NormTest, ProjectEntry, ProjectHistory, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
+import type { DashboardOverview, FailureCluster, NormError, NormTest, ProjectEntry, ProjectHistory, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
+import type { SQL } from 'drizzle-orm'
 import type { CodeownersRule } from '../lib/codeowners'
-import { applyTotals, buildFailureClusters, buildTestHistories, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trimPoints } from '@kinora/core'
-import { and, asc, desc, eq, ilike, lte, sql } from 'drizzle-orm'
+import { applyTotals, buildFailureClusters, buildTestHistories, downsampleTrend, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
+import { and, asc, count, desc, eq, ilike, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { artifact, project, run, test } from '../db/schemas/index'
 import { matchCodeowners, parseCodeowners } from '../lib/codeowners'
@@ -137,6 +138,70 @@ export function loadRunSummaries(p: ProjectRow, limit = MAX_DASHBOARD_RUNS): Pro
   return db.query.run
     .findMany({ where: eq(run.projectId, p.id), orderBy: desc(run.startedAt), limit })
     .then(runs => runs.map(r => runSummary(p.slug, r)))
+}
+
+function inRunWindow(where: SQL | undefined): SQL {
+  return sql`${run.id} in (select id from (select ${run.id}, row_number() over (partition by ${run.projectId} order by ${run.startedAt} desc, ${run.id} desc) as rn from ${run} where ${where}) w where w.rn <= ${MAX_DASHBOARD_RUNS})`
+}
+
+export async function loadOverview(organizationId: string, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
+  const generatedAt = new Date().toISOString()
+  const projects = await listProjects(organizationId)
+  if (!projects.length)
+    return { generatedAt, branches: [], tags: [], projects: [] }
+
+  const { branch, tag } = filter
+  const branchOf = sql<string>`${run.git}->>'branch'`
+  const inProjects = inArray(run.projectId, projects.map(p => p.id))
+  const matching = and(inProjects, branch ? eq(branchOf, branch) : undefined, tag ? sql`${run.countsByTag} ? ${tag}` : undefined)
+  const countsOf = (r: Pick<RunRow, 'counts' | 'countsByTag'>) => (tag ? r.countsByTag[tag] ?? r.counts : r.counts)
+
+  const [totals, windowRows, branches, tags] = await Promise.all([
+    db.select({ projectId: run.projectId, n: count() }).from(run).where(matching).groupBy(run.projectId),
+    db
+      .select({ id: run.id, projectId: run.projectId, startedAt: run.startedAt, duration: run.duration, counts: run.counts, countsByTag: run.countsByTag, incident: run.incident })
+      .from(run)
+      .where(and(matching, inRunWindow(matching)))
+      .orderBy(desc(run.startedAt), desc(run.id)),
+    db
+      .selectDistinct({ name: branchOf })
+      .from(run)
+      .where(and(inProjects, isNotNull(branchOf), inRunWindow(inProjects)))
+      .orderBy(branchOf),
+    db.execute<{ name: string }>(sql`select distinct jsonb_object_keys(${run.countsByTag}) as name from ${run} where ${and(inProjects, inRunWindow(inProjects))} order by name`),
+  ])
+
+  const runCount = new Map(totals.map(t => [t.projectId, t.n]))
+  const byProject = new Map<string, typeof windowRows>()
+  for (const r of windowRows)
+    byProject.set(r.projectId, [...(byProject.get(r.projectId) ?? []), r])
+
+  const latestIds = [...byProject.values()].flatMap(rows => rows.slice(0, HEALTH_WINDOW).map(r => r.id))
+  const latestRows = latestIds.length ? await db.query.run.findMany({ where: inArray(run.id, latestIds), orderBy: desc(run.startedAt) }) : []
+
+  return {
+    generatedAt,
+    branches: branches.map(b => b.name),
+    tags: tags.rows.map(t => t.name),
+    projects: projects.map((p) => {
+      const rows = byProject.get(p.id) ?? []
+      const points = trendOf(rows.map(r => ({
+        runId: r.id,
+        startedAt: r.startedAt.toISOString(),
+        duration: r.duration,
+        counts: countsOf(r),
+        incident: r.incident ?? undefined,
+      })))
+      return {
+        id: p.slug,
+        name: p.name,
+        description: p.description ?? undefined,
+        runCount: runCount.get(p.id) ?? 0,
+        runs: latestRows.filter(r => r.projectId === p.id).map(r => ({ ...runSummary(p.slug, r), counts: countsOf(r), countsByTag: {} })),
+        trend: downsampleTrend(points).map(t => ({ passRate: t.passRate, ...(t.incident && { incident: t.incident }) })),
+      }
+    }),
+  }
 }
 
 // Artifact URLs are resolved (signed local / presigned S3) at read time, not stored.

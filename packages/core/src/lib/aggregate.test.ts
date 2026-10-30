@@ -1,6 +1,6 @@
 import type { Counts, ProjectEntry, RunSummary } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
-import { collectBranches, collectTags, denom, filterRuns, formatDuration, formatPct, incidentMarkers, latestRun, passRate, recentPassRate, runHealth, sortedRuns, trend } from './aggregate'
+import { collectBranches, collectTags, denom, downsampleTrend, filterRuns, formatDuration, formatPct, incidentMarkers, latestRun, passRate, recentPassRate, runHealth, sortedRuns, trend, trendOf } from './aggregate'
 
 function counts(o: Partial<Counts>): Counts {
   return { total: 0, expected: 0, unexpected: 0, flaky: 0, skipped: 0, ...o }
@@ -152,6 +152,34 @@ describe('trend', () => {
       ],
     }
     expect(incidentMarkers(trend(p))).toEqual([{ index: 1, label: 'Environment incident, not counted: 4 of 4 tests failed.' }])
+  })
+})
+
+describe('trendOf', () => {
+  it('builds the same points as trend from bare runs', () => {
+    const runs = [makeRun({ runId: 'b', startedAt: '2026-01-02T00:00:00Z' }), makeRun({ runId: 'a' })]
+    expect(trendOf(runs)).toEqual(trend({ id: 'p', name: 'p', runs }))
+  })
+})
+
+describe('downsampleTrend', () => {
+  const point = (i: number, passRate = 1) => ({ runId: `r${i}`, startedAt: '', passRate, unexpected: 0, flaky: 0, total: 10, duration: 0 })
+
+  it('keeps a trend within the limit as is', () => {
+    const points = Array.from({ length: 5 }, (_, i) => point(i))
+    expect(downsampleTrend(points, 10)).toBe(points)
+  })
+
+  it('caps the trend at the limit, in order', () => {
+    const points = Array.from({ length: 500 }, (_, i) => point(i))
+    const out = downsampleTrend(points, 50)
+    expect(out).toHaveLength(50)
+    expect(out.map(p => Number(p.runId.slice(1)))).toEqual([...out.map(p => Number(p.runId.slice(1)))].sort((a, b) => a - b))
+  })
+
+  it('keeps the worst run of each bucket so a failure stays visible', () => {
+    const points = Array.from({ length: 500 }, (_, i) => point(i, i === 237 ? 0.2 : 1))
+    expect(downsampleTrend(points, 50).filter(p => p.passRate < 1).map(p => p.runId)).toEqual(['r237'])
   })
 })
 
