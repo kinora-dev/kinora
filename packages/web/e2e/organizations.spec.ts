@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { login, TEAMMATE } from './helpers'
 
@@ -61,7 +62,7 @@ test.describe('organizations', () => {
     // Owner (demo) generates a real invitation and grabs its link.
     await login(page)
     await page.goto('/settings/workspace')
-    const email = `invitee-${Date.now()}@test.dev`
+    const email = `invitee-${randomUUID()}@test.dev`
     await page.getByLabel('Invite by email').fill(email)
     await page.getByRole('button', { name: 'Invite', exact: true }).click()
 
@@ -114,7 +115,7 @@ test.describe('organizations', () => {
   test('an owner can rename their workspace', async ({ page }) => {
     // Fresh user owns a workspace; renaming it must reflect in the switcher.
     await page.goto('/signup')
-    const email = `rename-${Date.now()}@test.dev`
+    const email = `rename-${randomUUID()}@test.dev`
     await page.locator('input[type="email"]').fill(email)
     await page.locator('input[type="password"]').nth(0).fill('password123')
     await page.locator('input[type="password"]').nth(1).fill('password123')
