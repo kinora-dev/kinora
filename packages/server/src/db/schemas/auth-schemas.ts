@@ -11,6 +11,8 @@ export const user = pgTable('user', {
   banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
   banExpires: timestamp('ban_expires'),
+  // Not a better-auth field: the workspace a new session opens on (see defaultOrganizationId).
+  lastActiveOrganizationId: text('last_active_organization_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 })

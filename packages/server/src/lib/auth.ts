@@ -4,11 +4,11 @@ import { createCustomers, deleteExternalCustomers } from '@polar-sh/sdk/2026-10/
 import { APIError, betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin, bearer, deviceAuthorization, lastLoginMethod, organization } from 'better-auth/plugins'
-import { and, eq } from 'drizzle-orm'
 import { polarAuthPlugin, polarClient } from '../billing/polar'
 import { db } from '../db'
 import { member, organization as organizationTable } from '../db/schemas/index'
 import { hasBillingSubscription, purgeUserOwnedData } from './account'
+import { defaultOrganizationId, rememberActiveOrganization } from './active-org'
 import { demo, env, githubOauthEnabled, googleOauthEnabled } from './env'
 import { logger } from './logger'
 import { mailerEnabled, sendMail } from './mailer'
@@ -110,13 +110,16 @@ export const auth = betterAuth({
     },
     session: {
       create: {
-        // Default the session to the org the user owns (a user may also be a member of others).
         before: async (session) => {
-          const owned = await db.query.member.findFirst({
-            where: and(eq(member.userId, session.userId), eq(member.role, 'owner')),
-            columns: { organizationId: true },
-          })
-          return { data: { ...session, activeOrganizationId: owned?.organizationId ?? null } }
+          return { data: { ...session, activeOrganizationId: await defaultOrganizationId(session.userId) } }
+        },
+      },
+      update: {
+        // Persist workspace switches on the user, so the next session reopens on it.
+        after: async (session) => {
+          const orgId: unknown = session.activeOrganizationId
+          if (typeof orgId === 'string')
+            await rememberActiveOrganization(session.userId, orgId)
         },
       },
     },
