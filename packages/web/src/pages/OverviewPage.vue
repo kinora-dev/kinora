@@ -80,7 +80,7 @@ const stats = computed(() => {
         </div>
 
         <!-- Filters -->
-        <div v-if="!loading && !error" class="flex items-center gap-2" :aria-busy="isLoading">
+        <div v-if="!loading" class="flex items-center gap-2" :aria-busy="isLoading">
           <Loader2 v-if="isLoading" class="size-4 animate-spin text-muted-foreground" />
           <!-- Clear sits left so the comboboxes (right-aligned) don't shift when it toggles. -->
           <Button v-if="hasFilters" variant="ghost" size="sm" class="h-9 font-mono text-xs" @click="clearFilters">

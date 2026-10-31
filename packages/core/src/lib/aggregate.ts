@@ -104,12 +104,9 @@ export function trendOf(runs: Pick<RunSummary, 'runId' | 'startedAt' | 'counts' 
 export function downsampleTrend(points: TrendPoint[], max = OVERVIEW_TREND_POINTS): TrendPoint[] {
   if (points.length <= max)
     return points
-  return Array.from({ length: max }, (_, i) => {
-    const bucket = points.slice(Math.floor(i * points.length / max), Math.floor((i + 1) * points.length / max))
-    const worst = bucket.reduce((w, p) => (p.passRate <= w.passRate ? p : w))
-    const incident = worst.incident ?? bucket.find(p => p.incident)?.incident
-    return incident ? { ...worst, incident } : worst
-  })
+  return Array.from({ length: max }, (_, i) => points
+    .slice(Math.floor(i * points.length / max), Math.floor((i + 1) * points.length / max))
+    .reduce((w, p) => (p.passRate <= w.passRate ? p : w)))
 }
 
 // The points of a trend to call out on its chart, by index: the environment incidents.
