@@ -28,7 +28,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20.20.2"
+    "node": ">=26.13.0"
   },
   "publishConfig": {
     "access": "public"
@@ -46,7 +46,7 @@
     "@kinora/core": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^5.0.5",
     "tsdown": "^0.23.4",
     "typescript": "~6.0.3",
