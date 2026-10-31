@@ -24,8 +24,8 @@
     "@kinora/ui": "workspace:*",
     "@lucide/vue": "^1.61.0",
     "@sentry/electron": "^7.20.2",
-    "@trpc/client": "^11.19.0",
-    "@trpc/server": "11.19.0",
+    "@trpc/client": "^11.22.1",
+    "@trpc/server": "11.22.1",
     "electron-updater": "^6.8.11",
     "fflate": "^0.8.3",
     "vue": "^3.5.44"
