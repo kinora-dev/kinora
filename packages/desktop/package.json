@@ -34,7 +34,7 @@
     "@kinora/server": "workspace:*",
     "@sentry/vite-plugin": "^11.10.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.10",
     "electron": "^44.10.0",
     "electron-builder": "^26.18.0",
