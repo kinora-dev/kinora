@@ -64,8 +64,30 @@ export interface TrendPoint {
   incident?: string
 }
 
+export interface OverviewProject {
+  id: string
+  name: string
+  description?: string
+  runCount: number
+  runs: RunSummary[]
+  trend: Pick<TrendPoint, 'passRate' | 'incident'>[]
+}
+
+export interface DashboardOverview {
+  generatedAt: string
+  branches: string[]
+  tags: string[]
+  projects: OverviewProject[]
+}
+
+export const OVERVIEW_TREND_POINTS = 50
+
 export function trend(p: ProjectEntry): TrendPoint[] {
-  return [...p.runs]
+  return trendOf(p.runs)
+}
+
+export function trendOf(runs: Pick<RunSummary, 'runId' | 'startedAt' | 'counts' | 'duration' | 'incident'>[]): TrendPoint[] {
+  return [...runs]
     .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))
     .map(r => ({
       runId: r.runId,
@@ -79,8 +101,19 @@ export function trend(p: ProjectEntry): TrendPoint[] {
     }))
 }
 
+export function downsampleTrend(points: TrendPoint[], max = OVERVIEW_TREND_POINTS): TrendPoint[] {
+  if (points.length <= max)
+    return points
+  return Array.from({ length: max }, (_, i) => {
+    const bucket = points.slice(Math.floor(i * points.length / max), Math.floor((i + 1) * points.length / max))
+    const worst = bucket.reduce((w, p) => (p.passRate <= w.passRate ? p : w))
+    const incident = worst.incident ?? bucket.find(p => p.incident)?.incident
+    return incident ? { ...worst, incident } : worst
+  })
+}
+
 // The points of a trend to call out on its chart, by index: the environment incidents.
-export function incidentMarkers(points: TrendPoint[]): { index: number, label: string }[] {
+export function incidentMarkers(points: Pick<TrendPoint, 'incident'>[]): { index: number, label: string }[] {
   return points.flatMap((p, index) => p.incident ? [{ index, label: `Environment incident, not counted: ${p.incident}` }] : [])
 }
 

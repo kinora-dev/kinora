@@ -1,7 +1,8 @@
-import type { FailureCluster, NormError, NormTest, ProjectEntry, ProjectHistory, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
+import type { Counts, DashboardOverview, FailureCluster, NormError, NormTest, ProjectEntry, ProjectHistory, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
+import type { SQL } from 'drizzle-orm'
 import type { CodeownersRule } from '../lib/codeowners'
-import { applyTotals, buildFailureClusters, buildTestHistories, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trimPoints } from '@kinora/core'
-import { and, asc, desc, eq, ilike, lte, sql } from 'drizzle-orm'
+import { applyTotals, buildFailureClusters, buildTestHistories, downsampleTrend, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
+import { and, asc, count, desc, eq, ilike, lte, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { artifact, project, run, test } from '../db/schemas/index'
 import { matchCodeowners, parseCodeowners } from '../lib/codeowners'
@@ -137,6 +138,90 @@ export function loadRunSummaries(p: ProjectRow, limit = MAX_DASHBOARD_RUNS): Pro
   return db.query.run
     .findMany({ where: eq(run.projectId, p.id), orderBy: desc(run.startedAt), limit })
     .then(runs => runs.map(r => runSummary(p.slug, r)))
+}
+
+function inRunWindow(where: SQL | undefined, size = MAX_DASHBOARD_RUNS): SQL {
+  return sql`${run.id} in (select id from (select ${run.id}, row_number() over (partition by ${run.projectId} order by ${run.startedAt} desc, ${run.id} desc) as rn from ${run} where ${where}) w where w.rn <= ${size})`
+}
+
+function runWindowOptions(where: SQL | undefined) {
+  return db.execute<{ branches: string[], tags: string[] }>(sql`with w as (
+    select git, counts_by_tag from (select ${run.git}, ${run.countsByTag}, row_number() over (partition by ${run.projectId} order by ${run.startedAt} desc, ${run.id} desc) as rn from ${run} where ${where}) x where x.rn <= ${MAX_DASHBOARD_RUNS}
+  ) select array(select distinct git->>'branch' from w where git->>'branch' is not null) as branches, array(select distinct jsonb_object_keys(counts_by_tag) from w) as tags`)
+}
+
+function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string, T[]> {
+  const out = new Map<string, T[]>()
+  for (const r of rows) {
+    const list = out.get(r.projectId)
+    if (list)
+      list.push(r)
+    else
+      out.set(r.projectId, [r])
+  }
+  return out
+}
+
+export async function loadOverview(organizationId: string, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
+  const generatedAt = new Date().toISOString()
+  const projects = await listProjects(organizationId)
+  if (!projects.length)
+    return { generatedAt, branches: [], tags: [], projects: [] }
+
+  const { branch, tag } = filter
+  const branchOf = sql<string | null>`${run.git}->>'branch'`
+  const inProjects = sql`${run.projectId} in (select ${project.id} from ${project} where ${project.organizationId} = ${organizationId})`
+  const matching = and(inProjects, branch ? eq(branchOf, branch) : undefined, tag ? sql`${run.countsByTag} ? ${tag}` : undefined)
+  const filtered = Boolean(branch || tag)
+
+  const [totals, windowRows, latestRows, options] = await Promise.all([
+    db.select({ projectId: run.projectId, n: count() }).from(run).where(matching).groupBy(run.projectId),
+    db
+      .select({
+        id: run.id,
+        projectId: run.projectId,
+        startedAt: run.startedAt,
+        duration: run.duration,
+        incident: run.incident,
+        counts: tag ? sql<Counts>`${run.countsByTag} -> ${tag}` : run.counts,
+        branch: branchOf,
+        tags: filtered ? sql<string[]>`'{}'::text[]` : sql<string[]>`array(select jsonb_object_keys(${run.countsByTag}))`,
+      })
+      .from(run)
+      .where(and(matching, inRunWindow(matching)))
+      .orderBy(desc(run.startedAt), desc(run.id)),
+    db.select().from(run).where(and(matching, inRunWindow(matching, HEALTH_WINDOW))).orderBy(desc(run.startedAt), desc(run.id)),
+    filtered ? runWindowOptions(inProjects).then(r => r.rows[0]) : undefined,
+  ])
+
+  const runCount = new Map(totals.map(t => [t.projectId, t.n]))
+  const windowByProject = groupByProject(windowRows)
+  const latestByProject = groupByProject(latestRows)
+  const branches = options?.branches ?? windowRows.flatMap(r => (r.branch ? [r.branch] : []))
+  const tags = options?.tags ?? windowRows.flatMap(r => r.tags)
+
+  return {
+    generatedAt,
+    branches: [...new Set(branches)].sort(),
+    tags: [...new Set(tags)].sort(),
+    projects: projects.map((p) => {
+      const points = trendOf((windowByProject.get(p.id) ?? []).map(r => ({
+        runId: r.id,
+        startedAt: r.startedAt.toISOString(),
+        duration: r.duration,
+        counts: r.counts,
+        incident: r.incident ?? undefined,
+      })))
+      return {
+        id: p.slug,
+        name: p.name,
+        description: p.description ?? undefined,
+        runCount: runCount.get(p.id) ?? 0,
+        runs: (latestByProject.get(p.id) ?? []).map(r => ({ ...runSummary(p.slug, r), counts: tag ? r.countsByTag[tag] : r.counts, countsByTag: {} })),
+        trend: downsampleTrend(points).map(t => ({ passRate: t.passRate, ...(t.incident && { incident: t.incident }) })),
+      }
+    }),
+  }
 }
 
 // Artifact URLs are resolved (signed local / presigned S3) at read time, not stored.

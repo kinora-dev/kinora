@@ -85,6 +85,95 @@ describe('dashboard scoping', () => {
   })
 })
 
+describe('dashboard overview', () => {
+  const MINUTE = 60_000
+
+  async function seed(runs: { counts?: Partial<Counts>, branch?: string, countsByTag?: Record<string, Counts>, incident?: boolean }[]) {
+    const a = await createUser('a@test.dev')
+    await ingest(await createApiKey(a.id), runPayload('web-app', '@smoke', 'expected'))
+    const p = await db.query.project.findFirst({ where: eq(project.slug, 'web-app') })
+    const now = Date.now()
+    if (runs.length) {
+      await db.insert(run).values(runs.map((r, i) => ({
+        id: randomUUID(),
+        projectId: p!.id,
+        startedAt: new Date(now - (i + 1) * MINUTE),
+        duration: 0,
+        counts: { total: 10, expected: 10, unexpected: 0, flaky: 0, skipped: 0, ...r.counts },
+        countsByTag: r.countsByTag ?? {},
+        git: r.branch ? { branch: r.branch } : undefined,
+        incident: r.incident ? { rule: 'manual' as const, reason: 'Staging down.' } : undefined,
+      })))
+    }
+    return a
+  }
+
+  it('returns the latest runs, the full run count and a downsampled trend that keeps failures', async () => {
+    const a = await seed(Array.from({ length: 120 }, (_, i) => (i === 60 ? { counts: { expected: 2, unexpected: 8 } } : {})))
+
+    const [p] = (await (await caller(a)).dashboard.overview()).projects
+    expect(p.runCount).toBe(121)
+    expect(p.runs).toHaveLength(20)
+    expect(p.runs.map(r => r.startedAt)).toEqual([...p.runs.map(r => r.startedAt)].sort().reverse())
+    expect(p.trend).toHaveLength(50)
+    expect(p.trend.filter(t => t.passRate < 1)).toHaveLength(1)
+  })
+
+  it('counts every run but only draws the dashboard window', async () => {
+    const a = await seed(Array.from({ length: MAX_DASHBOARD_RUNS + 10 }, () => ({})))
+
+    const [p] = (await (await caller(a)).dashboard.overview()).projects
+    expect(p.runCount).toBe(MAX_DASHBOARD_RUNS + 11)
+    expect(p.trend).toHaveLength(50)
+  })
+
+  it('filters by branch and lists the branches', async () => {
+    const a = await seed([{ branch: 'main' }, { branch: 'main' }, { branch: 'feat/x', counts: { expected: 9, unexpected: 1 } }])
+    const overview = (await caller(a)).dashboard.overview
+
+    expect((await overview()).branches).toEqual(['feat/x', 'main'])
+    expect((await overview({ branch: 'main' })).branches).toEqual(['feat/x', 'main'])
+    const [main] = (await overview({ branch: 'main' })).projects
+    expect(main.runCount).toBe(2)
+    expect(main.runs.map(r => r.git?.branch)).toEqual(['main', 'main'])
+  })
+
+  it('filters by tag with the tag counts and lists the tags', async () => {
+    const slow = { total: 2, expected: 1, unexpected: 1, flaky: 0, skipped: 0 }
+    const a = await seed([{ countsByTag: { '@slow': slow } }, {}])
+    const overview = (await caller(a)).dashboard.overview
+
+    expect((await overview()).tags).toEqual(['@slow', '@smoke'])
+    expect((await overview({ tag: '@slow' })).tags).toEqual(['@slow', '@smoke'])
+    const [p] = (await overview({ tag: '@slow' })).projects
+    expect(p.runCount).toBe(1)
+    expect(p.runs[0].counts).toEqual(slow)
+    expect(p.trend[0].passRate).toBe(0.5)
+  })
+
+  it('carries environment incidents into the trend', async () => {
+    const a = await seed([{ counts: { expected: 0, unexpected: 10 }, incident: true }])
+
+    const [p] = (await (await caller(a)).dashboard.overview()).projects
+    expect(p.trend).toEqual([{ passRate: 0, incident: 'Staging down.' }, { passRate: 1 }])
+  })
+
+  it('keeps projects without a matching run, with no runs', async () => {
+    const a = await seed([])
+
+    const [p] = (await (await caller(a)).dashboard.overview({ branch: 'nope' })).projects
+    expect(p).toMatchObject({ id: 'web-app', runCount: 0, runs: [], trend: [] })
+  })
+
+  it('only returns the caller own projects', async () => {
+    const a = await seed([])
+    const b = await createUser('b@test.dev')
+
+    expect((await (await caller(a)).dashboard.overview()).projects).toHaveLength(1)
+    expect(await (await caller(b)).dashboard.overview()).toMatchObject({ projects: [], branches: [], tags: [] })
+  })
+})
+
 describe('dashboard analytics', () => {
   const DAY = 86_400_000
   const day = (d: Date) => d.toISOString().slice(0, 10)
