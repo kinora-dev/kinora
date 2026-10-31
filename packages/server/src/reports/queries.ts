@@ -1,7 +1,9 @@
-import type { FailureCluster, NormError, NormTest, ProjectEntry, ProjectHistory, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
+import type { Counts, DashboardOverview, FailureCluster, NormError, NormTest, OverviewProject, ProjectEntry, ProjectHistory, ProjectRunsPage, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
+import type { SQL } from 'drizzle-orm'
+import type { PgSelect } from 'drizzle-orm/pg-core'
 import type { CodeownersRule } from '../lib/codeowners'
-import { applyTotals, buildFailureClusters, buildTestHistories, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trimPoints } from '@kinora/core'
-import { and, asc, desc, eq, ilike, lte, sql } from 'drizzle-orm'
+import { applyTotals, buildFailureClusters, buildTestHistories, downsampleTrend, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
+import { and, asc, count, desc, eq, ilike, lte, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { artifact, project, run, test } from '../db/schemas/index'
 import { matchCodeowners, parseCodeowners } from '../lib/codeowners'
@@ -137,6 +139,123 @@ export function loadRunSummaries(p: ProjectRow, limit = MAX_DASHBOARD_RUNS): Pro
   return db.query.run
     .findMany({ where: eq(run.projectId, p.id), orderBy: desc(run.startedAt), limit })
     .then(runs => runs.map(r => runSummary(p.slug, r)))
+}
+
+function runWindow<T extends PgSelect>(runs: T, where?: SQL, size = MAX_DASHBOARD_RUNS) {
+  return runs.where(and(eq(run.projectId, project.id), where)).orderBy(desc(run.startedAt), desc(run.id)).limit(size).as('w')
+}
+
+function runWindowOptions(scope: SQL) {
+  const w = runWindow(db.select({ git: run.git, countsByTag: run.countsByTag }).from(run).$dynamic())
+  const runs = db.select({ ...w._.selectedFields }).from(project).innerJoinLateral(w, sql`true`).where(scope)
+  return db.execute<{ branches: string[], tags: string[] }>(sql`with w as (${runs})
+    select array(select distinct git->>'branch' from w where git->>'branch' is not null) as branches, array(select distinct jsonb_object_keys(counts_by_tag) from w) as tags`)
+}
+
+function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string, T[]> {
+  const out = new Map<string, T[]>()
+  for (const r of rows) {
+    const list = out.get(r.projectId)
+    if (list)
+      list.push(r)
+    else
+      out.set(r.projectId, [r])
+  }
+  return out
+}
+
+export function loadOverview(organizationId: string, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
+  return summarizeProjects(listProjects(organizationId), eq(project.organizationId, organizationId), filter)
+}
+
+export async function loadProjectSummary(p: ProjectRow): Promise<OverviewProject> {
+  const { projects: [summary] } = await summarizeProjects([p], eq(project.id, p.id))
+  return summary
+}
+
+async function summarizeProjects(projectRows: ProjectRow[] | Promise<ProjectRow[]>, scope: SQL, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
+  const generatedAt = new Date().toISOString()
+  const { branch, tag } = filter
+  const inProjects = sql`${run.projectId} in (select ${project.id} from ${project} where ${scope})`
+  const matching = and(branch ? sql`${run.git}->>'branch' = ${branch}` : undefined, tag ? sql`${run.countsByTag} ? ${tag}` : undefined)
+  const trendWindow = runWindow(db
+    .select({
+      id: run.id,
+      projectId: run.projectId,
+      startedAt: run.startedAt,
+      duration: run.duration,
+      incident: run.incident,
+      counts: (tag ? sql<Counts>`${run.countsByTag} -> ${tag}` : sql<Counts>`${run.counts}`).as('counts'),
+    })
+    .from(run)
+    .$dynamic(), matching)
+  const latestWindow = runWindow(db.select().from(run).$dynamic(), matching, HEALTH_WINDOW)
+
+  const [projects, totals, windowRows, latestRows, options] = await Promise.all([
+    projectRows,
+    db.select({ projectId: run.projectId, n: count() }).from(run).where(and(inProjects, matching)).groupBy(run.projectId),
+    db.select({ ...trendWindow._.selectedFields }).from(project).innerJoinLateral(trendWindow, sql`true`).where(scope),
+    db.select({ ...latestWindow._.selectedFields }).from(project).innerJoinLateral(latestWindow, sql`true`).where(scope),
+    runWindowOptions(scope).then(r => r.rows[0]),
+  ])
+
+  const runCount = new Map(totals.map(t => [t.projectId, t.n]))
+  const windowByProject = groupByProject(windowRows)
+  const latestByProject = groupByProject(latestRows)
+
+  return {
+    generatedAt,
+    branches: (options?.branches ?? []).sort(),
+    tags: (options?.tags ?? []).sort(),
+    projects: projects.map((p) => {
+      const points = trendOf((windowByProject.get(p.id) ?? []).map(r => ({
+        runId: r.id,
+        startedAt: r.startedAt.toISOString(),
+        duration: r.duration,
+        counts: r.counts,
+        incident: r.incident ?? undefined,
+      })))
+      return {
+        id: p.slug,
+        name: p.name,
+        description: p.description ?? undefined,
+        runCount: runCount.get(p.id) ?? 0,
+        runs: (latestByProject.get(p.id) ?? []).map(r => ({ ...runSummary(p.slug, r), counts: tag ? r.countsByTag[tag] : r.counts, countsByTag: {} })),
+        trend: downsampleTrend(points).map(t => ({ passRate: t.passRate, ...(t.incident && { incident: t.incident }) })),
+      }
+    }),
+  }
+}
+
+export const RUN_PAGE_SIZE = 25
+
+export async function loadRunPage(p: ProjectRow, cursor: { before?: string, after?: string } = {}, limit = RUN_PAGE_SIZE): Promise<ProjectRunsPage> {
+  const page = await runPage(p, cursor, limit)
+  const startOver = cursor.after ? !page.newer : cursor.before && !page.runs.length
+  return startOver ? runPage(p, {}, limit) : page
+}
+
+async function runPage(p: ProjectRow, { before, after }: { before?: string, after?: string }, limit: number): Promise<ProjectRunsPage> {
+  const anchorId = after ?? before
+  const key = sql`(${run.startedAt}, ${run.id})`
+  const anchorKey = sql`(select ${run.startedAt}, ${run.id} from ${run} where ${run.id} = ${anchorId} and ${run.projectId} = ${p.id})`
+  const rows = await db
+    .select()
+    .from(run)
+    .where(and(eq(run.projectId, p.id), anchorId ? (after ? sql`${key} > ${anchorKey}` : sql`${key} < ${anchorKey}`) : undefined))
+    .orderBy(...(after ? [asc(run.startedAt), asc(run.id)] : [desc(run.startedAt), desc(run.id)]))
+    .limit(limit + 1)
+  const more = rows.length > limit
+  const page = rows.slice(0, limit)
+  if (after)
+    page.reverse()
+  const hasNewer = after ? more : Boolean(before)
+  const hasOlder = after ? page.length > 0 : more
+  return {
+    runs: page.map(r => runSummary(p.slug, r)),
+    newer: hasNewer ? page[0]?.id : undefined,
+    older: hasOlder ? page.at(-1)?.id : undefined,
+  }
 }
 
 // Artifact URLs are resolved (signed local / presigned S3) at read time, not stored.
