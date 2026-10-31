@@ -1,5 +1,6 @@
 import type { Counts, DashboardOverview, FailureCluster, NormError, NormTest, ProjectEntry, ProjectHistory, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
 import type { SQL } from 'drizzle-orm'
+import type { PgSelect } from 'drizzle-orm/pg-core'
 import type { CodeownersRule } from '../lib/codeowners'
 import { applyTotals, buildFailureClusters, buildTestHistories, downsampleTrend, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
 import { and, asc, count, desc, eq, ilike, lte, sql } from 'drizzle-orm'
@@ -140,14 +141,15 @@ export function loadRunSummaries(p: ProjectRow, limit = MAX_DASHBOARD_RUNS): Pro
     .then(runs => runs.map(r => runSummary(p.slug, r)))
 }
 
-function inRunWindow(where: SQL | undefined, size = MAX_DASHBOARD_RUNS): SQL {
-  return sql`${run.id} in (select id from (select ${run.id}, row_number() over (partition by ${run.projectId} order by ${run.startedAt} desc, ${run.id} desc) as rn from ${run} where ${where}) w where w.rn <= ${size})`
+function runWindow<T extends PgSelect>(runs: T, where?: SQL, size = MAX_DASHBOARD_RUNS) {
+  return runs.where(and(eq(run.projectId, project.id), where)).orderBy(desc(run.startedAt), desc(run.id)).limit(size).as('w')
 }
 
-function runWindowOptions(where: SQL | undefined) {
-  return db.execute<{ branches: string[], tags: string[] }>(sql`with w as (
-    select git, counts_by_tag from (select ${run.git}, ${run.countsByTag}, row_number() over (partition by ${run.projectId} order by ${run.startedAt} desc, ${run.id} desc) as rn from ${run} where ${where}) x where x.rn <= ${MAX_DASHBOARD_RUNS}
-  ) select array(select distinct git->>'branch' from w where git->>'branch' is not null) as branches, array(select distinct jsonb_object_keys(counts_by_tag) from w) as tags`)
+function runWindowOptions(organizationId: string) {
+  const w = runWindow(db.select({ git: run.git, countsByTag: run.countsByTag }).from(run).$dynamic())
+  const runs = db.select({ ...w._.selectedFields }).from(project).innerJoinLateral(w, sql`true`).where(eq(project.organizationId, organizationId))
+  return db.execute<{ branches: string[], tags: string[] }>(sql`with w as (${runs})
+    select array(select distinct git->>'branch' from w where git->>'branch' is not null) as branches, array(select distinct jsonb_object_keys(counts_by_tag) from w) as tags`)
 }
 
 function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string, T[]> {
@@ -164,46 +166,39 @@ function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string,
 
 export async function loadOverview(organizationId: string, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
   const generatedAt = new Date().toISOString()
-  const projects = await listProjects(organizationId)
-  if (!projects.length)
-    return { generatedAt, branches: [], tags: [], projects: [] }
-
   const { branch, tag } = filter
-  const branchOf = sql<string | null>`${run.git}->>'branch'`
   const inProjects = sql`${run.projectId} in (select ${project.id} from ${project} where ${project.organizationId} = ${organizationId})`
-  const matching = and(inProjects, branch ? eq(branchOf, branch) : undefined, tag ? sql`${run.countsByTag} ? ${tag}` : undefined)
-  const filtered = Boolean(branch || tag)
+  const matching = and(branch ? sql`${run.git}->>'branch' = ${branch}` : undefined, tag ? sql`${run.countsByTag} ? ${tag}` : undefined)
+  const inWorkspace = eq(project.organizationId, organizationId)
+  const trendWindow = runWindow(db
+    .select({
+      id: run.id,
+      projectId: run.projectId,
+      startedAt: run.startedAt,
+      duration: run.duration,
+      incident: run.incident,
+      counts: (tag ? sql<Counts>`${run.countsByTag} -> ${tag}` : sql<Counts>`${run.counts}`).as('counts'),
+    })
+    .from(run)
+    .$dynamic(), matching)
+  const latestWindow = runWindow(db.select().from(run).$dynamic(), matching, HEALTH_WINDOW)
 
-  const [totals, windowRows, latestRows, options] = await Promise.all([
-    db.select({ projectId: run.projectId, n: count() }).from(run).where(matching).groupBy(run.projectId),
-    db
-      .select({
-        id: run.id,
-        projectId: run.projectId,
-        startedAt: run.startedAt,
-        duration: run.duration,
-        incident: run.incident,
-        counts: tag ? sql<Counts>`${run.countsByTag} -> ${tag}` : run.counts,
-        branch: branchOf,
-        tags: filtered ? sql<string[]>`'{}'::text[]` : sql<string[]>`array(select jsonb_object_keys(${run.countsByTag}))`,
-      })
-      .from(run)
-      .where(and(matching, inRunWindow(matching)))
-      .orderBy(desc(run.startedAt), desc(run.id)),
-    db.select().from(run).where(and(matching, inRunWindow(matching, HEALTH_WINDOW))).orderBy(desc(run.startedAt), desc(run.id)),
-    filtered ? runWindowOptions(inProjects).then(r => r.rows[0]) : undefined,
+  const [projects, totals, windowRows, latestRows, options] = await Promise.all([
+    listProjects(organizationId),
+    db.select({ projectId: run.projectId, n: count() }).from(run).where(and(inProjects, matching)).groupBy(run.projectId),
+    db.select({ ...trendWindow._.selectedFields }).from(project).innerJoinLateral(trendWindow, sql`true`).where(inWorkspace),
+    db.select({ ...latestWindow._.selectedFields }).from(project).innerJoinLateral(latestWindow, sql`true`).where(inWorkspace),
+    runWindowOptions(organizationId).then(r => r.rows[0]),
   ])
 
   const runCount = new Map(totals.map(t => [t.projectId, t.n]))
   const windowByProject = groupByProject(windowRows)
   const latestByProject = groupByProject(latestRows)
-  const branches = options?.branches ?? windowRows.flatMap(r => (r.branch ? [r.branch] : []))
-  const tags = options?.tags ?? windowRows.flatMap(r => r.tags)
 
   return {
     generatedAt,
-    branches: [...new Set(branches)].sort(),
-    tags: [...new Set(tags)].sort(),
+    branches: (options?.branches ?? []).sort(),
+    tags: (options?.tags ?? []).sort(),
     projects: projects.map((p) => {
       const points = trendOf((windowByProject.get(p.id) ?? []).map(r => ({
         runId: r.id,
