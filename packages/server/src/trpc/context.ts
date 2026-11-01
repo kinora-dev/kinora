@@ -1,5 +1,6 @@
 import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch'
 import type { AuthType } from '../lib/auth'
+import { tryGetContext } from 'hono/context-storage'
 import { resolveDemoOwner } from '../demo/owner'
 import { defaultOrganizationId } from '../lib/active-org'
 import { auth } from '../lib/auth'
@@ -18,10 +19,20 @@ export async function createContext({ req }: FetchCreateContextFnOptions) {
     const d = await resolveDemoOwner()
     // db row is structurally the session user; cast to the auth user type for ctx consistency.
     if (d)
-      return { user: d.user as unknown as AuthType['user'], organizationId: d.organizationId, req }
+      return tagRequest({ user: d.user as unknown as AuthType['user'], organizationId: d.organizationId, req })
   }
 
-  return { user, organizationId, req }
+  return tagRequest({ user, organizationId, req })
+}
+
+// Names the user and org on every log line of the request.
+function tagRequest<T extends { user: { id: string } | null, organizationId: string | null }>(ctx: T): T {
+  const c = tryGetContext()
+  if (c && ctx.user)
+    c.set('userId', ctx.user.id)
+  if (c && ctx.organizationId)
+    c.set('orgId', ctx.organizationId)
+  return ctx
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>

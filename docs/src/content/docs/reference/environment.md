@@ -25,6 +25,7 @@ its Polar variables, stops the server from booting.
 | `KINORA_DEMO` | no | `false` | Public read-only demo: auto-session as the seeded demo user, no mutations/ingest. |
 | `INGEST_RATE_LIMIT` | no | `600` | Ingest requests per minute per client IP (DoS backstop). Raise for pathological suites. |
 | `TRPC_RATE_LIMIT` | no | `300` | Dashboard requests per minute per client IP. Raise it when many users share one IP (office NAT). |
+| `LOG_LEVEL` | no | `info` | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`. `debug` adds one line per dashboard (tRPC) procedure. |
 | `KINORA_SHARD_TIMEOUT_MINUTES` | no | `120` | How long a [sharded run](/guides/reporter/#sharded-runs) waits for its missing shards, after the first one landed, before it is closed as incomplete. Raise it for suites whose shards start far apart. |
 
 ## Cookies

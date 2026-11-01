@@ -33,6 +33,7 @@ const envSchema = z.object({
   INGEST_RATE_LIMIT: z.coerce.number().int().positive().default(600),
   // Dashboard (tRPC) requests per minute per client IP. Raise it when many users share one IP (office NAT, e2e).
   TRPC_RATE_LIMIT: z.coerce.number().int().positive().default(300),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   // Self-host retention. 0 = keep forever; ignored in cloud, where the plan tier drives it.
   KINORA_RETENTION_DAYS: z.coerce.number().int().nonnegative().default(0),
   KINORA_KEEP_LAST_RUNS: z.coerce.number().int().nonnegative().default(0),

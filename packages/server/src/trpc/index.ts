@@ -22,16 +22,21 @@ const loggedProcedure = t.procedure.use(async (opts) => {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'This is a read-only demo' })
   const start = Date.now()
   const result = await opts.next()
-  const ms = Date.now() - start
-  const line = ` ${result.ok ? 'OK' : 'ERROR'} ${opts.type} ${opts.path} - ${ms}ms`
+  const fields = { type: opts.type, procedure: opts.path, durationMs: Date.now() - start }
+  // Debug on success: the request log already has the HTTP line, this one splits a batch per procedure.
   if (result.ok) {
-    logger.info(line)
+    logger.debug(fields, `${opts.type} ${opts.path} OK`)
+    return result
+  }
+  const { code, message, cause } = result.error
+  const line = `${opts.type} ${opts.path} ${code}`
+  // Expected TRPCErrors (auth, validation, not found) are client mistakes, not server failures.
+  if (code === 'INTERNAL_SERVER_ERROR') {
+    logger.error({ ...fields, code, err: cause ?? result.error }, line)
+    Sentry.captureException(cause ?? result.error)
   }
   else {
-    logger.error({ error: result.error.message, cause: result.error.cause?.message }, line)
-    // Only unexpected failures; expected TRPCErrors (auth, validation) would be noise.
-    if (result.error.code === 'INTERNAL_SERVER_ERROR')
-      Sentry.captureException(result.error.cause ?? result.error)
+    logger.warn({ ...fields, code, error: message }, line)
   }
   return result
 })
