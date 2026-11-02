@@ -165,7 +165,7 @@ function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string,
 }
 
 export function loadOverview(organizationId: string, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
-  return summarizeProjects(listProjects(organizationId), eq(project.organizationId, organizationId), filter)
+  return summarizeProjects(listProjects(organizationId), eq(project.organizationId, organizationId), { ...filter, withOptions: true })
 }
 
 export async function loadProjectSummary(p: ProjectRow): Promise<OverviewProject> {
@@ -173,7 +173,7 @@ export async function loadProjectSummary(p: ProjectRow): Promise<OverviewProject
   return summary
 }
 
-async function summarizeProjects(projectRows: ProjectRow[] | Promise<ProjectRow[]>, scope: SQL, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
+async function summarizeProjects(projectRows: ProjectRow[] | Promise<ProjectRow[]>, scope: SQL, filter: { branch?: string, tag?: string, withOptions?: boolean } = {}): Promise<DashboardOverview> {
   const generatedAt = new Date().toISOString()
   const { branch, tag } = filter
   const inProjects = sql`${run.projectId} in (select ${project.id} from ${project} where ${scope})`
@@ -196,7 +196,7 @@ async function summarizeProjects(projectRows: ProjectRow[] | Promise<ProjectRow[
     db.select({ projectId: run.projectId, n: count() }).from(run).where(and(inProjects, matching)).groupBy(run.projectId),
     db.select({ ...trendWindow._.selectedFields }).from(project).innerJoinLateral(trendWindow, sql`true`).where(scope),
     db.select({ ...latestWindow._.selectedFields }).from(project).innerJoinLateral(latestWindow, sql`true`).where(scope),
-    runWindowOptions(scope).then(r => r.rows[0]),
+    filter.withOptions ? runWindowOptions(scope).then(r => r.rows[0]) : undefined,
   ])
 
   const runCount = new Map(totals.map(t => [t.projectId, t.n]))
