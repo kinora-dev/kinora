@@ -1,20 +1,22 @@
-import type {} from 'hono/request-id'
 import { tryGetContext } from 'hono/context-storage'
 import pino from 'pino'
 import { env } from './env'
 
-declare module 'hono' {
-  interface ContextVariableMap {
+// An explicit env rather than a `declare module 'hono'` augmentation: web type-checks this file
+// through AppRouter without hono installed, where the augmentation fails to resolve.
+export interface LogContextEnv {
+  Variables: {
+    requestId: string
     /** Session user of a dashboard request, set by the tRPC context. */
-    userId: string
+    userId?: string
     /** Organization the request acts on: the API key's owner, or the session's active org. */
-    orgId: string
+    orgId?: string
   }
 }
 
 /** Request fields every log line carries, whoever logs it (Better Auth and services included). */
 export function logContext(): Record<string, string> {
-  const c = tryGetContext()
+  const c = tryGetContext<LogContextEnv>()
   if (!c)
     return {}
   const fields: Record<string, string> = { requestId: c.get('requestId') }

@@ -1,5 +1,6 @@
 import type { FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch'
 import type { AuthType } from '../lib/auth'
+import type { LogContextEnv } from '../lib/logger'
 import { tryGetContext } from 'hono/context-storage'
 import { resolveDemoOwner } from '../demo/owner'
 import { defaultOrganizationId } from '../lib/active-org'
@@ -27,7 +28,7 @@ export async function createContext({ req }: FetchCreateContextFnOptions) {
 
 // Names the user and org on every log line of the request.
 function tagRequest<T extends { user: { id: string } | null, organizationId: string | null }>(ctx: T): T {
-  const c = tryGetContext()
+  const c = tryGetContext<LogContextEnv>()
   if (c && ctx.user)
     c.set('userId', ctx.user.id)
   if (c && ctx.organizationId)

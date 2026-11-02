@@ -1,4 +1,5 @@
 import type { ErrorEvent } from '@sentry/node'
+import type { LogContextEnv } from '../src/lib/logger'
 import * as Sentry from '@sentry/node'
 import { Hono } from 'hono'
 import { contextStorage } from 'hono/context-storage'
@@ -10,7 +11,7 @@ import { sentryScope } from '../src/lib/request-context'
 
 describe('request context', () => {
   it('tags log lines with the request id and org, wherever they are logged in the request', async () => {
-    const probe = new Hono()
+    const probe = new Hono<LogContextEnv>()
       .use(contextStorage())
       .use(requestId())
       .use(async (c, next) => {
