@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ProjectEntry } from '@kinora/core'
+import type { ProjectListing } from '@kinora/core'
 import type { ColorMode } from '@kinora/ui/theme'
 import type { SessionUser } from '../../../src/bridge'
 import { Avatar, AvatarFallback, AvatarImage } from '@kinora/ui/avatar'
@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@kinor
 import { ArrowUpCircle, Check, ChevronsUpDown, ExternalLink, FolderGit2, FolderOpen, LogOut, Monitor, Moon, Settings, Sun } from '@lucide/vue'
 import { computed } from 'vue'
 
-const props = defineProps<{ projects: ProjectEntry[], activeId: string | null, user: SessionUser | null, projectPath: string | null, highlightLink: boolean, updateReady: boolean }>()
+const props = defineProps<{ projects: ProjectListing[], activeId: string | null, user: SessionUser | null, projectPath: string | null, highlightLink: boolean, updateReady: boolean }>()
 defineEmits<{ select: [id: string], openTrace: [], logout: [], openAccount: [], linkFolder: [], restartUpdate: [] }>()
 
 const isDev = window.kinora.isDev

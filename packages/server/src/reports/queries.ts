@@ -1,9 +1,9 @@
-import type { Counts, DashboardOverview, FailureCluster, NormError, NormTest, OverviewProject, ProjectEntry, ProjectHistory, ProjectRunsPage, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
+import type { Counts, DashboardOverview, FailureCluster, NormError, NormTest, OverviewProject, ProjectEntry, ProjectHistory, ProjectListing, ProjectRunsPage, RunReport, RunSummary, StatusCounts, TestHistory } from '@kinora/core'
 import type { SQL } from 'drizzle-orm'
 import type { PgSelect } from 'drizzle-orm/pg-core'
 import type { CodeownersRule } from '../lib/codeowners'
 import { applyTotals, buildFailureClusters, buildTestHistories, downsampleTrend, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
-import { and, asc, count, desc, eq, ilike, lte, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, getTableColumns, ilike, lte, or, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { artifact, project, run, test } from '../db/schemas/index'
 import { matchCodeowners, parseCodeowners } from '../lib/codeowners'
@@ -22,6 +22,13 @@ export const MAX_DASHBOARD_RUNS = 500
 const SEARCH_RUN_WINDOW = 20
 export const MAX_SEARCH_RESULTS = 20
 const MAX_SEARCH_TERMS = 8
+export const MAX_RUN_SEARCH_RESULTS = 5
+
+// A run matching a search, with the project it belongs to.
+export interface RunSearchHit {
+  project: { id: string, name: string }
+  run: RunSummary
+}
 
 // A test matching a search, as of its newest run in the search window.
 export interface TestSearchHit {
@@ -162,6 +169,19 @@ function groupByProject<T extends { projectId: string }>(rows: T[]): Map<string,
       out.set(r.projectId, [r])
   }
   return out
+}
+
+export async function loadProjectListings(organizationId: string): Promise<ProjectListing[]> {
+  const latest = runWindow(db.select().from(run).$dynamic(), undefined, 1)
+  const [projects, latestRows] = await Promise.all([
+    listProjects(organizationId),
+    db.select({ ...latest._.selectedFields }).from(project).innerJoinLateral(latest, sql`true`).where(eq(project.organizationId, organizationId)),
+  ])
+  const latestByProject = new Map(latestRows.map(r => [r.projectId, r]))
+  return projects.map((p) => {
+    const r = latestByProject.get(p.id)
+    return { id: p.slug, name: p.name, description: p.description ?? undefined, latestRun: r && runSummary(p.slug, r) }
+  })
 }
 
 export function loadOverview(organizationId: string, filter: { branch?: string, tag?: string } = {}): Promise<DashboardOverview> {
@@ -486,6 +506,34 @@ export async function loadTestHistoryPage(p: ProjectRow, testKey: string): Promi
   }
 }
 
+function containing(term: string): string {
+  // LIKE wildcards in the query are matched literally.
+  return `%${term.replace(/[\\%_]/g, '\\$&')}%`
+}
+
+// Runs of a workspace answering every word of the query by their branch, commit, CI run number or
+// id, or by their project's name, newest first. One word at least must be the run's own, so a
+// project name alone doesn't list all of its runs.
+export async function searchRuns(organizationId: string, query: string): Promise<RunSearchHit[]> {
+  const terms = query.split(/\s+/).filter(Boolean).slice(0, MAX_SEARCH_TERMS).map(containing)
+  if (!terms.length)
+    return []
+  const own = sql`concat_ws(' ', ${run.git}->>'branch', ${run.git}->>'sha', '#' || (${run.ci}->>'runNumber'), ${run.id})`
+  const projectText = sql`(${project.name} || ' ' || ${project.slug})`
+  const rows = await db
+    .select({ ...getTableColumns(run), slug: project.slug, projectName: project.name })
+    .from(run)
+    .innerJoin(project, eq(project.id, run.projectId))
+    .where(and(
+      eq(project.organizationId, organizationId),
+      or(...terms.map(term => ilike(own, term))),
+      ...terms.map(term => or(ilike(own, term), ilike(projectText, term))),
+    ))
+    .orderBy(desc(run.startedAt), desc(run.id))
+    .limit(MAX_RUN_SEARCH_RESULTS)
+  return rows.map(r => ({ project: { id: r.slug, name: r.projectName }, run: runSummary(r.slug, r) }))
+}
+
 // Tests of a workspace whose file, title path or project contains every word of the query, one
 // hit per test. `preferSlug` lists that project's hits first, for a search started from one of its pages.
 export async function searchTests(organizationId: string, query: string, preferSlug?: string): Promise<TestSearchHit[]> {
@@ -525,8 +573,7 @@ export async function searchTests(organizationId: string, query: string, preferS
     .innerJoin(recentRun, eq(test.runId, recentRun.id))
     .where(and(
       lte(recentRun.position, SEARCH_RUN_WINDOW),
-      // LIKE wildcards in the query are matched literally.
-      ...terms.map(term => ilike(haystack, `%${term.replace(/[\\%_]/g, '\\$&')}%`)),
+      ...terms.map(term => ilike(haystack, containing(term))),
     ))
     .orderBy(recentRun.slug, test.testKey, desc(recentRun.startedAt))
     .as('match')

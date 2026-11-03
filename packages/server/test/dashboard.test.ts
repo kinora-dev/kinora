@@ -5,7 +5,7 @@ import { desc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../src/db'
 import { artifact, project, run, test, testQuarantine } from '../src/db/schemas/index'
-import { RUN_PAGE_SIZE } from '../src/reports/queries'
+import { MAX_RUN_SEARCH_RESULTS, RUN_PAGE_SIZE } from '../src/reports/queries'
 import { MAX_DASHBOARD_RUNS } from '../src/router/dashboard'
 import { caller, createApiKey, createUser, ingest, runPayload } from './helpers'
 
@@ -435,6 +435,83 @@ describe('dashboard test search', () => {
     await ingest(await createApiKey(a.id), testRun('web-app', 'tests/cart.spec.ts', 'adds an item'))
 
     expect(await (await caller(b)).dashboard.searchTests({ q: 'item', projectId: 'web-app' })).toEqual([])
+  })
+})
+
+describe('dashboard project list', () => {
+  it('lists the workspace projects with their newest run only', async () => {
+    const a = await createUser('a@test.dev')
+    const b = await createUser('b@test.dev')
+    const key = await createApiKey(a.id)
+    await ingest(key, runPayload('admin'))
+    await ingest(key, runPayload('web-app'))
+    const { runId } = await (await ingest(key, runPayload('web-app'))).json() as { runId: string }
+
+    const projects = await (await caller(a)).dashboard.projects()
+    expect(projects.map(p => p.id)).toEqual(['web-app', 'admin'])
+    expect(projects[0].latestRun?.runId).toBe(runId)
+    expect(await (await caller(b)).dashboard.projects()).toEqual([])
+  })
+
+  it('lists a project without runs', async () => {
+    const a = await createUser('a@test.dev')
+    await ingest(await createApiKey(a.id))
+    await db.delete(run)
+
+    expect(await (await caller(a)).dashboard.projects()).toEqual([{ id: 'web-app', name: 'web-app' }])
+  })
+})
+
+describe('dashboard run search', () => {
+  function gitRun(slug: string, branch: string, sha: string, runNumber?: string): IngestRun {
+    const payload = runPayload(slug)
+    return { ...payload, run: { ...payload.run, git: { branch, sha }, ci: runNumber ? { runNumber } : undefined } }
+  }
+
+  it('finds runs by branch, commit, CI number and id, newest first', async () => {
+    const a = await createUser('a@test.dev')
+    const key = await createApiKey(a.id)
+    const { runId: older } = await (await ingest(key, gitRun('web-app', 'feat/cart', 'abc1234def', '41'))).json() as { runId: string }
+    const { runId: newer } = await (await ingest(key, gitRun('admin', 'feat/cart', '9f8e7d6c5b', '42'))).json() as { runId: string }
+    const search = (await caller(a)).dashboard.searchRuns
+
+    expect((await search({ q: 'CART' })).map(h => h.run.runId)).toEqual([newer, older])
+    expect((await search({ q: 'abc12' })).map(h => h.run.runId)).toEqual([older])
+    expect((await search({ q: '#42' })).map(h => h.run.runId)).toEqual([newer])
+    expect((await search({ q: older.slice(0, 8) })).map(h => h.run.runId)).toEqual([older])
+    expect((await search({ q: 'cart' }))[0].project).toEqual({ id: 'admin', name: 'admin' })
+  })
+
+  it('narrows by project name, but never lists a project runs on its name alone', async () => {
+    const a = await createUser('a@test.dev')
+    const key = await createApiKey(a.id)
+    await ingest(key, gitRun('web-app', 'main', 'abc1234def'))
+    const { runId } = await (await ingest(key, gitRun('admin', 'main', '9f8e7d6c5b'))).json() as { runId: string }
+    const search = (await caller(a)).dashboard.searchRuns
+
+    expect((await search({ q: 'main admin' })).map(h => h.run.runId)).toEqual([runId])
+    expect(await search({ q: 'admin' })).toEqual([])
+    expect(await search({ q: 'main missing' })).toEqual([])
+  })
+
+  it('caps the hits and matches LIKE wildcards literally', async () => {
+    const a = await createUser('a@test.dev')
+    const key = await createApiKey(a.id)
+    for (let i = 0; i < MAX_RUN_SEARCH_RESULTS + 2; i++)
+      await ingest(key, gitRun('web-app', 'main', `sha${i}`))
+    const search = (await caller(a)).dashboard.searchRuns
+
+    expect(await search({ q: 'main' })).toHaveLength(MAX_RUN_SEARCH_RESULTS)
+    expect(await search({ q: 'm_in' })).toEqual([])
+    expect(await search({ q: '%%' })).toEqual([])
+  })
+
+  it('never returns the runs of another workspace', async () => {
+    const a = await createUser('a@test.dev')
+    const b = await createUser('b@test.dev')
+    await ingest(await createApiKey(a.id), gitRun('web-app', 'main', 'abc1234def'))
+
+    expect(await (await caller(b)).dashboard.searchRuns({ q: 'main' })).toEqual([])
   })
 })
 

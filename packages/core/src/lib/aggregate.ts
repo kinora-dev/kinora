@@ -73,6 +73,14 @@ export interface OverviewProject {
   trend: Pick<TrendPoint, 'passRate' | 'incident'>[]
 }
 
+// A project as listed to pick from: its newest run only, never its history.
+export interface ProjectListing {
+  id: string
+  name: string
+  description?: string
+  latestRun?: RunSummary
+}
+
 export interface DashboardOverview {
   generatedAt: string
   branches: string[]

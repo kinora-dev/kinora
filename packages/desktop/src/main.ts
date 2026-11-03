@@ -224,8 +224,7 @@ function registerIpc(): void {
     if (!config.token)
       return []
     const trpc = makeTrpc(config.serverUrl, config.token, config.webOrigin)
-    const manifest = await trpc.dashboard.manifest.query()
-    return manifest.projects
+    return trpc.dashboard.projects.query()
   })
 
   ipcMain.handle('kinora:run', async (_e, input: { projectId: string, runId: string }) => {

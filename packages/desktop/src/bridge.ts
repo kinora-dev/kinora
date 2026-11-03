@@ -1,8 +1,8 @@
-import type { Manifest, ProjectEntry, RunReport, TestHistory } from '@kinora/core'
+import type { ProjectListing, RunReport, TestHistory } from '@kinora/core'
 
 // Dashboard payload types come from the shared contract layer (what the server returns).
-export type { Manifest, RunReport, TestHistory }
-export type Project = ProjectEntry
+export type { RunReport, TestHistory }
+export type Project = ProjectListing
 
 export interface FixTestInput {
   projectId: string

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { RunHealth, RunSummary } from '@kinora/core'
 import type { PaletteCommand, RecentKind } from '@/composables/useCommandPalette'
-import { partialRunLabel, pwStatusMeta, runHealth, sortedRuns } from '@kinora/core'
+import { partialRunLabel, pwStatusMeta, runHealth } from '@kinora/core'
 import { CommandGroup, CommandInput, CommandItem, CommandList, useCommand } from '@kinora/ui/command'
 import { colorMode } from '@kinora/ui/theme'
 import { Blocks, BookOpen, Building2, CircleAlert, FlaskConical, FolderClosed, Gauge, GitCompareArrows, History, LayoutGrid, ListVideo, Monitor, Moon, Play, Settings, SlidersHorizontal, Sun } from '@lucide/vue'
@@ -20,9 +20,9 @@ import { testLabel } from '@/lib/test-display'
 import { trpc } from '@/lib/trpc'
 
 type TestHit = Awaited<ReturnType<typeof trpc.dashboard.searchTests.query>>[number]
+type RunHit = Awaited<ReturnType<typeof trpc.dashboard.searchRuns.query>>[number]
 
-const MAX_RUNS = 5
-const MIN_TEST_QUERY = 2
+const MIN_SEARCH_QUERY = 2
 const HEALTH_DOT: Record<RunHealth, string> = { passing: 'bg-pass', flaky: 'bg-flaky', failing: 'bg-fail', empty: 'bg-muted-foreground' }
 
 // A run missing shards has no health yet: a neutral dot, never a green one.
@@ -40,11 +40,12 @@ const route = useRoute()
 const router = useRouter()
 const listbox = injectListboxRootContext()
 const { filterState } = useCommand()
-const { open, sources, manifest, refreshManifest, remember, recentsOf } = useCommandPalette()
+const { open, sources, projects, projectRuns, refresh, remember, recentsOf } = useCommandPalette()
 const { org, orgs, isAdmin, setActive } = useOrg()
 const { state: serverConfig } = useServerConfig()
 
-void refreshManifest()
+const currentProjectId = computed(() => typeof route.params.projectId === 'string' ? route.params.projectId : undefined)
+void refresh(currentProjectId.value)
 
 // A picked item clears the search just before the palette closes: stop following it then, or the
 // list would flash back to its unfiltered state on the way out.
@@ -56,8 +57,7 @@ watch(() => filterState.search, (search) => {
 })
 const terms = computed(() => queryTerms(query.value))
 
-const projects = computed(() => manifest.value?.projects ?? [])
-const currentProject = computed(() => projects.value.find(p => p.id === route.params.projectId))
+const currentProject = computed(() => projects.value.find(p => p.id === currentProjectId.value))
 
 const pageCommands = computed(() => [...sources].flatMap(source => source()))
 
@@ -66,7 +66,7 @@ const projectCommands = computed<PaletteCommand[]>(() => {
   if (!project)
     return []
   const params = { projectId: project.id }
-  const runs = sortedRuns(project)
+  const runs = projectRuns.value?.projectId === project.id ? projectRuns.value.runs : []
   const failed = runs.find(r => runHealth(r.counts) === 'failing')
   const commands: PaletteCommand[] = [
     { id: 'project:runs', group: project.name, label: 'Run history', icon: ListVideo, to: { name: 'project', params } },
@@ -92,7 +92,7 @@ const recentCommands = computed<PaletteCommand[]>(() => {
 })
 
 const projectListCommands = computed<PaletteCommand[]>(() => projects.value.map((project) => {
-  const latest = sortedRuns(project)[0]
+  const latest = project.latestRun
   return {
     id: `project:${project.id}`,
     group: 'Projects',
@@ -114,42 +114,17 @@ const projectPageCommands = computed<PaletteCommand[]>(() => projects.value.flat
   ]
 }))
 
-const runCommands = computed<PaletteCommand[]>(() => {
-  if (!terms.value.length)
-    return []
-  return projects.value
-    .flatMap(project => project.runs
-      .filter(run => runMatches(terms.value, run, `${project.name} ${project.id}`))
-      .map(run => ({ project, run })))
-    .sort((a, b) => Date.parse(b.run.startedAt) - Date.parse(a.run.startedAt))
-    .slice(0, MAX_RUNS)
-    .map(({ project, run }) => {
-      const number = run.ci?.runNumber
-      return {
-        id: `run:${run.runId}`,
-        group: 'Runs',
-        label: runRef(run) ?? formatDateTime(run.startedAt),
-        keywords: runKeywords(run),
-        detail: number ? `#${number}` : undefined,
-        hint: `${project.name} · ${formatDateTime(run.startedAt)}`,
-        dot: runDot(run),
-        to: { name: 'run', params: { projectId: project.id, runId: run.runId } },
-        recent: 'run',
-      }
-    })
-})
-
-// Server-side search, since a test may be in any project. Earlier hits stay up while the next
-// answer loads, narrowed locally so the list never shows something the query excludes.
-const hits = shallowRef<TestHit[]>([])
+// Server-side search, since a test or a run may be in any project. Earlier hits stay up while the
+// next answer loads, narrowed locally so the list never shows something the query excludes.
+const hits = shallowRef<{ tests: TestHit[], runs: RunHit[] }>({ tests: [], runs: [] })
 const searching = ref(false)
-const searchable = computed(() => query.value.trim().length >= MIN_TEST_QUERY)
+const searchable = computed(() => query.value.trim().length >= MIN_SEARCH_QUERY)
 let request = 0
 watch(searchable, (on) => {
   searching.value = on
   if (!on) {
     request++
-    hits.value = []
+    hits.value = { tests: [], runs: [] }
   }
 })
 watchDebounced(query, async (q) => {
@@ -158,9 +133,12 @@ watchDebounced(query, async (q) => {
   const id = ++request
   searching.value = true
   try {
-    const found = await trpc.dashboard.searchTests.query({ q, projectId: currentProject.value?.id })
+    const [tests, runs] = await Promise.all([
+      trpc.dashboard.searchTests.query({ q, projectId: currentProjectId.value }),
+      trpc.dashboard.searchRuns.query({ q }),
+    ])
     if (id === request)
-      hits.value = found
+      hits.value = { tests, runs }
   }
   catch (error) {
     reportQueryError(error)
@@ -171,7 +149,24 @@ watchDebounced(query, async (q) => {
   }
 }, { debounce: 150 })
 
-const testCommands = computed<PaletteCommand[]>(() => hits.value
+const runCommands = computed<PaletteCommand[]>(() => hits.value.runs
+  .filter(({ project, run }) => runMatches(terms.value, run, `${project.name} ${project.id}`))
+  .map(({ project, run }) => {
+    const number = run.ci?.runNumber
+    return {
+      id: `run:${run.runId}`,
+      group: 'Runs',
+      label: runRef(run) ?? formatDateTime(run.startedAt),
+      keywords: runKeywords(run),
+      detail: number ? `#${number}` : undefined,
+      hint: `${project.name} · ${formatDateTime(run.startedAt)}`,
+      dot: runDot(run),
+      to: { name: 'run', params: { projectId: project.id, runId: run.runId } },
+      recent: 'run',
+    }
+  }))
+
+const testCommands = computed<PaletteCommand[]>(() => hits.value.tests
   .filter((hit) => {
     const text = `${hit.file} ${hit.titlePath.join(' ')} ${hit.projectName} ${hit.projectId}`.toLowerCase()
     return terms.value.every(term => text.includes(term))

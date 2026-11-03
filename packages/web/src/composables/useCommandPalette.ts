@@ -1,4 +1,4 @@
-import type { Manifest } from '@kinora/core'
+import type { ProjectListing, RunSummary } from '@kinora/core'
 import type { Component } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
 import { useLocalStorage } from '@vueuse/core'
@@ -56,14 +56,22 @@ const sources = shallowReactive(new Set<() => PaletteCommand[]>())
 const recents = useLocalStorage<RecentEntry[]>('kinora:palette:recent', [])
 
 // Kept between two openings so the list is there at once, then refreshed on every opening.
-const manifest = shallowRef<Manifest | null>(null)
+const projects = shallowRef<ProjectListing[]>([])
+// The newest runs of the project being viewed, for its shortcuts.
+const projectRuns = shallowRef<{ projectId: string, runs: RunSummary[] } | null>(null)
 watch(() => session.user.value?.id, () => {
-  manifest.value = null
+  projects.value = []
+  projectRuns.value = null
 })
 
-async function refreshManifest(): Promise<void> {
+async function refresh(projectId: string | undefined): Promise<void> {
   try {
-    manifest.value = await trpc.dashboard.manifest.query()
+    const [listed, page] = await Promise.all([
+      trpc.dashboard.projects.query(),
+      projectId ? trpc.dashboard.projectRuns.query({ projectId }) : undefined,
+    ])
+    projects.value = listed
+    projectRuns.value = page && projectId ? { projectId, runs: page.runs } : null
   }
   catch (error) {
     reportQueryError(error)
@@ -83,7 +91,7 @@ function recentsOf(org: string): RecentEntry[] {
 }
 
 export function useCommandPalette() {
-  return { open, sources, manifest, refreshManifest, remember, recentsOf }
+  return { open, sources, projects, projectRuns, refresh, remember, recentsOf }
 }
 
 // Adds commands to the palette for as long as the calling component lives: what a page or the

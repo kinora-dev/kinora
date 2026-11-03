@@ -1,4 +1,4 @@
-import type { DashboardOverview, Manifest, OverviewProject, ProjectEntry, ProjectHistory, ProjectRunsPage, RunComparison, RunIncident, RunReport, RunSummary } from '@kinora/core'
+import type { DashboardOverview, Manifest, OverviewProject, ProjectEntry, ProjectHistory, ProjectListing, ProjectRunsPage, RunComparison, RunIncident, RunReport, RunSummary } from '@kinora/core'
 import type { ProjectAnalytics } from '../reports/analytics'
 import type { TestHistoryPage } from '../reports/queries'
 import { randomUUID } from 'node:crypto'
@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { db } from '../db'
 import { project, run, test, testQuarantine } from '../db/schemas/index'
 import { ANALYTICS_RANGES, isTimeZone, loadProjectAnalytics } from '../reports/analytics'
-import { findProject, incidentState, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchTests, toNormTest } from '../reports/queries'
+import { findProject, incidentState, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectListings, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchRuns, searchTests, toNormTest } from '../reports/queries'
 import { orgProcedure, router } from '../trpc/index'
 
 export { MAX_DASHBOARD_RUNS }
@@ -37,6 +37,7 @@ function activeQuarantineWhere(projectId: string) {
 }
 
 export const dashboardRouter = router({
+  // Every run of every project, up to MAX_DASHBOARD_RUNS each: only desktop apps up to 0.19 still read it.
   manifest: orgProcedure.query(async ({ ctx }): Promise<Manifest> => {
     const projects = await db.query.project.findMany({
       where: eq(project.organizationId, ctx.organizationId),
@@ -49,6 +50,8 @@ export const dashboardRouter = router({
     }))
     return { schemaVersion: SCHEMA_VERSION, generatedAt: new Date().toISOString(), projects: entries }
   }),
+
+  projects: orgProcedure.query(({ ctx }): Promise<ProjectListing[]> => loadProjectListings(ctx.organizationId)),
 
   overview: orgProcedure
     .input(z.object({
@@ -132,6 +135,10 @@ export const dashboardRouter = router({
   searchTests: orgProcedure
     .input(z.object({ q: z.string().trim().min(2).max(200), projectId: z.string().min(1).optional() }))
     .query(({ ctx, input }) => searchTests(ctx.organizationId, input.q, input.projectId)),
+
+  searchRuns: orgProcedure
+    .input(z.object({ q: z.string().trim().min(2).max(200) }))
+    .query(({ ctx, input }) => searchRuns(ctx.organizationId, input.q)),
 
   testAttachments: orgProcedure
     .input(z.object({ projectId: z.string().min(1), runId: z.string().min(1), testKey: z.string().min(1) }))
