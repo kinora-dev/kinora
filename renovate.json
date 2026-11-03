@@ -21,6 +21,12 @@
       "automerge": true
     },
     {
+      "description": "Published libraries keep the Node floor their users run on: a Node update must not raise their engines range",
+      "matchFileNames": ["packages/{reporter,cli,core,mcp,vitest-reporter}/package.json"],
+      "matchDepTypes": ["engines"],
+      "enabled": false
+    },
+    {
       "description": "Playwright is owned by the Playwright Update workflow, not Renovate: a bump must come with the re-vendored trace viewer engine, and it cannot wait in Renovate's queue",
       "matchSourceUrls": ["https://github.com/microsoft/playwright"],
       "enabled": false
