@@ -10,7 +10,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import ErrorState from '@/components/app/ErrorState.vue'
 import StatStripSkeleton from '@/components/app/StatStripSkeleton.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
-import { useCompareRuns, useManifest } from '@/composables/queries'
+import { useCompareRuns } from '@/composables/queries'
 import { formatDateTime } from '@/lib/format'
 import { testLabel } from '@/lib/test-display'
 
@@ -20,16 +20,8 @@ const route = useRoute()
 const baseId = computed(() => String(route.query.base ?? ''))
 const headId = computed(() => String(route.query.head ?? ''))
 
-const { state: cmp, isLoading, error, execute: reloadCompare } = useCompareRuns(props.projectId, baseId.value, headId.value)
-const { state: manifest, execute: reloadManifest } = useManifest()
-// The manifest only feeds the project name, but it fails with the same outage: reload both.
-function retry() {
-  void reloadCompare()
-  void reloadManifest()
-}
-const projectName = computed(
-  () => manifest.value?.projects.find(p => p.id === props.projectId)?.name ?? props.projectId,
-)
+const { state: cmp, isLoading, error, execute: retry } = useCompareRuns(props.projectId, baseId.value, headId.value)
+const projectName = computed(() => cmp.value?.project.name ?? props.projectId)
 
 // Groups shown, in priority order. `unchanged` is hidden.
 const GROUPS: { key: TestChange, label: string, tone: string }[] = [

@@ -23,8 +23,8 @@ export function useDemo() {
   return computed(() => state.value?.demo ?? false)
 }
 
-export function useManifest() {
-  return useAsyncState(() => trpc.dashboard.manifest.query(), null, QUERY_OPTIONS)
+export function useProject(projectId: string) {
+  return useAsyncState(() => trpc.dashboard.project.query({ projectId }), null, QUERY_OPTIONS)
 }
 
 export function useOverview(branch: MaybeRefOrGetter<string | undefined>, tag: MaybeRefOrGetter<string | undefined>) {
