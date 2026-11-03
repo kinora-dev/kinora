@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NormTest, ProjectEntry, RunReport, TestHistory } from '@kinora/core'
+import type { NormTest, ProjectListing, RunReport, TestHistory } from '@kinora/core'
 import { formatPct, passRate, stripAnsi } from '@kinora/core'
 import { Button } from '@kinora/ui/button'
 import { Card } from '@kinora/ui/card'
@@ -8,7 +8,7 @@ import { Check, Copy, FileCode2, Play, RefreshCw, Sparkles } from '@lucide/vue'
 import { computed, ref } from 'vue'
 
 const props = defineProps<{
-  project: ProjectEntry
+  project: ProjectListing
   report: RunReport | null
   histories: TestHistory[]
   loading: boolean

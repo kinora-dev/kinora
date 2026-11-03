@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Project, RunReport, SessionUser, TestHistory } from '../../src/bridge'
-import { latestRun, stripAnsi } from '@kinora/core'
+import { stripAnsi } from '@kinora/core'
 import { Button } from '@kinora/ui/button'
 import { Card, CardContent } from '@kinora/ui/card'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
@@ -89,7 +89,7 @@ async function loadActive(): Promise<void> {
   const p = activeProject.value
   if (!p)
     return
-  const latest = latestRun(p)
+  const latest = p.latestRun
   if (!latest)
     return
   reportLoading.value = true
