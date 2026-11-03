@@ -244,12 +244,32 @@ describe('dashboard project runs', () => {
     expect(summary.trend).toHaveLength(50)
   })
 
+  it('points a run at the one that started before it, ties ordered by id', async () => {
+    const at = new Date()
+    const { a, ids } = await seed(3, () => at)
+    const dashboard = (await caller(a)).dashboard
+
+    const previous = await Promise.all(ids.map(async runId => (await dashboard.run({ projectId: 'web-app', runId })).previousRunId))
+    expect(previous).toEqual([...ids.slice(1), undefined])
+  })
+
+  it('names the project on the run, the comparison and the project query', async () => {
+    const { a, ids } = await seed(1)
+    const dashboard = (await caller(a)).dashboard
+    await db.update(project).set({ name: 'Web App', description: 'Checkout flows' }).where(eq(project.slug, 'web-app'))
+
+    expect((await dashboard.run({ projectId: 'web-app', runId: ids[0] })).project).toEqual({ id: 'web-app', name: 'Web App' })
+    expect((await dashboard.compareRuns({ projectId: 'web-app', baseRunId: ids[1], headRunId: ids[0] })).project).toEqual({ id: 'web-app', name: 'Web App' })
+    expect(await dashboard.project({ projectId: 'web-app' })).toEqual({ id: 'web-app', name: 'Web App', description: 'Checkout flows' })
+  })
+
   it('hides another workspace project', async () => {
     await seed(1)
     const b = await createUser('b@test.dev')
 
     await expect((await caller(b)).dashboard.projectRuns({ projectId: 'web-app' })).rejects.toMatchObject({ code: 'NOT_FOUND' })
     await expect((await caller(b)).dashboard.projectSummary({ projectId: 'web-app' })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect((await caller(b)).dashboard.project({ projectId: 'web-app' })).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 })
 

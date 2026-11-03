@@ -235,6 +235,10 @@ export async function loadRunPage(p: ProjectRow, cursor: { before?: string, afte
   return startOver ? runPage(p, {}, limit) : page
 }
 
+export async function loadPreviousRunId(p: ProjectRow, runId: string): Promise<string | undefined> {
+  return (await runPage(p, { before: runId }, 1)).runs[0]?.runId
+}
+
 async function runPage(p: ProjectRow, { before, after }: { before?: string, after?: string }, limit: number): Promise<ProjectRunsPage> {
   const anchorId = after ?? before
   const key = sql`(${run.startedAt}, ${run.id})`

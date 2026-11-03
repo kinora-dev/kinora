@@ -11,7 +11,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import AlertChannelsCard from '@/components/project/AlertChannelsCard.vue'
 import SlackAlertsCard from '@/components/project/SlackAlertsCard.vue'
-import { useDemo, useManifest } from '@/composables/queries'
+import { useDemo, useProject } from '@/composables/queries'
 import { useOrg } from '@/composables/useOrg'
 import { useProjectAdmin } from '@/composables/useProjectAdmin'
 import { reportQueryError } from '@/lib/errors'
@@ -36,8 +36,7 @@ onMounted(() => {
     void router.replace({ query: { ...route.query, slack: undefined } })
 })
 
-const { state: manifest, execute: refreshManifest } = useManifest()
-const project = computed(() => manifest.value?.projects.find(p => p.id === props.projectId))
+const { state: project, execute: refreshProject } = useProject(props.projectId)
 
 const { savingGeneral, savingCodeowners, deleting, saveGeneral, saveCodeowners, deleteProject } = useProjectAdmin(props.projectId)
 const { state: codeownersSettings, execute: refreshCodeowners } = useAsyncState(
@@ -63,7 +62,7 @@ watch(codeownersSettings, (settings) => {
 
 async function onSaveGeneral(): Promise<void> {
   if (await saveGeneral({ name: name.value.trim(), description: description.value.trim() }))
-    await refreshManifest()
+    await refreshProject()
 }
 
 async function onSaveCodeowners(): Promise<void> {

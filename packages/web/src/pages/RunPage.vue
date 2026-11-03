@@ -22,7 +22,7 @@ import RunHealthBadge from '@/components/viz/RunHealthBadge.vue'
 import ScreenshotDiff from '@/components/viz/ScreenshotDiff.vue'
 import StoryBadge from '@/components/viz/StoryBadge.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
-import { useDemo, useManifest, useRun } from '@/composables/queries'
+import { useDemo, useRun } from '@/composables/queries'
 import { usePaletteCommands } from '@/composables/useCommandPalette'
 import { useQuarantine } from '@/composables/useQuarantine'
 import { useUrlPage } from '@/composables/useUrlPage'
@@ -36,18 +36,14 @@ const props = defineProps<{ projectId: string, runId: string }>()
 
 const isDemo = useDemo()
 const { state: report, isLoading, error, execute: reloadRun } = useRun(props.projectId, props.runId)
-const { state: manifest, execute: reloadManifest } = useManifest()
 const { isQuarantined, savingKey: savingQuarantineKey, toggle: toggleQuarantine, reload: reloadQuarantines } = useQuarantine(props.projectId)
-// The side queries fail with the same outage as the run, so a retry reloads them too.
+// The quarantines fail with the same outage as the run, so a retry reloads them too.
 function retry() {
   void reloadRun()
-  void reloadManifest()
   void reloadQuarantines()
 }
 
-const projectName = computed(
-  () => manifest.value?.projects.find(p => p.id === props.projectId)?.name ?? props.projectId,
-)
+const projectName = computed(() => report.value?.project.name ?? props.projectId)
 
 // A run's pass rate is colored by the run's health, not its value: a run with real failures reads red.
 // A run missing shards stays neutral, its counts cover part of the suite only.
@@ -84,7 +80,6 @@ async function setIncident(flagged: boolean) {
     // Assigned field by field: a cleared incident arrives as a missing key, which a spread would skip.
     report.value = { ...report.value, meta: { ...report.value.meta, incident: state.incident, incidentDecision: state.incidentDecision } }
     toast.success(flagged ? 'Run marked as an environment incident' : 'Incident flag cleared, the run counts again')
-    void reloadManifest()
   }
   catch (err) {
     toast.error(err instanceof Error ? err.message : 'Could not update the run')
@@ -94,15 +89,8 @@ async function setIncident(flagged: boolean) {
   }
 }
 
-// The run just before this one (older startedAt) in the same project, for "Compare with previous".
-const previousRunId = computed(() => {
-  const proj = manifest.value?.projects.find(p => p.id === props.projectId)
-  if (!proj)
-    return undefined
-  const sorted = [...proj.runs].sort((a, b) => +new Date(b.startedAt) - +new Date(a.startedAt))
-  const idx = sorted.findIndex(r => r.runId === props.runId)
-  return idx >= 0 && idx + 1 < sorted.length ? sorted[idx + 1].runId : undefined
-})
+// The run just before this one in the same project, for "Compare with previous".
+const previousRunId = computed(() => report.value?.previousRunId)
 
 const commitHref = computed(() => commitUrl(report.value?.meta.git))
 const ciRunHref = computed(() => httpsUrl(report.value?.meta.ci?.runUrl))

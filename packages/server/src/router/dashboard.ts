@@ -9,10 +9,13 @@ import { z } from 'zod'
 import { db } from '../db'
 import { project, run, test, testQuarantine } from '../db/schemas/index'
 import { ANALYTICS_RANGES, isTimeZone, loadProjectAnalytics } from '../reports/analytics'
-import { findProject, incidentState, loadOverview, loadProjectHistory, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchTests, toNormTest } from '../reports/queries'
+import { findProject, incidentState, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchTests, toNormTest } from '../reports/queries'
 import { orgProcedure, router } from '../trpc/index'
 
 export { MAX_DASHBOARD_RUNS }
+
+// What a page needs to name the project it shows, without loading the project's runs.
+interface ProjectRef { id: string, name: string }
 
 export async function ownedProject(organizationId: string, slug: string) {
   const p = await findProject(organizationId, slug)
@@ -69,14 +72,22 @@ export const dashboardRouter = router({
       return loadRunPage(p, input)
     }),
 
+  project: orgProcedure
+    .input(z.object({ projectId: z.string().min(1) }))
+    .query(async ({ ctx, input }): Promise<ProjectRef & { description?: string }> => {
+      const p = await ownedProject(ctx.organizationId, input.projectId)
+      return { id: p.slug, name: p.name, description: p.description ?? undefined }
+    }),
+
   run: orgProcedure
     .input(z.object({ projectId: z.string().min(1), runId: z.string().min(1) }))
-    .query(async ({ ctx, input }): Promise<RunReport> => {
+    .query(async ({ ctx, input }): Promise<RunReport & { project: ProjectRef, previousRunId?: string }> => {
       const p = await ownedProject(ctx.organizationId, input.projectId)
       const r = await loadRun(p.id, input.runId)
       if (!r)
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Run not found' })
-      return loadRunReport(p, r)
+      const [report, previousRunId] = await Promise.all([loadRunReport(p, r), loadPreviousRunId(p, r.id)])
+      return { ...report, project: { id: p.slug, name: p.name }, previousRunId }
     }),
 
   projectHistory: orgProcedure
@@ -220,7 +231,7 @@ export const dashboardRouter = router({
 
   compareRuns: orgProcedure
     .input(z.object({ projectId: z.string().min(1), baseRunId: z.string().min(1), headRunId: z.string().min(1) }))
-    .query(async ({ ctx, input }): Promise<RunComparison> => {
+    .query(async ({ ctx, input }): Promise<RunComparison & { project: ProjectRef }> => {
       const p = await ownedProject(ctx.organizationId, input.projectId)
       const [base, head] = await Promise.all([
         db.query.run.findFirst({ where: and(eq(run.id, input.baseRunId), eq(run.projectId, p.id)) }),
@@ -235,6 +246,7 @@ export const dashboardRouter = router({
       ])
 
       return {
+        project: { id: p.slug, name: p.name },
         base: { runId: base.id, startedAt: base.startedAt.toISOString(), counts: base.counts, git: base.git ?? undefined },
         head: { runId: head.id, startedAt: head.startedAt.toISOString(), counts: head.counts, git: head.git ?? undefined },
         tests: compareRuns(baseTests.map(t => toNormTest(t)), headTests.map(t => toNormTest(t))),
