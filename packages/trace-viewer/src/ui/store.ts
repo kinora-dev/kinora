@@ -156,6 +156,25 @@ function defaultSelection(): string | null {
   return lastWithPage?.id ?? items.value[0]?.id ?? null
 }
 
+// `?action=<callId>` (a shared link) wins over the default selection when the action is listed.
+function initialSelection(): string | null {
+  const id = new URLSearchParams(globalThis.location?.search ?? '').get('action')
+  return id && items.value.some(item => item.id === id) ? id : defaultSelection()
+}
+
+// Kinora addition: the URL follows the selected action, so the address bar is a link to it.
+watch(selectedId, (id) => {
+  if (!globalThis.location || !globalThis.history)
+    return
+  const url = new URL(location.href)
+  if (id && model.value)
+    url.searchParams.set('action', id)
+  else
+    url.searchParams.delete('action')
+  if (url.href !== location.href)
+    history.replaceState(history.state, '', url)
+})
+
 // Hiding the group of the selected action moves the selection to the default one.
 watch(items, (list) => {
   if (selectedId.value && model.value && !list.some(item => item.id === selectedId.value))
@@ -292,7 +311,7 @@ async function load(uri: string, name = ''): Promise<void> {
     editedAriaSnapshot.value = null
     lastEditedQuery.value = 'locator'
     inspectingLocator.value = false
-    selectedId.value = defaultSelection()
+    selectedId.value = initialSelection()
     sessionStorage.removeItem(PENDING_LOAD_KEY)
     status.value = 'ready'
   }
@@ -350,6 +369,7 @@ async function loadFile(file: File): Promise<void> {
   // returns to it. A `blob:` trace param is ignored on load, since it dies with the page.
   const url = new URL(location.href)
   url.searchParams.set('trace', objectUrl)
+  url.searchParams.delete('action')
   history.pushState({}, '', url)
   await load(objectUrl, file.name)
 }

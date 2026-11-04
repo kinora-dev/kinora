@@ -640,6 +640,25 @@ test('opens the tab named by ?tab=', async ({ page, baseURL }) => {
   await expect(page.getByTestId('attachment').first()).toBeVisible()
 })
 
+test('the URL follows the selected action and reopens it', async ({ page }) => {
+  const fill = page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' })
+  await fill.click()
+  await expect(page).toHaveURL(/[?&]action=/)
+  const action = new URL(page.url()).searchParams.get('action')
+
+  await page.goto(`/?trace=fixtures/demo.zip&action=${encodeURIComponent(action!)}`)
+  await expect(fill).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('current-action')).toContainText('alex@example.com')
+})
+
+test('an unknown ?action= falls back to the default selection', async ({ page }) => {
+  const selected = page.locator('[data-testid="action"][aria-selected="true"]')
+  const fallback = await selected.textContent()
+  await page.goto('/?trace=fixtures/demo.zip&action=missing')
+  await expect(selected).toHaveText(fallback ?? '')
+  await expect(page).not.toHaveURL(/action=missing/)
+})
+
 test('a trace recorded without the test runner has no Annotations tab', async ({ page }) => {
   await page.goto('/?trace=fixtures/library-error-trace.zip&tab=annotations')
   await expect(page.getByTestId('action').first()).toBeVisible()
