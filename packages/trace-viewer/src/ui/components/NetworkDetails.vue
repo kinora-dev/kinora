@@ -253,6 +253,7 @@ async function copyAsPlaywright(): Promise<void> {
         <button
           type="button"
           class="flex w-full items-center gap-1 rounded px-1 py-1 text-left font-semibold text-foreground/90 hover:bg-muted/50"
+          :aria-expanded="!collapsedSections.includes(section.id)"
           @click="toggleSection(section.id)"
         >
           <ChevronRight :class="cn('size-3.5 text-muted-foreground transition-transform', !collapsedSections.includes(section.id) && 'rotate-90')" />
@@ -283,6 +284,7 @@ async function copyAsPlaywright(): Promise<void> {
         <button
           type="button"
           class="flex w-full items-center gap-1 rounded px-1 py-1 text-left font-semibold text-foreground/90 hover:bg-muted/50"
+          :aria-expanded="!collapsedSections.includes('query')"
           @click="toggleSection('query')"
         >
           <ChevronRight :class="cn('size-3.5 text-muted-foreground transition-transform', !collapsedSections.includes('query') && 'rotate-90')" />

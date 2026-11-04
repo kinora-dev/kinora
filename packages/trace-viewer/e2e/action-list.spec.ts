@@ -41,7 +41,7 @@ test('opening a trace scrolls its selected action into view', async ({ page }) =
 })
 
 test('Left and Right move between listed rows while filtering', async ({ page }) => {
-  await page.getByPlaceholder('Filter actions').fill('browser')
+  await page.getByRole('textbox', { name: 'Filter actions' }).fill('browser')
   await action(page, 'Fixture "browser"').click()
   await page.keyboard.press('ArrowLeft')
   await expect(page.getByTestId('current-action')).toHaveText('Before Hooks')

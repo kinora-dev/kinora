@@ -58,6 +58,11 @@ test('generated network fixture covers post bodies and error statuses', async ({
   const detail = page.getByTestId('net-detail')
   await expect(detail.getByTestId('net-section-response-headers')).toContainText('x-demo')
   await expect(detail.getByTestId('net-section-general')).toContainText('/api/checkout')
+  const general = detail.getByTestId('net-section-general').getByRole('button')
+  await expect(general).toHaveAttribute('aria-expanded', 'true')
+  await general.click()
+  await expect(general).toHaveAttribute('aria-expanded', 'false')
+  await general.click()
 
   await detail.getByTestId('net-tab-payload').click()
   await expect(detail.getByText('Request body')).toBeVisible()

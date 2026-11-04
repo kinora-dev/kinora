@@ -107,8 +107,8 @@ const countLabel = computed(() => {
       <DropdownMenu>
         <DropdownMenuTrigger
           class="flex w-11 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground data-[state=open]:bg-muted/50 data-[state=open]:text-foreground"
-          aria-label="Filter actions"
-          title="Filter actions"
+          aria-label="Show action groups"
+          title="Show action groups"
         >
           <Filter class="size-4" />
         </DropdownMenuTrigger>

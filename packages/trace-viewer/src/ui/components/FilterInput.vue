@@ -4,7 +4,7 @@ import { cn } from '@kinora/ui'
 import { Search, X } from '@lucide/vue'
 
 defineOptions({ inheritAttrs: false })
-defineProps<{ placeholder?: string, class?: HTMLAttributes['class'] }>()
+defineProps<{ placeholder?: string, label?: string, class?: HTMLAttributes['class'] }>()
 const model = defineModel<string>({ default: '' })
 </script>
 
@@ -15,6 +15,7 @@ const model = defineModel<string>({ default: '' })
       v-model="model"
       v-bind="$attrs"
       :placeholder="placeholder"
+      :aria-label="label ?? placeholder"
       class="h-full w-full min-w-0 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
     >
     <button

@@ -301,7 +301,7 @@ const alignEnd = new Set(['size', 'duration', 'start', 'status'])
           All
         </button>
       </div>
-      <FilterInput v-model="search" :placeholder="searchPlaceholder" class="w-56" />
+      <FilterInput v-model="search" :placeholder="searchPlaceholder" label="Filter network" class="w-56" />
       <DropdownMenu>
         <DropdownMenuTrigger
           class="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"

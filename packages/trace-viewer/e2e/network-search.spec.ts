@@ -8,7 +8,8 @@ test.beforeEach(async ({ page }) => {
 test('network search finds text in response bodies and headers', async ({ page }) => {
   await page.getByRole('button', { name: /^Network/ }).click()
   await page.getByRole('button', { name: 'All', exact: true }).click()
-  const filter = page.getByPlaceholder('Search URLs, headers, bodies')
+  const filter = page.getByRole('textbox', { name: 'Filter network' })
+  await expect(filter).toHaveAttribute('placeholder', 'Search URLs, headers, bodies')
 
   await filter.fill('box-sizing')
   const rows = page.getByTestId('net-row')

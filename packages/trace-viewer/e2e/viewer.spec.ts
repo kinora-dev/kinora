@@ -324,7 +324,7 @@ test('noisy action groups start hidden, like upstream', async ({ page }) => {
   await expect(page.locator('[data-testid="action-segment"][aria-label^="Route requests"]')).toHaveCount(0)
 
   const before = await page.getByTestId('action').count()
-  await page.getByRole('button', { name: 'Filter actions' }).click()
+  await page.getByRole('button', { name: 'Show action groups' }).click()
   await page.getByRole('menuitemcheckbox', { name: /Network routes/ }).click()
   await expect(page.getByText('6 hidden')).toBeVisible()
   expect(await page.getByTestId('action').count()).toBe(before + 4)
@@ -333,7 +333,7 @@ test('noisy action groups start hidden, like upstream', async ({ page }) => {
 
 test('remembers shown action groups across reloads', async ({ page }) => {
   const before = await page.getByTestId('action').count()
-  await page.getByRole('button', { name: 'Filter actions' }).click()
+  await page.getByRole('button', { name: 'Show action groups' }).click()
   await page.getByRole('menuitemcheckbox', { name: /Network routes/ }).click()
   await expect(page.getByText('6 hidden')).toBeVisible()
 
@@ -342,7 +342,7 @@ test('remembers shown action groups across reloads', async ({ page }) => {
   await expect(page.getByText('6 hidden')).toBeVisible()
   expect(await page.getByTestId('action').count()).toBe(before + 4)
 
-  await page.getByRole('button', { name: 'Filter actions' }).click()
+  await page.getByRole('button', { name: 'Show action groups' }).click()
   await expect(page.getByRole('menuitemcheckbox', { name: /Network routes/ })).toHaveAttribute('aria-checked', 'true')
 })
 
