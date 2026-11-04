@@ -252,11 +252,11 @@ importers:
         specifier: ^7.20.2
         version: 7.20.2(@opentelemetry/core@2.12.0(@opentelemetry/api@1.10.0))(supports-color@10.2.2)
       '@trpc/client':
-        specifier: ^11.22.1
-        version: 11.22.1(@trpc/server@11.22.1(typescript@6.0.3))(typescript@6.0.3)
+        specifier: ^11.24.0
+        version: 11.24.0(@trpc/server@11.24.0(typescript@6.0.3))(typescript@6.0.3)
       '@trpc/server':
-        specifier: 11.22.1
-        version: 11.22.1(typescript@6.0.3)
+        specifier: 11.24.0
+        version: 11.24.0(typescript@6.0.3)
       electron-updater:
         specifier: ^6.8.11
         version: 6.8.11(supports-color@10.2.2)
@@ -388,7 +388,7 @@ importers:
         version: 2.1.6(hono@4.13.16)
       '@hono/trpc-server':
         specifier: ^0.4.2
-        version: 0.4.2(@trpc/server@11.22.1(typescript@6.0.3))(hono@4.13.16)
+        version: 0.4.2(@trpc/server@11.24.0(typescript@6.0.3))(hono@4.13.16)
       '@hono/zod-validator':
         specifier: ^0.9.1
         version: 0.9.1(hono@4.13.16)(zod@4.6.7)
@@ -402,8 +402,8 @@ importers:
         specifier: ^11.10.0
         version: 11.10.0
       '@trpc/server':
-        specifier: ^11.22.1
-        version: 11.22.1(typescript@6.0.3)
+        specifier: ^11.24.0
+        version: 11.24.0(typescript@6.0.3)
       better-auth:
         specifier: ^1.7.15
         version: 1.7.15(@opentelemetry/api@1.10.0)(drizzle-orm@0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(knex@3.3.0(pg@8.23.1)(supports-color@10.2.2))(kysely@0.29.8)(pg@8.23.1))(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0)(vue@3.5.44(typescript@6.0.3))
@@ -730,8 +730,8 @@ importers:
         specifier: ^11.10.0
         version: 11.10.0(vue@3.5.44(typescript@6.0.3))
       '@trpc/client':
-        specifier: ^11.22.1
-        version: 11.22.1(@trpc/server@11.22.1(typescript@6.0.3))(typescript@6.0.3)
+        specifier: ^11.24.0
+        version: 11.24.0(@trpc/server@11.24.0(typescript@6.0.3))(typescript@6.0.3)
       '@vee-validate/zod':
         specifier: ^4.15.1
         version: 4.15.1(vue@3.5.44(typescript@6.0.3))(zod@4.6.7)
@@ -791,8 +791,8 @@ importers:
         specifier: ^4.3.4
         version: 4.3.4(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@trpc/server':
-        specifier: ^11.22.1
-        version: 11.22.1(typescript@6.0.3)
+        specifier: ^11.24.0
+        version: 11.24.0(typescript@6.0.3)
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -2847,18 +2847,32 @@ packages:
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
 
-  '@trpc/client@11.22.1':
-    resolution: {integrity: sha512-flkAwF8bzzNCVJ5xcTMS+Az6Go/XK30ZIOGT94UJBYAmMq1w2tY7gk7+CIMiRUdvHzOYAVPitX2H+20qcIIomA==}
-    hasBin: true
+  '@trpc/client@11.24.0':
+    resolution: {integrity: sha512-D9zoHnF/LGL5SpVnDaSO3b9ymF0jgfnawxtU7HkDjVbcmXeWiAGnJT6fD2UTfEmP63+i57VE49RQqRO0Ig7WJg==}
     peerDependencies:
-      '@trpc/server': 11.22.1
+      '@trpc/server': 11.24.0
       typescript: '>=5.7.2'
 
-  '@trpc/server@11.22.1':
-    resolution: {integrity: sha512-9SjWTS5iwENHOVPqpTjm0I1Os/CtuT6p8kDlovyEm00pXhpHX55tQM2vszJTEpcQhm/JfUz4ut/7Y9JZZQZo6A==}
-    hasBin: true
+  '@trpc/server@11.24.0':
+    resolution: {integrity: sha512-CxpaiIY58ItaLpGxwYTxHHYx5evRAJ4B2Eq94axvg28nwihDgjQIUiLG8T49DZ/t4R2tPHHdeLkF6t0kyjD5YQ==}
     peerDependencies:
+      '@types/aws-lambda': '*'
+      '@types/express': '*'
+      '@types/ws': '*'
+      fastify: '*'
+      next: '*'
       typescript: '>=5.7.2'
+    peerDependenciesMeta:
+      '@types/aws-lambda':
+        optional: true
+      '@types/express':
+        optional: true
+      '@types/ws':
+        optional: true
+      fastify:
+        optional: true
+      next:
+        optional: true
 
   '@tybys/wasm-util@0.10.4':
     resolution: {integrity: sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==}
@@ -8403,9 +8417,9 @@ snapshots:
     dependencies:
       hono: 4.13.16
 
-  '@hono/trpc-server@0.4.2(@trpc/server@11.22.1(typescript@6.0.3))(hono@4.13.16)':
+  '@hono/trpc-server@0.4.2(@trpc/server@11.24.0(typescript@6.0.3))(hono@4.13.16)':
     dependencies:
-      '@trpc/server': 11.22.1(typescript@6.0.3)
+      '@trpc/server': 11.24.0(typescript@6.0.3)
       hono: 4.13.16
 
   '@hono/zod-validator@0.9.1(hono@4.13.16)(zod@4.6.7)':
@@ -9434,12 +9448,12 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.2
 
-  '@trpc/client@11.22.1(@trpc/server@11.22.1(typescript@6.0.3))(typescript@6.0.3)':
+  '@trpc/client@11.24.0(@trpc/server@11.24.0(typescript@6.0.3))(typescript@6.0.3)':
     dependencies:
-      '@trpc/server': 11.22.1(typescript@6.0.3)
+      '@trpc/server': 11.24.0(typescript@6.0.3)
       typescript: 6.0.3
 
-  '@trpc/server@11.22.1(typescript@6.0.3)':
+  '@trpc/server@11.24.0(typescript@6.0.3)':
     dependencies:
       typescript: 6.0.3
 
