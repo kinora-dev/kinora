@@ -391,6 +391,30 @@ test('timeline brush stays visible while selecting a range', async ({ page }) =>
   await page.mouse.up()
 })
 
+test('brushing the timeline reveals the action under the pointer', async ({ page }) => {
+  const current = page.getByTestId('current-action')
+  const before = await current.textContent()
+  const box = (await page.getByTestId('timeline-track').boundingBox())!
+  await page.mouse.move(box.x + box.width - 10, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 30, box.y + box.height / 2, { steps: 5 })
+  await expect(current).not.toHaveText(before ?? '')
+  const revealed = await current.textContent()
+  await page.mouse.up()
+
+  await expect(page.getByTestId('reset-zoom')).toBeVisible()
+  await expect(current).toHaveText(revealed ?? '')
+  await page.getByTestId('timeline-track').dispatchEvent('dblclick')
+  await expect(page.getByTestId('reset-zoom')).toHaveCount(0)
+})
+
+test('double-clicking the zoomed action on the timeline resets the zoom', async ({ page }) => {
+  await page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' }).dblclick()
+  await expect(page.getByTestId('reset-zoom')).toBeVisible()
+  await page.locator('[data-testid="action-segment"][aria-label^="Fill \\"alex@example.com\\""]').dblclick()
+  await expect(page.getByTestId('reset-zoom')).toHaveCount(0)
+})
+
 test('double-clicking an action zooms to its time range', async ({ page }) => {
   await page.getByTestId('action').filter({ hasText: 'Fill "alex@example.com"' }).dblclick()
   await expect(page.getByTestId('reset-zoom')).toBeVisible()

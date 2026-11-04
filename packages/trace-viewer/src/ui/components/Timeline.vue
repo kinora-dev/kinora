@@ -125,9 +125,13 @@ function onBrushDown(e: PointerEvent): void {
   window.addEventListener('pointermove', onBrushMove)
   window.addEventListener('pointerup', onBrushUp)
 }
+// Like upstream, the action under the pointer is revealed while brushing.
 function onBrushMove(e: PointerEvent): void {
-  if (brush.value)
-    brush.value = { ...brush.value, x1: localX(e.clientX).x }
+  if (!brush.value)
+    return
+  brush.value = { ...brush.value, x1: localX(e.clientX).x }
+  if (Math.abs(brush.value.x1 - brush.value.x0) >= 4)
+    selectNearestAtClientX(e.clientX)
 }
 function selectNearestAtClientX(clientX: number): void {
   const { x, width } = localX(clientX)
@@ -163,6 +167,18 @@ function selectSegment(id: string): void {
     return
   }
   store.select(id)
+}
+
+// Double-click clears the zoom like upstream; on an action it zooms to it, unless already zoomed there.
+function onSegmentDblclick(id: string): void {
+  const action = store.items.value.find(item => item.id === id)?.action
+  if (!action)
+    return
+  const before = store.timeRange.value
+  store.zoomToAction(action)
+  const after = store.timeRange.value
+  if (before && after && before.start === after.start && before.end === after.end)
+    store.clearTimeRange()
 }
 
 const brushStyle = computed(() => {
@@ -381,6 +397,7 @@ function seekToTime(t: number): void {
         data-testid="timeline-track"
         class="absolute inset-x-2 inset-y-1.5 cursor-crosshair touch-none"
         @pointerdown="onBrushDown"
+        @dblclick="store.clearTimeRange"
       >
         <button
           v-for="seg in segments"
@@ -396,7 +413,7 @@ function seekToTime(t: number): void {
           :title="`${seg.title} · ${seg.duration}`"
           :aria-label="`${seg.title} ${seg.duration}`"
           @click="selectSegment(seg.id)"
-          @dblclick.stop="store.zoomToAction(store.items.value.find(item => item.id === seg.id)!.action)"
+          @dblclick.stop="onSegmentDblclick(seg.id)"
           @mouseenter="store.setHoveredAction(seg.id)"
           @mouseleave="store.setHoveredAction(null)"
         />
