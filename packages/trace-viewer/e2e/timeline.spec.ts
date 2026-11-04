@@ -46,6 +46,15 @@ test('pause keeps the playhead and resumes from it, stop rewinds', async ({ page
   await page.getByTestId('stop').click()
   await expect(page.getByTestId('play')).toHaveAttribute('title', 'Play')
   await expect(page.getByTestId('playback-frame')).toHaveCount(0)
+  await expect(page.getByTestId('action').first()).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('stop')).toBeDisabled()
+})
+
+test('stop selects the first action of the window', async ({ page }) => {
+  await page.getByTestId('action').filter({ hasText: 'Screenshot' }).first().click()
+  await expect(page.getByTestId('stop')).toBeEnabled()
+  await page.getByTestId('stop').click()
+  await expect(page.getByTestId('action').first()).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByTestId('stop')).toBeDisabled()
 })
 

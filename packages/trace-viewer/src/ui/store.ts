@@ -725,6 +725,17 @@ function stopPlay(): void {
   cancelFrame()
 }
 
+// The Stop button also rewinds the selection to the first action in the window, like upstream.
+function stop(): void {
+  const first = playbackItems.value[0]
+  if (first)
+    select(first.id)
+  else
+    stopPlay()
+}
+
+const canStop = computed(() => playing.value || playhead.value !== null || (playbackItems.value.length > 0 && selectedId.value !== playbackItems.value[0].id))
+
 // Pause keeps the playhead, so Play resumes from there and the screencast frame stays on screen.
 function pausePlay(): void {
   playing.value = false
@@ -858,6 +869,8 @@ export function useTraceStore() {
     setHighlightedTime,
     scrubTo,
     stopPlay,
+    stop,
+    canStop,
     snapshotTab,
     snapshots,
     currentSnapshot,

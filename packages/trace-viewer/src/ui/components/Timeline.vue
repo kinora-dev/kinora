@@ -247,8 +247,8 @@ function seekToTime(t: number): void {
         data-testid="stop"
         class="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
         title="Stop"
-        :disabled="!store.playing.value && store.playhead.value === null"
-        @click="store.stopPlay"
+        :disabled="!store.canStop.value"
+        @click="store.stop"
       >
         <Square class="size-3.5" />
       </button>
