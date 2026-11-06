@@ -22,7 +22,7 @@ import { parseAttributeSelector, parseSelector, stringifySelector, visitAllSelec
 import { cacheNormalizedWhitespaces, normalizeWhiteSpace, trimStringWithEllipsis } from '@isomorphic/stringUtils';
 
 import { generateAriaTree, getAllElementsMatchingExpectAriaTemplate, matchesExpectAriaTemplate, renderAriaTreeAsJSON, findNewElement } from './ariaSnapshot';
-import { beginDOMCaches, enclosingShadowRootOrDocument, endDOMCaches, isElementVisible, isInsideScope, parentElementOrShadowHost, setGlobalOptions } from './domUtils';
+import { beginDOMCaches, enclosingShadowRootOrDocument, endDOMCaches, isElementInert, isElementVisible, isInsideScope, parentElementOrShadowHost, setGlobalOptions } from './domUtils';
 import { Highlight } from './highlight';
 import { kLayoutSelectorNames, layoutSelectorScore } from './layoutSelectorUtils';
 import { createRoleEngine } from './roleSelectorEngine';
@@ -59,7 +59,7 @@ export type FrameExpectParams = {
   isNot: boolean,
 };
 
-export type ElementState = 'visible' | 'hidden' | 'enabled' | 'disabled' | 'editable' | 'checked' | 'unchecked' | 'indeterminate' | 'stable';
+export type ElementState = 'visible' | 'hidden' | 'enabled' | 'disabled' | 'editable' | 'checked' | 'unchecked' | 'indeterminate' | 'stable' | 'non-inert';
 export type ElementStateWithoutStable = Exclude<ElementState, 'stable'>;
 export type ElementStateQueryResult = { matches: boolean, received?: string | 'error:notconnected', isRadio?: boolean };
 export type ExpectReceived = { value?: any, ariaSnapshot?: string };
@@ -679,7 +679,7 @@ export class InjectedScript {
         element = element.closest('button, [role=button], [role=checkbox], [role=radio]') || element;
     }
     if (behavior === 'follow-label') {
-      if (!element.matches('a, input, textarea, button, select, [role=link], [role=button], [role=checkbox], [role=radio]') &&
+      if (!element.matches('a, input, textarea, button, select, option, optgroup, [role=link], [role=button], [role=checkbox], [role=radio]') &&
         !(element as any).isContentEditable) {
         // Go up to the label that might be connected to the input/textarea.
         const enclosingLabel: HTMLLabelElement | null = element.closest('label');
@@ -804,6 +804,14 @@ export class InjectedScript {
       };
     }
 
+    if (state === 'non-inert') {
+      const inert = isElementInert(element);
+      return {
+        matches: !inert,
+        received: inert ? 'inert' : 'non-inert'
+      };
+    }
+
     if (state === 'editable') {
       const disabled = getAriaDisabled(element);
       const readonly = getReadonly(element);
@@ -905,14 +913,10 @@ export class InjectedScript {
         if (isNaN(Number(value)))
           throw this.createStacklessError('Cannot type text into input[type=number]');
       }
-      if (type === 'color')
-        value = value.toLowerCase();
       if (kInputTypesToSetValue.has(type)) {
         value = value.trim();
         input.focus();
         input.value = value;
-        if (input.value !== value)
-          throw this.createStacklessError('Malformed value');
         element.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
         return 'done';  // We have already changed the value, no need to input it.
@@ -943,7 +947,12 @@ export class InjectedScript {
       textarea.focus();
       return 'done';
     }
-    (element as HTMLElement | SVGElement).focus();
+    // Focus the editing host, like a click would: its descendants are not focusable,
+    // and without focus the input goes to whichever frame has it.
+    let focusTarget = element;
+    while ((focusTarget as HTMLElement).isContentEditable && (focusTarget.parentElement as HTMLElement | null)?.isContentEditable)
+      focusTarget = focusTarget.parentElement!;
+    (focusTarget as HTMLElement | SVGElement).focus();
     const range = element.ownerDocument.createRange();
     range.selectNodeContents(element);
     const selection = element.ownerDocument.defaultView!.getSelection();

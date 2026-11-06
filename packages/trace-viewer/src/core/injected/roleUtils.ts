@@ -269,7 +269,7 @@ const validRoles: AriaRole[] = ['alert', 'alertdialog', 'application', 'article'
 
 function getExplicitAriaRole(element: Element): AriaRole | null {
   // https://www.w3.org/TR/wai-aria-1.2/#document-handling_author-errors_roles
-  const roles = (element.getAttribute('role') || '').split(' ').map(role => role.trim());
+  const roles = (element.getAttribute('role') || '').toLowerCase().split(' ').map(role => role.trim());
   return roles.find(role => validRoles.includes(role as any)) as AriaRole || null;
 }
 
@@ -362,6 +362,23 @@ function belongsToDisplayNoneOrAriaHiddenOrNonSlotted(element: Element): boolean
   return hidden;
 }
 
+// Text nodes are usually hidden together with their parent element, with the exception of
+// a few cases where the parent is rendered, but the text node itself is not.
+// Such text nodes are neither visible nor exposed to aria.
+export function isTextNodeNotRendered(text: Text): boolean {
+  const parent = text.parentElement;
+  if (!parent)
+    return false;
+  if (parent.shadowRoot && !text.assignedSlot)
+    return true;
+  // Closed <details> only renders the <summary> element.
+  // It is actually the same shadowRoot scenario as above, but user-agent shadow roots
+  // are not acessible to JavaScript, so we manually check only the most common scenario.
+  if (elementSafeTagName(parent) === 'DETAILS' && !(parent as HTMLDetailsElement).open)
+    return true;
+  return false;
+}
+
 function getIdRefs(element: Element, ref: string | null): Element[] {
   if (!ref)
     return [];
@@ -369,7 +386,8 @@ function getIdRefs(element: Element, ref: string | null): Element[] {
   if (!root)
     return [];
   try {
-    const ids = ref.split(' ').filter(id => !!id);
+    // ID reference lists are separated by ASCII whitespace, which does not include e.g. &nbsp;.
+    const ids = ref.split(/[ \t\n\f\r]+/).filter(id => !!id);
     const result: Element[] = [];
     for (const id of ids) {
       // https://www.w3.org/TR/wai-aria-1.2/#mapping_additional_relations_error_processing
@@ -487,14 +505,12 @@ function parseCSSContentPropertyAsString(element: Element, content: string, isPs
 }
 
 export function getAriaLabelledByElements(element: Element): Element[] | null {
-  const ref = element.getAttribute('aria-labelledby');
-  if (ref === null)
-    return null;
-  const refs = getIdRefs(element, ref);
+  // Reflected element references are not available in older browsers, e.g. Chromium < 135.
+  const refs = element.ariaLabelledByElements || getIdRefs(element, element.getAttribute('aria-labelledby'));
   // step 2b:
   // "if the current node has an aria-labelledby attribute that contains at least one valid IDREF"
   // Therefore, if none of the refs match an element, we consider aria-labelledby to be missing.
-  return refs.length ? refs : null;
+  return refs?.length ? [...refs] : null;
 }
 
 function allowsNameFromContent(role: string, targetDescendant: boolean) {
@@ -620,8 +636,8 @@ export function getAriaInvalid(element: Element): 'false' | 'true' | 'grammar' |
   // https://www.w3.org/TR/wai-aria-1.2/#aria-invalid
   // This state is being deprecated as a global state in ARIA 1.2.
   // In future versions it will only be allowed on roles where it is specifically supported.
-  const ariaInvalid = element.getAttribute('aria-invalid');
-  if (!ariaInvalid || ariaInvalid.trim() === '' || ariaInvalid.toLocaleLowerCase() === 'false')
+  const ariaInvalid = element.getAttribute('aria-invalid')?.toLowerCase();
+  if (!ariaInvalid || ariaInvalid.trim() === '' || ariaInvalid === 'false')
     return 'false';
   if (ariaInvalid === 'true' || ariaInvalid === 'grammar' || ariaInvalid === 'spelling')
     return ariaInvalid;
@@ -697,13 +713,8 @@ function getTextAlternativeInternal(element: Element, options: AccessibleNameOpt
   // Not part of an aria-labelledby or aria-describedby traversal, where the node directly referenced by that relation was hidden.
   // Nor part of a native host language text alternative element (e.g. label in HTML) or attribute traversal, where the root of that traversal was hidden.
   if (!options.includeHidden) {
-    const isEmbeddedInHiddenReferenceTraversal =
-      !!options.embeddedInLabelledBy?.hidden ||
-      !!options.embeddedInDescribedBy?.hidden ||
-      !!options.embeddedInNativeTextAlternative?.hidden ||
-      !!options.embeddedInLabel?.hidden;
     if (isElementIgnoredForAria(element) ||
-      (!isEmbeddedInHiddenReferenceTraversal && isElementHiddenForAria(element))) {
+      (!isEmbeddedInHiddenReferenceTraversal(options) && isElementHiddenForAria(element))) {
       options.visitedElements.add(element);
       return emptyCompositeString();
     }
@@ -762,7 +773,7 @@ function getTextAlternativeInternal(element: Element, options: AccessibleNameOpt
             selectedOptions.push((element as HTMLSelectElement).options[0]);
         } else {
           const listbox = role === 'combobox' ? queryInAriaOwned(element, '*').find(e => getAriaRole(e) === 'listbox') : element;
-          selectedOptions = listbox ? queryInAriaOwned(listbox, '[aria-selected="true"]').filter(e => getAriaRole(e) === 'option') : [];
+          selectedOptions = listbox ? queryInAriaOwned(listbox, '[aria-selected="true" i]').filter(e => getAriaRole(e) === 'option') : [];
         }
         if (!selectedOptions.length && tagName === 'INPUT') {
           // SPEC DIFFERENCE:
@@ -998,7 +1009,9 @@ function getTextAlternativeInternal(element: Element, options: AccessibleNameOpt
       if (options.outDerivedFromContent && insideTargetElement(options) && trimFlatString(accessibleName.text))
         options.outDerivedFromContent.value = true;
       // This element owns the accumulated content - record it alongside the descendants it was computed from.
-      accessibleName.elements?.add(element);
+      // Whitespace alone is not content, e.g. the spacing around an inline-block icon.
+      if (trimFlatString(accessibleName.text))
+        accessibleName.elements?.add(element);
       return accessibleName;
     }
   }
@@ -1015,8 +1028,17 @@ function getTextAlternativeInternal(element: Element, options: AccessibleNameOpt
   return emptyCompositeString();
 }
 
+function isEmbeddedInHiddenReferenceTraversal(options: AccessibleNameOptions): boolean {
+  return !!options.embeddedInLabelledBy?.hidden ||
+    !!options.embeddedInDescribedBy?.hidden ||
+    !!options.embeddedInNativeTextAlternative?.hidden ||
+    !!options.embeddedInLabel?.hidden;
+}
+
 function innerAccumulatedElementText(element: Element, options: AccessibleNameOptions): CompositeString {
   const tokens: string[] = [];
+  // Similarly to step 2a, text nodes that are not rendered are skipped unless explicitly referenced.
+  const skipNotRenderedText = !options.includeHidden && !isEmbeddedInHiddenReferenceTraversal(options);
   const elements = options.collectElements ? new Set<Element>() : undefined;
   const visit = (node: Node, skipSlotted: boolean) => {
     if (skipSlotted && (node as Element | Text).assignedSlot)
@@ -1035,6 +1057,8 @@ function innerAccumulatedElementText(element: Element, options: AccessibleNameOp
         token = ' ' + token + ' ';
       tokens.push(token);
     } else if (node.nodeType === 3 /* Node.TEXT_NODE */) {
+      if (skipNotRenderedText && isTextNodeNotRendered(node as Text))
+        return;
       // step 2g.
       tokens.push(node.textContent || '');
     }
@@ -1102,7 +1126,7 @@ function getChecked(element: Element, allowMixed: boolean): boolean | 'mixed' | 
   if (tagName === 'INPUT' && ['checkbox', 'radio'].includes((element as HTMLInputElement).type))
     return (element as HTMLInputElement).checked;
   if (kAriaCheckedRoles.includes(getAriaRole(element) || '')) {
-    const checked = element.getAttribute('aria-checked');
+    const checked = element.getAttribute('aria-checked')?.toLowerCase();
     if (checked === 'true')
       return true;
     if (allowMixed && checked === 'mixed')
@@ -1121,7 +1145,7 @@ export function getReadonly(element: Element): boolean | 'error' {
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName))
     return element.hasAttribute('readonly');
   if (kAriaReadonlyRoles.includes(getAriaRole(element) || ''))
-    return element.getAttribute('aria-readonly') === 'true';
+    return getAriaBoolean(element.getAttribute('aria-readonly')) === true;
   if ((element as HTMLElement).isContentEditable)
     return false;
   return 'error';
@@ -1131,7 +1155,7 @@ export const kAriaPressedRoles = ['button'];
 export function getAriaPressed(element: Element): boolean | 'mixed' {
   // https://www.w3.org/TR/wai-aria-1.2/#aria-pressed
   if (kAriaPressedRoles.includes(getAriaRole(element) || '')) {
-    const pressed = element.getAttribute('aria-pressed');
+    const pressed = element.getAttribute('aria-pressed')?.toLowerCase();
     if (pressed === 'true')
       return true;
     if (pressed === 'mixed')
@@ -1146,14 +1170,8 @@ export function getAriaExpanded(element: Element): boolean | undefined {
   // https://www.w3.org/TR/html-aam-1.0/#html-attribute-state-and-property-mappings
   if (elementSafeTagName(element) === 'DETAILS')
     return (element as HTMLDetailsElement).open;
-  if (kAriaExpandedRoles.includes(getAriaRole(element) || '')) {
-    const expanded = element.getAttribute('aria-expanded');
-    if (expanded === null)
-      return undefined;
-    if (expanded === 'true')
-      return true;
-    return false;
-  }
+  if (kAriaExpandedRoles.includes(getAriaRole(element) || ''))
+    return getAriaBoolean(element.getAttribute('aria-expanded'));
   return undefined;
 }
 

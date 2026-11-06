@@ -40,7 +40,7 @@
     "@axe-core/playwright": "^4.14.0",
     "@julr/vite-plugin-validate-env": "^2.2.2",
     "@kinora/server": "workspace:*",
-    "@playwright/test": "^1.64.1",
+    "@playwright/test": "^1.65.0",
     "@sentry/vite-plugin": "^11.10.0",
     "@tailwindcss/vite": "^4.3.4",
     "@trpc/server": "^11.24.0",
