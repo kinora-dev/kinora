@@ -160,11 +160,12 @@ jobs:
           pnpm --filter @kinora/trace-viewer build
           pnpm --filter @kinora/desktop build
         env:
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_DESKTOP_PROJECT }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.DESKTOP_SENTRY_PROJECT }}
           # Bundled trace viewer reports to the desktop project (public DSN, same as config.ts).
-          VITE_KINORA_SENTRY_DSN: https://c310f2e5a017909d63b1977ea90149a9@o1155685.ingest.us.sentry.io/4511622840451072
+          VITE_KINORA_SENTRY_DSN: https://56e1c7b2e218cccf7b040482ac9a95e7@sonar.jorisgallot.dev/6
 
       - name: Import macOS signing certificate
         if: matrix.platform == 'mac'

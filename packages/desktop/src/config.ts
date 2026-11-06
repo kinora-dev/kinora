@@ -21,7 +21,7 @@ const DEFAULTS: Config = app.isPackaged
       webOrigin: 'https://app.kinora.dev',
       token: null,
       projectPaths: {},
-      sentryDsn: 'https://c310f2e5a017909d63b1977ea90149a9@o1155685.ingest.us.sentry.io/4511622840451072',
+      sentryDsn: 'https://56e1c7b2e218cccf7b040482ac9a95e7@sonar.jorisgallot.dev/6',
     }
   : {
       serverUrl: 'http://localhost:3000',
