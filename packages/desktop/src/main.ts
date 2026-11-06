@@ -80,8 +80,8 @@ app.on('open-file', (e, p) => {
   openViewer(p)
 })
 
-function argvTrace(): string | null {
-  const last = process.argv[process.argv.length - 1]
+function argvTrace(argv: string[] = process.argv): string | null {
+  const last = argv[argv.length - 1]
   return last && last.toLowerCase().endsWith('.zip') ? path.resolve(last) : null
 }
 
@@ -595,9 +595,35 @@ async function probeDevice(): Promise<boolean> {
   return !!accessToken
 }
 
-app.whenReady().then(main).catch((err: unknown) => {
-  console.error('[desktop] fatal', err)
-  app.exit(1)
-})
+// One process per user: concurrent instances share the updater cache dir and delete
+// each other's in-flight download (ENOENT on chmod of pending/temp-*.AppImage).
+const PROBE = VIEWER_PROBE || HOME_PROBE || DEVICE_PROBE
+if (!PROBE && !app.requestSingleInstanceLock()) {
+  app.quit()
+}
+else {
+  // A second launch (e.g. opening a .zip on Linux/Windows) is forwarded here.
+  app.on('second-instance', (_e, argv) => {
+    const trace = argvTrace(argv)
+    if (trace) {
+      // Still starting up: main() opens pendingOpen once the loopback server is up.
+      if (!port)
+        pendingOpen = trace
+      else
+        openViewer(trace)
+      return
+    }
+    if (homeWin) {
+      if (homeWin.isMinimized())
+        homeWin.restore()
+      homeWin.focus()
+    }
+  })
+
+  app.whenReady().then(main).catch((err: unknown) => {
+    console.error('[desktop] fatal', err)
+    app.exit(1)
+  })
+}
 
 app.on('window-all-closed', () => app.quit())
