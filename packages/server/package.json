@@ -32,7 +32,8 @@
     "migrate": "tsx scripts/migrate.ts",
     "purge-expired-runs": "tsx scripts/purge-expired-runs.ts",
     "report-pending-usage": "tsx scripts/report-pending-usage.ts",
-    "notify-usage-alerts": "tsx scripts/notify-usage-alerts.ts"
+    "notify-usage-alerts": "tsx scripts/notify-usage-alerts.ts",
+    "send-onboarding-emails": "tsx scripts/send-onboarding-emails.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",

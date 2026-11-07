@@ -18,6 +18,7 @@ import { logger } from './lib/logger'
 import { clientIp, rateLimit } from './lib/rate-limit'
 import { requestLogger, sentryScope } from './lib/request-context'
 import { getTrustedOrigins } from './lib/utils'
+import { emailUnsubscribe } from './onboarding/unsubscribe'
 import { publicApi } from './public-api/index'
 import { appRouter } from './router/index'
 import { slackOAuth } from './slack/oauth'
@@ -85,6 +86,9 @@ app.route('/api/v1', publicApi)
 // Read-only demo: the Slack OAuth callback writes the integration (bypassing tRPC), so block it here.
 app.use('/api/slack/*', blockInDemo)
 app.route('/api/slack', slackOAuth)
+
+app.use('/api/email/*', blockInDemo)
+app.route('/api/email', emailUnsubscribe)
 
 // Demo-only: establishes the shared read-only session cookie (no-op otherwise).
 app.route('/api/demo', demoApp)

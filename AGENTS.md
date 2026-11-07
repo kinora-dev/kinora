@@ -64,6 +64,7 @@ pnpm db:reset:e2e      # drop + recreate `kinora_e2e` (used by web e2e)
 pnpm purge-expired-runs # retention sweep: delete runs past their retention window
 pnpm report-pending-usage # cloud: resend to Polar the usage of runs whose metering call failed
 pnpm notify-usage-alerts # cloud: email paid workspaces crossing 80% / 100% of their included results
+pnpm send-onboarding-emails # cloud: nudge verified accounts with no run yet, 2 and 7 days after signup (14-day window)
 ```
 
 Migrations are **knex**, not drizzle: hand-written `.ts` files in `packages/server/migrations/` (timestamp-prefixed), run by `scripts/migrate.ts`. Drizzle is the query/ORM layer only - there is no `drizzle.config.ts` and no schema-push/generate flow. To change the schema: edit `src/db/schemas/`, then add a matching knex migration. The migrate config reads connection details from `src/lib/env.ts`; in dev it loads `.ts` migrations, in prod the build emits them as `.mjs` in `dist/`.

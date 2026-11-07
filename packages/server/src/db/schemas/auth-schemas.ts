@@ -13,6 +13,9 @@ export const user = pgTable('user', {
   banExpires: timestamp('ban_expires'),
   // Not a better-auth field: the workspace a new session opens on (see defaultOrganizationId).
   lastActiveOrganizationId: text('last_active_organization_id'),
+  // Not better-auth fields: the cloud onboarding nudges sent to an account with no run yet.
+  onboardingEmailStep: integer('onboarding_email_step').default(0).notNull(),
+  onboardingEmailsEnabled: boolean('onboarding_emails_enabled').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 })

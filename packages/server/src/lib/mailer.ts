@@ -6,10 +6,11 @@ export interface Mail {
   to: string
   subject: string
   text: string
+  headers?: Record<string, string>
 }
 
 export interface MailTransport {
-  sendMail: (mail: { from: string, to: string, subject: string, text: string }) => Promise<unknown>
+  sendMail: (mail: { from: string, to: string, subject: string, text: string, headers?: Record<string, string> }) => Promise<unknown>
 }
 
 function createTransport(): MailTransport | null {
