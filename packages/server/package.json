@@ -36,9 +36,9 @@
     "send-onboarding-emails": "tsx scripts/send-onboarding-emails.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1161.0",
-    "@aws-sdk/lib-storage": "^3.1161.0",
-    "@aws-sdk/s3-request-presigner": "^3.1161.0",
+    "@aws-sdk/client-s3": "^3.1164.0",
+    "@aws-sdk/lib-storage": "^3.1164.0",
+    "@aws-sdk/s3-request-presigner": "^3.1164.0",
     "@better-auth/api-key": "^1.7.18",
     "@hono/node-server": "^2.1.6",
     "@hono/trpc-server": "^0.4.2",
