@@ -23,7 +23,7 @@
     "test:visual:update": "node scripts/visual.mjs --update-snapshots"
   },
   "peerDependencies": {
-    "vue": "^3.5.44"
+    "vue": "^3.5.45"
   },
   "dependencies": {
     "@fontsource-variable/hanken-grotesk": "^5.3.0",
@@ -51,7 +51,7 @@
     "typescript": "~6.0.3",
     "vite": "^8.3.6",
     "vitest": "^5.1.0",
-    "vue": "^3.5.44",
+    "vue": "^3.5.45",
     "vue-tsc": "^3.3.14"
   }
 }
