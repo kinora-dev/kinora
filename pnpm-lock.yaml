@@ -420,8 +420,8 @@ importers:
         specifier: ^3.3.0
         version: 3.3.0(pg@8.23.1)(supports-color@10.2.2)
       nodemailer:
-        specifier: ^10.3.1
-        version: 10.3.1
+        specifier: ^10.4.0
+        version: 10.4.0
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -5960,8 +5960,8 @@ packages:
     resolution: {integrity: sha512-6li2QanLsAXpIH2R6j77MzRyvOyrvdTqlKtO4CgBdHGNvN99ZZfyxszHc5o5+IZBWD5u6Hzwg83JoGXmqZNG9Q==}
     engines: {node: '>=18'}
 
-  nodemailer@10.3.1:
-    resolution: {integrity: sha512-uF0AFsJC07Y1vdW7p580DKAnh7rAO+4UPSSB3mDCPNDufoiaOebV6JmrzpxB14OjEEEiBsNdYoM2Y+fN8M7BBA==}
+  nodemailer@10.4.0:
+    resolution: {integrity: sha512-fyy6r4Q5euRJ9Qr3Cts9K7SZrfe9zmz9oLOYiAR02MEJRDRci+99y0OoYBYBgpLffOqkkjXrB/d26VfiMje/kA==}
     engines: {node: '>=20.0.0'}
 
   nopt@9.0.0:
@@ -13020,7 +13020,7 @@ snapshots:
 
   node-releases@2.0.63: {}
 
-  nodemailer@10.3.1: {}
+  nodemailer@10.4.0: {}
 
   nopt@9.0.0:
     dependencies:

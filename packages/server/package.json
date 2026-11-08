@@ -52,7 +52,7 @@
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.17",
     "knex": "^3.3.0",
-    "nodemailer": "^10.3.1",
+    "nodemailer": "^10.4.0",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "pino-pretty": "^13.2.0",
