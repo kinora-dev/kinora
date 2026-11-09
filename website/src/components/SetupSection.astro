@@ -13,37 +13,22 @@ const runSnippet = `KINORA_TOKEN=<token> npx playwright test`
 const aiPrompt = `Set up kinora test reporting in this repository.
 Read ${SITE.url}/llms/setup.md and follow it.`
 
-const steps: {
-  num: string
-  title: string
-  body: string
-  code: string | null
-  filename: string | null
-  lang: 'ts' | 'bash' | null
-}[] = [
+const steps = [
   {
     num: '01',
     title: 'Add the reporter',
     body: 'One line in your Playwright config. It auto-uploads at the end of every run.',
     code: configSnippet,
     filename: 'playwright.config.ts',
-    lang: 'ts',
+    lang: 'ts' as const,
   },
   {
     num: '02',
-    title: 'Add your token',
-    body: 'Pass a project token by env, kept out of the config and in CI secrets.',
+    title: 'Add your token, run your tests',
+    body: 'A project token by env, kept in CI secrets. Pass rates, flaky tests and traces land in kinora.',
     code: runSnippet,
     filename: 'CI',
-    lang: null,
-  },
-  {
-    num: '03',
-    title: 'Watch the dashboard',
-    body: 'Pass rates, trends, flaky tests and full traces land in kinora, one strip per run.',
-    code: null,
-    filename: null,
-    lang: null,
+    lang: undefined,
   },
 ];
 ---
@@ -81,16 +66,53 @@ const steps: {
         </a>
       </header>
 
-      <div class="flex flex-col gap-10">
-        <div class="reveal rounded-xl border border-signal/30 bg-signal/[0.04] p-5 sm:p-6">
-          <h3 class="text-lg font-semibold tracking-tight">
-            Let your coding agent do it
-          </h3>
-          <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-            Paste this into Claude Code, Cursor, or any agent. It reads the setup
-            doc and wires the reporter into your config.
+      <div class="reveal" data-tabs>
+        <div role="tablist" aria-label="How to set up kinora" class="inline-flex rounded-lg border border-border bg-muted/40 p-1">
+          {
+            [['manual', 'By hand'], ['agent', 'With your coding agent']].map(([id, label], i) => (
+              <button
+                type="button"
+                role="tab"
+                id={`setup-tab-${id}`}
+                aria-controls={`setup-panel-${id}`}
+                aria-selected={i === 0 ? 'true' : 'false'}
+                tabindex={i === 0 ? 0 : -1}
+                data-tab={id}
+                class="rounded-md px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground aria-selected:bg-background aria-selected:text-foreground aria-selected:shadow-sm"
+              >
+                {label}
+              </button>
+            ))
+          }
+        </div>
+
+        {/* Stacked in one cell, so switching tabs never moves the page; hidden by class, not removed,
+            so both panels stay in the HTML for readers and crawlers. */}
+        <div class="mt-6 grid">
+        <ol id="setup-panel-manual" role="tabpanel" aria-labelledby="setup-tab-manual" data-panel="manual" class="flex flex-col gap-6 [grid-area:1/1]">
+          {
+            steps.map(s => (
+              <li class="flex gap-4">
+                <span class="flex size-8 shrink-0 items-center justify-center rounded-md border border-signal/30 bg-signal/10 font-mono text-xs font-semibold text-signal">
+                  {s.num}
+                </span>
+                <div class="min-w-0 flex-1 pt-0.5">
+                  <h3 class="text-base font-semibold tracking-tight">{s.title}</h3>
+                  <p class="mt-1 text-sm leading-relaxed text-muted-foreground">{s.body}</p>
+                  <CodeBlock code={s.code} lang={s.lang} filename={s.filename} event={`copy-setup-${s.num}`} class="mt-3" />
+                </div>
+              </li>
+            ))
+          }
+        </ol>
+
+        <div id="setup-panel-agent" role="tabpanel" aria-labelledby="setup-tab-agent" data-panel="agent" class="invisible [grid-area:1/1]">
+          <h3 class="text-base font-semibold tracking-tight">Let your coding agent do it</h3>
+          <p class="mt-1 text-sm leading-relaxed text-muted-foreground">
+            Paste this into Claude Code, Cursor, or any agent. It reads the setup doc and wires the
+            reporter into your config.
           </p>
-          <CodeBlock code={aiPrompt} filename="Prompt" event="copy-setup-ai" class="mt-3.5" />
+          <CodeBlock code={aiPrompt} filename="Prompt" event="copy-setup-ai" class="mt-3" />
           <a
             href={`${SITE.url}/llms/setup.md`}
             target="_blank"
@@ -101,42 +123,34 @@ const steps: {
             View the setup doc &rarr;
           </a>
         </div>
-
-        <div class="flex items-center gap-3">
-          <span class="h-px flex-1 bg-border" />
-          <span class="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-            or set it up by hand
-          </span>
-          <span class="h-px flex-1 bg-border" />
         </div>
-
-        <ol class="flex flex-col gap-8">
-        {
-          steps.map((s, i) => (
-            <li class="reveal flex gap-5" style={`--reveal-delay: ${i * 80}ms`}>
-              <span class="flex size-9 shrink-0 items-center justify-center rounded-md border border-signal/30 bg-signal/10 font-mono text-xs font-semibold text-signal">
-                {s.num}
-              </span>
-              <div class="min-w-0 flex-1 pt-1">
-                <h3 class="text-lg font-semibold tracking-tight">{s.title}</h3>
-                <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                  {s.body}
-                </p>
-                {s.code && (
-                  <CodeBlock
-                    code={s.code}
-                    lang={s.lang ?? undefined}
-                    filename={s.filename ?? undefined}
-                    event={`copy-setup-${s.num}`}
-                    class="mt-3.5"
-                  />
-                )}
-              </div>
-            </li>
-          ))
-        }
-        </ol>
       </div>
     </div>
   </div>
 </section>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('[data-tabs]')) {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    const select = (tab: HTMLButtonElement) => {
+      for (const t of tabs) {
+        const on = t === tab
+        t.setAttribute('aria-selected', String(on))
+        t.tabIndex = on ? 0 : -1
+        root.querySelector(`[data-panel="${t.dataset.tab}"]`)?.classList.toggle('invisible', !on)
+      }
+    }
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => select(tab))
+      // Arrow keys move between tabs, as in the WAI-ARIA tabs pattern.
+      tab.addEventListener('keydown', (e) => {
+        const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+        if (!step)
+          return
+        const next = tabs[(i + step + tabs.length) % tabs.length]
+        select(next)
+        next.focus()
+      })
+    })
+  }
+</script>
