@@ -15,6 +15,9 @@ test('the run page pages its tests and a filter goes back to the first page', as
   const cards = page.getByText(/^case \d{3}$/)
   await expect(cards).toHaveCount(50)
   await expect(page.getByText('120 tests')).toBeVisible()
+  // The 6 failures lead the first page, ahead of the passing tests reported before them.
+  await expect(cards.nth(5)).toHaveText('case 100')
+  await expect(cards.nth(6)).toHaveText('case 001')
 
   await page.getByRole('button', { name: 'Page 3' }).click()
   await expect(page).toHaveURL(/[?&]page=3(&|$)/)

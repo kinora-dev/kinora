@@ -27,7 +27,7 @@ import { usePaletteCommands } from '@/composables/useCommandPalette'
 import { useQuarantine } from '@/composables/useQuarantine'
 import { useUrlPage } from '@/composables/useUrlPage'
 import { formatDateTimeLong } from '@/lib/format'
-import { testLabel } from '@/lib/test-display'
+import { bySeverity, testLabel } from '@/lib/test-display'
 import { isTraceAttachment, traceViewerHref } from '@/lib/trace'
 import { trpc } from '@/lib/trpc'
 import { commitUrl, httpsUrl } from '@/lib/url'
@@ -155,7 +155,7 @@ const tabCounts = computed(() => {
 
 const filtered = computed(() => {
   if (filter.value === 'all')
-    return searchMatched.value
+    return bySeverity(searchMatched.value)
   if (filter.value === 'quarantined')
     return searchMatched.value.filter(t => isQuarantined(t.testKey))
   return searchMatched.value.filter(t => t.status === filter.value)

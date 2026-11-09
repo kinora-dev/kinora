@@ -179,7 +179,7 @@ function suite(flavor: Flavor, areas: Record<string, string[]>): TestDef[] {
       for (const tpl of templates) {
         // About 1 in 40 gets an old flake; none touch the recent window, so badges stay scripted.
         const profile: Profile = (defs.length * 7 + 3) % 40 === 0 ? 'mostlyGreen' : 'solid'
-        defs.push({ file, title: tpl.replace('{es}', es).replace('{e}', e), profile, settling: defs.length })
+        defs.push({ file, title: tpl.replace('{es}', es).replace('{e}', e).replace(/\ba (?=[aeiou])/, 'an '), profile, settling: defs.length })
       }
     }
   }
