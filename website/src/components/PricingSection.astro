@@ -90,13 +90,8 @@ const tiers: Tier[] = [
 <section id="pricing" class="border-b border-border">
   <div class="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
     <header class="reveal mb-12 max-w-3xl">
-      <p
-        class="font-mono text-xs font-medium uppercase tracking-wider text-signal"
-      >
-        [ Pricing ]
-      </p>
       <h2
-        class="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-5xl"
+        class="text-balance text-3xl font-semibold tracking-tight sm:text-5xl"
       >
         Priced by your tests, not your team.
       </h2>
@@ -114,18 +109,7 @@ const tiers: Tier[] = [
       class="reveal mb-8 flex flex-col gap-5 rounded-xl border border-border bg-card/40 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7"
     >
       <div>
-        <div class="flex items-center gap-2.5">
-          <span
-            class="size-2 rec-dot rounded-full bg-signal"
-            aria-hidden="true"
-          ></span>
-          <span
-            class="font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
-          >
-            Self-hosted
-          </span>
-        </div>
-        <h3 class="mt-2.5 text-xl font-semibold tracking-tight">
+        <h3 class="text-xl font-semibold tracking-tight">
           Run it yourself, free forever.
         </h3>
         <p
@@ -140,7 +124,7 @@ const tiers: Tier[] = [
         target="_blank"
         rel="noopener noreferrer"
         data-umami-event="self-host-pricing"
-        class="inline-flex h-11 shrink-0 items-center gap-2 rounded-md border border-border px-6 font-mono text-sm font-semibold transition-colors hover:bg-muted"
+        class="inline-flex h-11 shrink-0 items-center gap-2 rounded-md border border-border px-6 text-sm font-semibold transition-colors hover:bg-muted"
       >
         <GithubIcon class="size-4" />
         Self-host it
@@ -160,11 +144,6 @@ const tiers: Tier[] = [
             ]}
             style={`--reveal-delay: ${i * 70}ms`}
           >
-            {tier.featured && (
-              <span class="absolute -top-2.5 left-6 rounded-full bg-signal px-2.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-background">
-                Most popular
-              </span>
-            )}
             <h3 class="font-mono text-sm font-semibold uppercase tracking-wider text-foreground">
               {tier.name}
             </h3>
@@ -188,7 +167,7 @@ const tiers: Tier[] = [
               href={tier.cta.href}
               data-umami-event={`pricing-${tier.id}`}
               class:list={[
-                'mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 font-mono text-xs font-semibold transition-colors',
+                'mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-xs font-semibold transition-colors',
                 tier.featured
                   ? 'bg-signal text-background hover:opacity-90'
                   : 'border border-border hover:bg-muted',

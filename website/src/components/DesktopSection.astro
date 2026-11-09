@@ -1,36 +1,18 @@
 ---
-import { Download, Play, Sparkles, SquarePen, SquarePlay } from '@lucide/astro'
+import { Download } from '@lucide/astro'
 import { Image } from 'astro:assets'
 import desktopDark from '../assets/screenshots/desktop-dark.png'
 import desktopLight from '../assets/screenshots/desktop-light.png'
 import { DOCS, SITE } from '../lib/site'
 import DocsLink from './DocsLink.astro'
-
-const chips = [
-  { icon: Play, label: 'Re-run locally' },
-  { icon: SquarePen, label: 'Open in editor' },
-  { icon: Sparkles, label: 'Copy AI prompt' },
-  { icon: SquarePlay, label: 'Inline trace' },
-];
 ---
 
-<section id="desktop" class="relative overflow-hidden border-b border-border">
+<section id="desktop" class="border-b border-border">
   <div
-    class="app-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(100%_60%_at_50%_0%,black,transparent)]"
-    aria-hidden="true"
+    class="mx-auto max-w-7xl px-5 py-20 text-center sm:px-8 sm:py-28"
   >
-  </div>
-
-  <div
-    class="relative mx-auto max-w-7xl px-5 py-20 text-center sm:px-8 sm:py-28"
-  >
-    <p
-      class="reveal font-mono text-xs font-medium uppercase tracking-wider text-signal"
-    >
-      [ Desktop app ]
-    </p>
     <h2
-      class="reveal mx-auto mt-4 max-w-3xl text-balance text-3xl font-semibold tracking-tight sm:text-5xl"
+      class="reveal mx-auto max-w-3xl text-balance text-3xl font-semibold tracking-tight sm:text-5xl"
       style="--reveal-delay: 80ms"
     >
       Go from a red test to a fix without leaving your desk.
@@ -50,23 +32,6 @@ const chips = [
     </p>
 
     <div
-      class="reveal mx-auto mt-8 flex flex-wrap items-center justify-center gap-2.5"
-      style="--reveal-delay: 200ms"
-    >
-      {
-        chips.map((c) => {
-          const Icon = c.icon
-          return (
-            <span class="inline-flex items-center gap-2 rounded-full border border-border bg-background/60 py-1.5 pl-3 pr-3.5 font-mono text-xs text-muted-foreground">
-              <Icon class="size-3.5 text-signal" aria-hidden="true" />
-              {c.label}
-            </span>
-          )
-        })
-      }
-    </div>
-
-    <div
       class="reveal mt-9 flex flex-col items-center gap-3"
       style="--reveal-delay: 240ms"
     >
@@ -75,7 +40,7 @@ const chips = [
         target="_blank"
         rel="noopener noreferrer"
         data-umami-event="download-desktop"
-        class="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-6 font-mono text-sm font-semibold text-background transition-opacity hover:opacity-90"
+        class="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-6 text-sm font-semibold text-background transition-opacity hover:opacity-90"
       >
         <Download class="size-4" aria-hidden="true" />
         Download

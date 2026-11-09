@@ -1,34 +1,22 @@
 ---
-import {
-  FingerprintPattern,
-  GitBranch,
-  GitPullRequest,
-  Images,
-  Server,
-  Upload,
-} from '@lucide/astro'
 import { DOCS } from '../lib/site'
 import DocsLink from './DocsLink.astro'
 
 const items: {
-  icon: typeof GitPullRequest
   title: string
   body: string
   docs?: { label: string, href: string, event: string }[]
 }[] = [
   {
-    icon: GitPullRequest,
     title: 'PR comments',
     body: 'Post a run summary on the GitHub PR or GitLab MR straight from CI: pass/fail, tests newly failing vs the base branch, one click to the trace.',
     docs: [{ label: 'PR comments', href: DOCS.prComments, event: 'docs-pr-comments' }],
   },
   {
-    icon: GitBranch,
     title: 'Branch & tag filters',
     body: 'Slice the overview by branch or tag to compare main against a feature branch, or smoke against nightly.',
   },
   {
-    icon: Upload,
     title: 'Reporter, Vitest or CLI',
     body: 'Auto-upload at the end of every Playwright or Vitest run, or push an existing results.json from a separate CI job. Same data either way.',
     docs: [
@@ -38,18 +26,15 @@ const items: {
     ],
   },
   {
-    icon: FingerprintPattern,
     title: 'Stable test identity',
     body: 'A test keeps the same key across runs and ingest paths, so its history never silently breaks.',
   },
   {
-    icon: Images,
     title: 'Screenshot comparisons',
     body: 'A failed visual assertion shows its expected, actual and diff images side by side, on the run and in the test\'s history.',
     docs: [{ label: 'Screenshot comparisons', href: `${DOCS.reporter}#screenshot-comparisons`, event: 'docs-screenshot-comparisons' }],
   },
   {
-    icon: Server,
     title: 'Self-hosted, fair source',
     body: 'Your results stay on your own box. FSL server and dashboard, MIT client libraries you embed.',
     docs: [{ label: 'Self-hosting', href: DOCS.selfHosting, event: 'docs-self-hosting' }],
@@ -60,13 +45,8 @@ const items: {
 <section class="border-b border-border">
   <div class="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
     <header class="reveal mb-12 max-w-3xl">
-      <p
-        class="font-mono text-xs font-medium uppercase tracking-wider text-signal"
-      >
-        [ And the rest ]
-      </p>
       <h2
-        class="mt-4 text-balance text-3xl font-semibold tracking-tight sm:text-4xl"
+        class="text-balance text-3xl font-semibold tracking-tight sm:text-4xl"
       >
         Built like the tool you reach for daily.
       </h2>
@@ -77,16 +57,12 @@ const items: {
     >
       {
         items.map((item, i) => {
-          const Icon = item.icon
           return (
             <article
               class="reveal bg-background p-7"
               style={`--reveal-delay: ${(i % 3) * 70}ms`}
             >
-              <span class="grid size-9 place-items-center rounded-md border border-border text-signal">
-                <Icon class="size-4.5" aria-hidden="true" />
-              </span>
-              <h3 class="mt-4 text-base font-semibold tracking-tight">
+              <h3 class="text-base font-semibold tracking-tight">
                 {item.title}
               </h3>
               <p class="mt-2 text-sm leading-relaxed text-muted-foreground">

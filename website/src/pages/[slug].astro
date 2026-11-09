@@ -78,7 +78,7 @@ const related = SOLUTIONS.filter(o => o.slug !== s.slug)
       </div>
       <div class="relative mx-auto max-w-4xl px-5 pt-16 pb-14 text-center sm:px-8 sm:pt-24">
         <p class="reveal font-mono text-xs font-medium uppercase tracking-wider text-signal">
-          [ {s.eyebrow} ]
+          {s.eyebrow}
         </p>
         <h1
           class="reveal mt-4 text-balance text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl"
@@ -99,7 +99,7 @@ const related = SOLUTIONS.filter(o => o.slug !== s.slug)
           <a
             href={s.cta?.href ?? SITE.signup}
             data-umami-event={s.cta?.event ?? `get-started-${s.slug}`}
-            class="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-6 font-mono text-sm font-semibold text-background transition-opacity hover:opacity-90"
+            class="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-6 text-sm font-semibold text-background transition-opacity hover:opacity-90"
           >
             {s.cta?.label ?? 'Get started'}
             <ArrowRight class="size-4" aria-hidden="true" />
@@ -109,7 +109,7 @@ const related = SOLUTIONS.filter(o => o.slug !== s.slug)
             target="_blank"
             rel="noopener noreferrer"
             data-umami-event={`live-demo-${s.slug}`}
-            class="inline-flex h-11 items-center gap-2 rounded-md border border-border px-6 font-mono text-sm font-semibold transition-colors hover:bg-muted bg-background"
+            class="inline-flex h-11 items-center gap-2 rounded-md border border-border px-6 text-sm font-semibold transition-colors hover:bg-muted bg-background"
           >
             Live demo
           </a>

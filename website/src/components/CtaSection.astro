@@ -1,34 +1,15 @@
 ---
 import { ArrowRight, Play } from '@lucide/astro'
 import { SITE } from '../lib/site'
-import DocsLink from './DocsLink.astro'
-import GithubIcon from './GithubIcon.astro';
+import DocsLink from './DocsLink.astro';
 ---
 
-<section class="relative overflow-hidden border-b border-border">
+<section class="border-b border-border">
   <div
-    class="pointer-events-none absolute -bottom-40 left-1/2 size-[40rem] -translate-x-1/2 rounded-full opacity-[0.14] blur-3xl"
-    style="background: radial-gradient(circle, var(--signal), transparent 70%)"
-    aria-hidden="true"
+    class="mx-auto max-w-3xl px-5 py-24 text-center sm:px-8 sm:py-32"
   >
-  </div>
-
-  <div
-    class="relative mx-auto max-w-3xl px-5 py-24 text-center sm:px-8 sm:py-32"
-  >
-    <div class="reveal mx-auto flex w-fit items-center gap-2.5">
-      <span
-        class="size-2.5 rec-dot rounded-full bg-signal"
-        aria-hidden="true"
-      ></span>
-      <span
-        class="font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
-      >
-        Awaiting first signal
-      </span>
-    </div>
     <h2
-      class="reveal mt-5 text-balance text-4xl font-semibold tracking-tight sm:text-6xl"
+      class="reveal text-balance text-4xl font-semibold tracking-tight sm:text-6xl"
       style="--reveal-delay: 80ms"
     >
       Push your first run.
@@ -47,7 +28,7 @@ import GithubIcon from './GithubIcon.astro';
       <a
         href={SITE.signup}
         data-umami-event="get-started-cta"
-        class="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-6 font-mono text-sm font-semibold text-background transition-opacity hover:opacity-90"
+        class="inline-flex h-11 items-center gap-2 rounded-md bg-signal px-6 text-sm font-semibold text-background transition-opacity hover:opacity-90"
       >
         Get started
         <ArrowRight class="size-4" aria-hidden="true" />
@@ -57,20 +38,10 @@ import GithubIcon from './GithubIcon.astro';
         target="_blank"
         rel="noopener noreferrer"
         data-umami-event="live-demo-cta"
-        class="inline-flex h-11 items-center gap-2 rounded-md border border-border px-6 font-mono text-sm font-semibold transition-colors hover:bg-muted"
+        class="inline-flex h-11 items-center gap-2 rounded-md border border-border px-6 text-sm font-semibold transition-colors hover:bg-muted"
       >
         <Play class="size-4" aria-hidden="true" />
         Live demo
-      </a>
-      <a
-        href={SITE.repo}
-        target="_blank"
-        rel="noopener noreferrer"
-        data-umami-event="github-cta"
-        class="inline-flex h-11 items-center gap-2 rounded-md border border-border px-6 font-mono text-sm font-semibold transition-colors hover:bg-muted"
-      >
-        <GithubIcon class="size-4" />
-        Star on GitHub
       </a>
     </div>
     <p class="reveal mt-6" style="--reveal-delay: 260ms">
