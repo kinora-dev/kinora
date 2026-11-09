@@ -22,7 +22,6 @@ const features = [
     body: 'Push from CI and kinora keeps the history. Pass rate, run count, and duration per project, with a sparkline trend and one colored strip per run, so a slow drift is obvious long before it breaks the build.',
     light: projectLight,
     dark: projectDark,
-    label: 'kinora.dev/project/checkout-api',
     alt: 'Per-project page with pass rate, trend sparkline and per-run history strips',
   },
   {
@@ -31,7 +30,6 @@ const features = [
     body: 'The share of passed, flaky and failed results over the last 30 or 90 days, per day or per week, for every branch or just one. A flaky rate creeping up shows here weeks before anyone complains about CI.',
     light: analyticsLight,
     dark: analyticsDark,
-    label: 'kinora.dev/project/web-app/analytics',
     alt: 'Analytics page with a stacked chart of the share of passed, flaky and failed test results per week over 90 days',
   },
   {
@@ -40,7 +38,6 @@ const features = [
     body: 'Playwright only calls a test flaky when it passes on a retry. kinora also catches the ones that pass and fail on the same commit, or keep flipping from one run to the next, and tells them apart from broken tests: the ones that fail and keep failing since a commit. Each badge says why.',
     light: testsLight,
     dark: testsDark,
-    label: 'kinora.dev/project/checkout-api/tests',
     alt: 'Tests page listing flaky and broken tests with their flaky rate, fail rate and run history',
   },
   {
@@ -49,7 +46,6 @@ const features = [
     body: 'Each test keeps a stable identity regardless of how it was uploaded, so you can track one test run-to-run: when it started flaking, when it was fixed, and how long it has been green.',
     light: testHistoryLight,
     dark: testHistoryDark,
-    label: 'kinora.dev/test/refunds-an-order',
     alt: 'Per-test history with a status timeline, pass and flaky rates, and a list of failures and flakes',
   },
   {
@@ -58,7 +54,6 @@ const features = [
     body: 'Pick any two runs and kinora groups every difference for you: newly failing, fixed, newly flaky, and still failing. No more diffing two HTML reports by eye to find the one test that regressed since green.',
     light: compareLight,
     dark: compareDark,
-    label: 'kinora.dev/project/checkout-api/compare',
     alt: 'Run comparison page grouping tests into newly failing, fixed, newly flaky and still failing, with pass-rate delta',
   },
   {
@@ -67,7 +62,6 @@ const features = [
     body: 'Storybook stories run by Vitest and Playwright component tests are grouped by component and story, each with its status and history. See at a glance which component regressed and which story keeps flaking, then open the tests behind it.',
     light: componentsLight,
     dark: componentsDark,
-    label: 'kinora.dev/project/design-system/components',
     alt: 'Components page with accessibility hotspots and each component listed with its stories, their status and a run history timeline',
   },
   {
@@ -76,7 +70,6 @@ const features = [
     body: 'kinora reads the axe scans of your Playwright tests and of your Storybook stories: the rules broken, their impact, the elements they hit. Hotspots rank your test files and components by their violations, critical ones first, so you know where fixing pays off.',
     light: a11yLight,
     dark: a11yDark,
-    label: 'kinora.dev/project/web-app/tests',
     alt: 'Tests page with accessibility hotspots ranking test files by axe violations and their impact, and the tests breaking a rule',
   },
 ];
@@ -115,7 +108,6 @@ const features = [
                 <Screenshot
                   light={f.light}
                   dark={f.dark}
-                  label={f.label}
                   alt={f.alt}
                 />
               </div>

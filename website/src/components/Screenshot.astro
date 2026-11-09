@@ -6,12 +6,11 @@ interface Props {
   light: ImageMetadata
   dark: ImageMetadata
   alt: string
-  label: string
   loading?: 'eager' | 'lazy'
   class?: string
 }
 
-const { light, dark, alt, label, loading = 'lazy', class: klass = '' }: Props = Astro.props
+const { light, dark, alt, loading = 'lazy', class: klass = '' }: Props = Astro.props
 
 // One <picture>, browser fetches only the theme it needs (was 2 <img>, both downloaded).
 const widths = [480, 768, 1024, 1440]
@@ -20,15 +19,7 @@ const lightImg = await getImage({ src: light, format: 'webp', widths, sizes })
 const darkImg = await getImage({ src: dark, format: 'webp', widths, sizes })
 ---
 
-<figure class={`overflow-hidden rounded-xl border border-border bg-card shadow-2xl ${klass}`}>
-  <div class="flex items-center gap-2 border-b border-border/80 bg-background/40 px-4 py-2.5">
-    <span class="flex gap-1.5" aria-hidden="true">
-      <span class="size-2.5 rounded-full bg-fail/70"></span>
-      <span class="size-2.5 rounded-full bg-flaky/70"></span>
-      <span class="size-2.5 rounded-full bg-pass/70"></span>
-    </span>
-    <span class="ml-2 font-mono text-[11px] tracking-wide text-muted-foreground lowercase">{label}</span>
-  </div>
+<figure class={`overflow-hidden rounded-xl border border-border bg-card shadow-lg ${klass}`}>
   <picture>
     <source srcset={darkImg.srcSet.attribute} sizes={sizes} media="(prefers-color-scheme: dark)" />
     <img

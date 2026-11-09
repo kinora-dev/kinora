@@ -31,13 +31,13 @@ export function getStaticPaths() {
 const { s } = Astro.props
 const site = Astro.site ?? new URL(SITE.url)
 
-const SHOTS: Record<ShotKey, { light: ImageMetadata, dark: ImageMetadata, label: string }> = {
-  'overview': { light: overviewLight, dark: overviewDark, label: 'kinora.dev/overview' },
-  'test-history': { light: testHistoryLight, dark: testHistoryDark, label: 'kinora.dev/test-history' },
-  'tests': { light: testsLight, dark: testsDark, label: 'kinora.dev/tests' },
-  'trace-viewer': { light: traceViewerLight, dark: traceViewerDark, label: 'kinora.dev/trace' },
-  'compare': { light: compareLight, dark: compareDark, label: 'kinora.dev/compare' },
-  'project': { light: projectLight, dark: projectDark, label: 'kinora.dev/project' },
+const SHOTS: Record<ShotKey, { light: ImageMetadata, dark: ImageMetadata }> = {
+  'overview': { light: overviewLight, dark: overviewDark },
+  'test-history': { light: testHistoryLight, dark: testHistoryDark },
+  'tests': { light: testsLight, dark: testsDark },
+  'trace-viewer': { light: traceViewerLight, dark: traceViewerDark },
+  'compare': { light: compareLight, dark: compareDark },
+  'project': { light: projectLight, dark: projectDark },
 }
 const shot = s.shot ? SHOTS[s.shot] : null
 
@@ -143,7 +143,6 @@ const related = SOLUTIONS.filter(o => o.slug !== s.slug)
                   <Screenshot
                     light={shot.light}
                     dark={shot.dark}
-                    label={shot.label}
                     alt={s.shotAlt ?? s.h1}
                     class="mx-auto max-w-4xl"
                   />

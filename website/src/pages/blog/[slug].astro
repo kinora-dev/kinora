@@ -33,15 +33,15 @@ export async function getStaticPaths() {
   return posts.map(post => ({ params: { slug: post.data.slug }, props: { post } }))
 }
 
-const COVER_SHOTS: Record<BlogPost['data']['cover'], { light: ImageMetadata, dark: ImageMetadata, label: string }> = {
-  'overview': { light: overviewLight, dark: overviewDark, label: 'kinora.dev/overview' },
-  'test-history': { light: testHistoryLight, dark: testHistoryDark, label: 'kinora.dev/test-history' },
-  'trace-viewer': { light: traceViewerLight, dark: traceViewerDark, label: 'kinora.dev/trace' },
-  'tests': { light: testsLight, dark: testsDark, label: 'kinora.dev/tests' },
-  'project': { light: projectLight, dark: projectDark, label: 'kinora.dev/project' },
-  'compare': { light: compareLight, dark: compareDark, label: 'kinora.dev/compare' },
-  'components': { light: componentsLight, dark: componentsDark, label: 'kinora.dev/components' },
-  'desktop': { light: desktopLight, dark: desktopDark, label: 'kinora desktop' },
+const COVER_SHOTS: Record<BlogPost['data']['cover'], { light: ImageMetadata, dark: ImageMetadata }> = {
+  'overview': { light: overviewLight, dark: overviewDark },
+  'test-history': { light: testHistoryLight, dark: testHistoryDark },
+  'trace-viewer': { light: traceViewerLight, dark: traceViewerDark },
+  'tests': { light: testsLight, dark: testsDark },
+  'project': { light: projectLight, dark: projectDark },
+  'compare': { light: compareLight, dark: compareDark },
+  'components': { light: componentsLight, dark: componentsDark },
+  'desktop': { light: desktopLight, dark: desktopDark },
 }
 
 const { post } = Astro.props as { post: BlogPost }
@@ -135,7 +135,6 @@ const schemas = [
           <Screenshot
             light={cover.light}
             dark={cover.dark}
-            label={cover.label}
             alt={imageAlt}
             loading="eager"
             class="mt-10"
