@@ -44,7 +44,7 @@ type Status = NormTest['status']
 type Profile
   = | 'solid' | 'mostlyGreen' | 'flakyHistory' | 'chronicFlaky' | 'flakyCluster'
     | 'degrading' | 'outage' | 'recovering' | 'intermittent' | 'chronicFail'
-    | 'newlyFlaky' | 'newlyBroken' | 'newlyFailing' | 'fixed' | 'fixmeSkip' | 'recurringFail' | 'longBroken'
+    | 'newlyFlaky' | 'newlyBroken' | 'newlyFailing' | 'fixed' | 'fixmeSkip' | 'recurringFail' | 'longBroken' | 'flakedThenFixed'
 
 // Status sequence per profile across the story run ordinals (0 = oldest story run, LATEST = newest).
 // Events are spread across the timeline (not just the tail) so per-run pass rates
@@ -75,6 +75,8 @@ function statusAt(profile: Profile, i: number): Status {
       return i % 7 === 5 ? 'unexpected' : i % 7 === 2 ? 'flaky' : 'expected'
     case 'newlyFlaky':
       return i === LATEST ? 'flaky' : 'expected'
+    case 'flakedThenFixed':
+      return flakedThenFixedAt(i)
     case 'longBroken': // failing since a commit 8 runs back: Broken, past the "New failure" window
       return i >= LATEST - 7 ? 'unexpected' : 'expected'
     case 'newlyBroken':
@@ -94,8 +96,21 @@ function statusAt(profile: Profile, i: number): Status {
 // Status of the older history runs (i < 0). The newly-* signals compare the recent window with
 // everything before it, so those tests stay clean here; `recovering` is rough the whole time
 // before its scripted recovery (an upward 90-day trend); the noisy profiles replay their pattern.
+// Green for weeks, then a stretch of occasional flakes and two failures, fixed about 28 runs ago
+// and green since: the life of one test the per-test history card tells.
+function flakedThenFixedAt(i: number): Status {
+  const k = i + HISTORY
+  if (k < 35 || k >= 62)
+    return 'expected'
+  if (k === 47 || k === 55)
+    return 'unexpected'
+  return k % 4 === 1 ? 'flaky' : 'expected'
+}
+
 function historyAt(profile: Profile, i: number): Status {
   switch (profile) {
+    case 'flakedThenFixed':
+      return flakedThenFixedAt(i)
     case 'recovering':
       return i % 2 === 0 ? 'unexpected' : 'flaky'
     case 'recurringFail': // never flaky
@@ -216,7 +231,7 @@ const PROJECTS: ProjectDef[] = [
         rule('label', 'critical', LABEL, ['input[name="card-number"]', 'input[name="cvc"]']),
         rule('color-contrast', 'serious', CONTRAST, ['.total .muted', '.terms'], 3),
       ] },
-      { file: 'tests/checkout.spec.ts', title: 'applies a discount code', profile: 'recovering' },
+      { file: 'tests/checkout.spec.ts', title: 'applies a discount code', profile: 'flakedThenFixed' },
       { file: 'tests/search.spec.ts', title: 'returns relevant results', profile: 'newlyFlaky', tags: ['@critical'], a11y: [
         rule('image-alt', 'critical', 'Images must have alternative text', ['.result img'], 8),
         rule('region', 'moderate', 'All page content should be contained by landmarks', ['#results']),
