@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { OverviewProject } from '@kinora/core'
-import { formatDuration, formatPct, HEALTH_WINDOW, incidentMarkers, latestRun, recentPassRate } from '@kinora/core'
+import { formatDuration, formatPct, HEALTH_WINDOW, incidentMarkers, latestRun, recentPassRate, sparklineFloor } from '@kinora/core'
 import { Card } from '@kinora/ui/card'
 import { HealthBadge } from '@kinora/ui/health-badge'
 import { RunStrip } from '@kinora/ui/run-strip'
@@ -18,6 +18,7 @@ const latest = computed(() => latestRun(props.project))
 const rate = computed(() => recentPassRate(props.project.runs, HEALTH_WINDOW))
 const series = computed(() => props.project.trend.map(t => t.passRate))
 const markers = computed(() => incidentMarkers(props.project.trend))
+const floor = computed(() => sparklineFloor(props.project.trend))
 
 const rel = computed(() => {
   if (!latest.value)
@@ -63,7 +64,7 @@ const rel = computed(() => {
         </span>
       </div>
       <div class="w-1/2 max-w-[220px] text-muted-foreground">
-        <Sparkline :values="series" :markers="markers" :height="40" class="w-full" />
+        <Sparkline :values="series" :markers="markers" :min="floor" :height="40" class="w-full" />
       </div>
     </div>
 

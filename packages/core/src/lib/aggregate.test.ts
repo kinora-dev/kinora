@@ -1,6 +1,6 @@
 import type { Counts, ProjectEntry, RunSummary } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
-import { collectBranches, collectTags, denom, downsampleTrend, filterRuns, formatDuration, formatPct, incidentMarkers, latestRun, passRate, recentPassRate, runHealth, sortedRuns, trend, trendOf } from './aggregate'
+import { collectBranches, collectTags, denom, downsampleTrend, filterRuns, formatDuration, formatPct, incidentMarkers, latestRun, passRate, recentPassRate, runHealth, sortedRuns, sparklineFloor, trend, trendOf } from './aggregate'
 
 function counts(o: Partial<Counts>): Counts {
   return { total: 0, expected: 0, unexpected: 0, flaky: 0, skipped: 0, ...o }
@@ -199,5 +199,20 @@ describe('formatDuration / formatPct', () => {
 
   it('formats a fraction as a percentage', () => {
     expect(formatPct(0.1234)).toBe('12.3%')
+  })
+})
+
+describe('sparklineFloor', () => {
+  it('fits the lowest counted pass rate, at least 10 points under the top', () => {
+    expect(sparklineFloor([{ passRate: 0.97 }, { passRate: 1 }])).toBe(0.9)
+    expect(sparklineFloor([{ passRate: 0.6 }, { passRate: 1 }])).toBe(0.6)
+  })
+
+  it('leaves incidents out, so an outage does not flatten the line', () => {
+    expect(sparklineFloor([{ passRate: 0.95 }, { passRate: 0, incident: 'down' }])).toBe(0.9)
+  })
+
+  it('falls back to 0 without counted points', () => {
+    expect(sparklineFloor([])).toBe(0)
   })
 })

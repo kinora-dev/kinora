@@ -128,6 +128,15 @@ export function incidentMarkers(points: Pick<TrendPoint, 'incident'>[]): { index
   return points.flatMap((p, index) => p.incident ? [{ index, label: `Environment incident, not counted: ${p.incident}` }] : [])
 }
 
+// Bottom of a pass-rate sparkline. Pass rates sit near 100%, where a 0-100% scale draws a flat
+// line: fit the scale to the counted points, never tighter than 10 points, so a 0.4% wobble does
+// not read as a crash. Incidents stay out of it: they are marked, and sit at the bottom.
+export const SPARKLINE_MIN_SPAN = 0.1
+export function sparklineFloor(points: Pick<TrendPoint, 'passRate' | 'incident'>[]): number {
+  const counted = points.filter(p => !p.incident).map(p => p.passRate)
+  return counted.length ? Math.max(0, Math.min(...counted, 1 - SPARKLINE_MIN_SPAN)) : 0
+}
+
 export function collectBranches(projects: ProjectEntry[]): string[] {
   const s = new Set<string>()
   for (const p of projects) {

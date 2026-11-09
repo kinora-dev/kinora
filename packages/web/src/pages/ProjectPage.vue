@@ -5,6 +5,7 @@ import {
   incidentMarkers,
   latestRun,
   recentPassRate,
+  sparklineFloor,
 } from '@kinora/core'
 import { Badge } from '@kinora/ui/badge'
 import { HealthBadge } from '@kinora/ui/health-badge'
@@ -43,6 +44,7 @@ const latest = computed(() => (project.value ? latestRun(project.value) : undefi
 const rate = computed(() => recentPassRate(project.value?.runs ?? [], HEALTH_WINDOW))
 const series = computed(() => project.value?.trend.map(t => t.passRate) ?? [])
 const markers = computed(() => incidentMarkers(project.value?.trend ?? []))
+const floor = computed(() => sparklineFloor(project.value?.trend ?? []))
 
 function retry() {
   void retrySummary()
@@ -159,7 +161,7 @@ function showOlder() {
           <Separator orientation="vertical" class="h-10" />
           <StatBlock label="Tests" :value="latest?.counts.total ?? 0" />
           <div class="ml-auto w-40 text-muted-foreground">
-            <Sparkline :values="series" :markers="markers" :height="44" :width="160" />
+            <Sparkline :values="series" :markers="markers" :min="floor" :height="44" :width="160" />
           </div>
         </div>
       </div>

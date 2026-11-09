@@ -25,7 +25,8 @@ const points = computed(() => {
   const span = Math.max(1e-6, props.max - props.min)
   const stepX = vs.length === 1 ? 0 : (props.width - pad * 2) / (vs.length - 1)
   return vs.map((v, i) => {
-    const norm = (v - props.min) / span
+    // Clamped: a value under `min` (a marked incident) sits on the baseline, not under the chart.
+    const norm = Math.min(1, Math.max(0, (v - props.min) / span))
     const x = pad + i * stepX
     const y = props.height - pad - norm * (props.height - pad * 2)
     return [x, y] as const
