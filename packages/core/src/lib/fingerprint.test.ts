@@ -41,6 +41,14 @@ describe('fingerprintError', () => {
     expect(fp.title).toBe('Error: boom')
   })
 
+  it('adds the locator of a Playwright assertion to its title', () => {
+    const msg = (locator: string) => `Error: expect(locator).toHaveText(expected) failed\n\nLocator:  ${locator}\nExpected: "a"\nReceived: "b"`
+    const a = fingerprintError({ message: msg('getByRole(\'status\')') })
+    const b = fingerprintError({ message: msg('getByTestId(\'total\')') })
+    expect(a.title).toBe('Error: expect(locator).toHaveText(expected) failed · getByRole(\'status\')')
+    expect(a.title).not.toBe(b.title)
+  })
+
   it('falls back to stack when message empty', () => {
     const fp = fingerprintError({ message: '', stack: 'ReferenceError: x is not defined' })
     expect(fp.fingerprint).not.toBe(fingerprintError({ message: '' }).fingerprint)

@@ -32,14 +32,18 @@ function hash(s: string): string {
 
 export interface ErrorFingerprint {
   fingerprint: string
-  title: string // first line, human-readable
+  title: string // first line, plus the locator of a Playwright assertion, human-readable
   sample: string // full stripped message
 }
 
 export function fingerprintError(err: Pick<NormError, 'message' | 'stack'>): ErrorFingerprint {
   const source = err.message || err.stack || ''
   const sample = stripAnsi(source).trim()
-  const title = (sample.split('\n', 1)[0] || 'Unknown error').slice(0, 140)
+  const first = sample.split('\n', 1)[0] || 'Unknown error'
+  // A Playwright assertion opens with the same line for every failure of a matcher
+  // (`expect(locator).toHaveText(expected) failed`): its locator is what tells two apart.
+  const locator = /^Locator:\s*(\S.*)$/m.exec(sample)?.[1]?.trim()
+  const title = (locator && !first.includes(locator) ? `${first} · ${locator}` : first).slice(0, 140)
   return { fingerprint: hash(normalizeErrorMessage(source)), title, sample }
 }
 
