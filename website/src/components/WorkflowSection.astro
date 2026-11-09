@@ -1,0 +1,99 @@
+---
+import { Download } from '@lucide/astro'
+import { Image } from 'astro:assets'
+import desktopDark from '../assets/screenshots/desktop-dark.png'
+import desktopLight from '../assets/screenshots/desktop-light.png'
+import { DOCS, SITE } from '../lib/site'
+import CodeBlock from './CodeBlock.astro'
+import DocsLink from './DocsLink.astro'
+
+const mcpConfig = `{
+  "mcpServers": {
+    "kinora": {
+      "command": "npx",
+      "args": ["-y", "@kinora/mcp"],
+      "env": { "KINORA_TOKEN": "<token>" }
+    }
+  }
+}`
+
+const tools = [
+  { name: 'list_failures', desc: 'the last run\'s failures, with error and file:line' },
+  { name: 'get_trace', desc: 'the Playwright trace for any failing test' },
+  { name: 'test_history', desc: 'flaky or broken, and why, per test' },
+]
+
+const desktopAlt = 'kinora desktop app showing a project\'s failing tests with re-run, open-in-editor, copy-prompt and view-trace actions'
+---
+
+{/* Desktop app and MCP side by side; both keep their anchor for the header and footer links. */}
+<section id="desktop" class="border-b border-border">
+  <div class="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
+    <header class="reveal mb-12 max-w-3xl">
+      <h2 class="text-balance text-3xl font-semibold tracking-tight sm:text-5xl">
+        Fix it where you work.
+      </h2>
+      <p class="mt-5 text-pretty text-lg text-muted-foreground">
+        From the dashboard to your machine, or straight to your coding agent.
+      </p>
+    </header>
+
+    <div class="grid gap-6 lg:grid-cols-2">
+      <article class="reveal flex flex-col rounded-2xl border border-border bg-card/30 p-6 sm:p-8">
+        <h3 class="text-balance text-xl font-semibold tracking-tight sm:text-2xl">
+          Go from a red test to a fix without leaving your desk.
+        </h3>
+        <p class="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
+          The desktop app opens on the latest run's failures. Re-run one locally with your repo's
+          own Playwright, jump to the source in your editor, or copy a ready-to-paste AI prompt. It
+          also opens any local <code class="font-mono text-sm">trace.zip</code>, no account needed.
+        </p>
+        <div class="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
+          <a
+            href={SITE.download}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-umami-event="download-desktop"
+            class="inline-flex h-10 items-center gap-2 rounded-md bg-signal px-5 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+          >
+            <Download class="size-4" aria-hidden="true" />
+            Download
+          </a>
+          <span class="font-mono text-xs text-muted-foreground">macOS &middot; Windows &middot; Linux</span>
+          <DocsLink href={DOCS.desktop} event="docs-desktop">Desktop guide</DocsLink>
+        </div>
+        <div class="mt-auto pt-8">
+          <Image src={desktopLight} alt={desktopAlt} loading="lazy" class="w-full rounded-lg shadow-xl dark:hidden" />
+          <Image src={desktopDark} alt={desktopAlt} loading="lazy" class="hidden w-full rounded-lg shadow-xl dark:block" />
+        </div>
+      </article>
+
+      <article id="mcp" class="reveal flex flex-col rounded-2xl border border-border bg-card/30 p-6 sm:p-8" style="--reveal-delay: 90ms">
+        <h3 class="text-balance text-xl font-semibold tracking-tight sm:text-2xl">
+          Your coding agent, wired to CI.
+        </h3>
+        <p class="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
+          Point Claude Code, Cursor or any MCP client at kinora and it pulls the failing test, its
+          trace and flaky history straight into the chat, then works the fix. Runs over stdio,
+          against the cloud or your own self-host.
+        </p>
+        <div class="mt-5">
+          <DocsLink href={DOCS.mcp} event="mcp-docs">MCP guide</DocsLink>
+        </div>
+        <div class="mt-auto flex flex-col gap-4 pt-8">
+          <CodeBlock code={mcpConfig} lang="json" filename="mcp config" event="copy-mcp-config" />
+          <ul class="flex flex-col divide-y divide-border/60 overflow-hidden rounded-lg border border-border bg-card/40">
+            {
+              tools.map(t => (
+                <li class="flex flex-col gap-0.5 px-4 py-2.5 sm:flex-row sm:items-baseline sm:gap-3">
+                  <code class="shrink-0 font-mono text-[13px] font-medium text-signal">{t.name}</code>
+                  <span class="text-sm text-muted-foreground">{t.desc}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>

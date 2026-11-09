@@ -1,7 +1,5 @@
 ---
-import AgentSection from '../components/AgentSection.astro'
 import CtaSection from '../components/CtaSection.astro'
-import DesktopSection from '../components/DesktopSection.astro'
 import FaqSection from '../components/FaqSection.astro'
 import HeroSection from '../components/HeroSection.astro'
 import PillarSection from '../components/PillarSection.astro'
@@ -11,6 +9,7 @@ import SetupSection from '../components/SetupSection.astro'
 import SiteFooter from '../components/SiteFooter.astro'
 import SiteHeader from '../components/SiteHeader.astro'
 import TraceSection from '../components/TraceSection.astro'
+import WorkflowSection from '../components/WorkflowSection.astro'
 import { HOME_FAQS } from '../data/faq'
 import { COVER, UNDERSTAND } from '../data/pillars'
 import Layout from '../layouts/Layout.astro'
@@ -37,8 +36,7 @@ const schemas = [
     <HeroSection />
     <PillarSection pillar={UNDERSTAND} />
     <TraceSection eyebrow="Debug" />
-    <DesktopSection />
-    <AgentSection />
+    <WorkflowSection />
     <PillarSection pillar={COVER} />
     <SecondaryFeatures />
     <SetupSection />
