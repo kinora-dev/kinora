@@ -71,14 +71,28 @@ import Screenshot from './Screenshot.astro';
       >, or use kinora cloud with unlimited seats.
     </p>
 
-    <div class="reveal mt-16 sm:mt-20" style="--reveal-delay: 120ms">
+    {/* Visitors click the dashboard expecting the dashboard: it opens the live demo. */}
+    <a
+      href={SITE.demo}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-umami-event="live-demo-hero-screenshot"
+      class="reveal group relative mx-auto mt-16 block max-w-5xl rounded-xl sm:mt-20"
+      style="--reveal-delay: 120ms"
+    >
       <Screenshot
         light={overviewLight}
         dark={overviewDark}
         loading="eager"
         alt="kinora dashboard showing test runs overview with pass rates and per-run strips across projects"
-        class="mx-auto max-w-5xl"
+        class="transition-transform duration-300 group-hover:-translate-y-1"
       />
-    </div>
+      <span
+        class="pointer-events-none absolute bottom-5 left-1/2 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background/90 px-4 py-2 text-sm font-semibold opacity-0 shadow-lg backdrop-blur transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100"
+      >
+        <Play class="size-4" aria-hidden="true" />
+        Open the live demo
+      </span>
+    </a>
   </div>
 </section>
