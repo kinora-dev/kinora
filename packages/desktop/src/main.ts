@@ -522,9 +522,16 @@ async function main(): Promise<void> {
   if (app.isPackaged) {
     autoUpdater.on('error', err => console.error('[updater]', err))
     autoUpdater.on('update-downloaded', () => sendHome('kinora:update-ready'))
-    void autoUpdater.checkForUpdates()
+    // Failures (often transient GitHub 5xx) already reach the 'error' listener; swallow the
+    // rejected check + auto-download promises so they don't surface as unhandled rejections.
+    const checkForUpdates = (): void => {
+      autoUpdater.checkForUpdates()
+        .then(result => result?.downloadPromise?.catch(() => {}))
+        .catch(() => {})
+    }
+    checkForUpdates()
     // Long-running sessions: re-check periodically so users who never restart still update.
-    setInterval(() => void autoUpdater.checkForUpdates(), 6 * 60 * 60 * 1000)
+    setInterval(checkForUpdates, 6 * 60 * 60 * 1000)
   }
 
   // A trace passed at launch opens straight in the viewer.
