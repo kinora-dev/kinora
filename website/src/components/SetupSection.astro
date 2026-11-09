@@ -88,7 +88,7 @@ const steps = [
 
         {/* Stacked in one cell, so switching tabs never moves the page; hidden by class, not removed,
             so both panels stay in the HTML for readers and crawlers. */}
-        <div class="mt-6 grid">
+        <div class="mt-6 grid grid-cols-1">
         <ol id="setup-panel-manual" role="tabpanel" aria-labelledby="setup-tab-manual" data-panel="manual" class="flex flex-col gap-6 [grid-area:1/1]">
           {
             steps.map(s => (

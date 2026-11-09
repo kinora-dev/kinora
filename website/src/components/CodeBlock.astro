@@ -25,7 +25,8 @@ const { code, lang, filename, class: klass = '', event }: Props = Astro.props;
     )
   }
   <div class="relative">
-    <div class="overflow-x-auto px-4 py-3.5 text-[13px] leading-relaxed">
+    {/* Right padding keeps the last characters of a long line clear of the copy button. */}
+    <div class="overflow-x-auto py-3.5 pl-4 pr-11 text-[13px] leading-relaxed">
       {
         lang
 ? (
