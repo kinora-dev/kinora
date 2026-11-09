@@ -33,9 +33,10 @@ await auth.close()
 // 2. Discover the dynamic URLs (test key + trace viewer URL change per reseed).
 const disc = await browser.newContext({ viewport: VIEWPORT, storageState })
 const dp = await disc.newPage()
-await dp.goto(`${WEB}/projects/checkout-api/runs/checkout-api-run-90`)
+await dp.goto(`${WEB}/projects/checkout-api/runs/checkout-api-run-90?status=unexpected`)
 await dp.waitForLoadState('networkidle')
-// A currently-failing test -> its history page shows the red timeline + the error.
+// A currently-failing test -> its history page shows the red timeline + the error. Failed only,
+// as the full list pushes it off screen.
 const testHref = await dp.getByRole('link', { name: 'refunds an order' }).first().getAttribute('href')
 const traceHref = await dp.locator('a:has-text("View trace")').first().getAttribute('href')
 await disc.close()

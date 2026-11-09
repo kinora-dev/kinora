@@ -121,6 +121,8 @@ interface TestDef {
   a11y?: A11yViolation[]
   // A component test: the story it mounts, as `@kinora/reporter/ct` records it.
   story?: string
+  // Background suite test: its seed for the flakiness that fades out over the history runs.
+  settling?: number
 }
 
 interface ProjectDef {
@@ -136,6 +138,59 @@ interface ProjectDef {
 function component(name: string, defs: [story: string, title: string, profile: Profile][]): TestDef[] {
   const file = `tests/components/${name.replace(/(?<=[a-z])(?=[A-Z])/g, '-').toLowerCase()}.spec.ts`
   return defs.map(([story, title, profile]) => ({ file, title, profile, story: `${name}/${story}` }))
+}
+
+// The bulk of a real suite around the scripted tests: mostly green, so the screenshots show
+// realistic test counts and run durations without drowning the story.
+type Flavor = 'ui' | 'api'
+const SUITE_TEMPLATES: Record<Flavor, string[]> = {
+  ui: [
+    'creates a {e}',
+    'edits a {e}',
+    'deletes a {e} after confirming',
+    'lists {es} with pagination',
+    'filters {es} by status',
+    'sorts {es} by date',
+    'exports {es} as CSV',
+    'shows an empty state without {es}',
+    'validates required {e} fields',
+    'keeps {e} changes after a reload',
+  ],
+  api: [
+    'GET /{es} returns the first page',
+    'GET /{es}/:id returns 404 when unknown',
+    'POST /{es} validates the payload',
+    'POST /{es} is idempotent with the same key',
+    'PATCH /{es}/:id updates only given fields',
+    'DELETE /{es}/:id soft-deletes',
+    'rejects unauthenticated requests on /{es}',
+    'hides {es} of another tenant',
+  ],
+}
+
+function suite(flavor: Flavor, areas: Record<string, string[]>): TestDef[] {
+  const templates = SUITE_TEMPLATES[flavor]
+  const defs: TestDef[] = []
+  for (const [area, entities] of Object.entries(areas)) {
+    for (const e of entities) {
+      const file = `tests/${area}/${e.replace(/ /g, '-')}.spec.ts`
+      const plural = /(?:s|sh|ch)$/.test(e) ? `${e}es` : /[^aeiou]y$/.test(e) ? `${e.slice(0, -1)}ies` : `${e}s`
+      const es = flavor === 'api' ? plural.replace(/ /g, '-') : plural
+      for (const tpl of templates) {
+        // About 1 in 40 gets an old flake; none touch the recent window, so badges stay scripted.
+        const profile: Profile = (defs.length * 7 + 3) % 40 === 0 ? 'mostlyGreen' : 'solid'
+        defs.push({ file, title: tpl.replace('{es}', es).replace('{e}', e), profile, settling: defs.length })
+      }
+    }
+  }
+  return defs
+}
+
+// Flaky in ~14% of the oldest history runs down to ~1% of the newest, so the 90-day analytics
+// show a suite getting healthier. Story runs (i >= 0) are left to the scripted profiles.
+function settlingAt(seed: number, i: number): Status {
+  const age = -i / HISTORY
+  return ((seed * 31 + i * 17) % 100 + 100) % 100 < 1 + 13 * age ? 'flaky' : 'expected'
 }
 
 function rule(id: string, impact: A11yViolation['impact'], help: string, nodes: string[], nodeCount = nodes.length): A11yViolation {
@@ -166,6 +221,13 @@ const PROJECTS: ProjectDef[] = [
       ] },
       { file: 'tests/search.spec.ts', title: 'handles an empty query', profile: 'solid', a11y: [] },
       { file: 'tests/dashboard.spec.ts', title: 'renders widgets', profile: 'flakyHistory' },
+      ...suite('ui', {
+        account: ['address', 'payment method', 'notification setting', 'api key'],
+        admin: ['user', 'role', 'invite', 'audit log'],
+        catalog: ['product', 'category', 'collection', 'review'],
+        orders: ['order', 'return', 'invoice', 'shipment'],
+        team: ['project', 'workspace', 'comment', 'webhook'],
+      }),
     ],
   },
   {
@@ -180,6 +242,12 @@ const PROJECTS: ProjectDef[] = [
       { file: 'tests/webhooks.spec.ts', title: 'delivers order.paid', profile: 'intermittent' },
       { file: 'tests/auth.spec.ts', title: 'rejects an expired token', profile: 'fixed', tags: ['@smoke'] },
       { file: 'tests/rate-limit.spec.ts', title: 'throttles past the quota', profile: 'newlyFailing' },
+      ...suite('api', {
+        cart: ['cart', 'cart item', 'coupon'],
+        orders: ['order', 'refund', 'invoice', 'tax rate'],
+        payments: ['payment intent', 'customer', 'payout'],
+        shipping: ['shipment', 'carrier', 'address'],
+      }),
     ],
   },
   {
@@ -196,6 +264,7 @@ const PROJECTS: ProjectDef[] = [
       { file: 'tests/blog.spec.ts', title: 'lists recent posts', profile: 'fixmeSkip' },
       { file: 'tests/seo.spec.ts', title: 'has correct meta tags', profile: 'recovering', tags: ['@smoke'] },
       { file: 'tests/contact.spec.ts', title: 'submits the form', profile: 'solid' },
+      ...suite('ui', { cms: ['page', 'blog post', 'author', 'redirect'] }),
     ],
   },
   {
@@ -211,6 +280,11 @@ const PROJECTS: ProjectDef[] = [
       { file: 'tests/profile.spec.ts', title: 'edits the bio', profile: 'solid' },
       { file: 'tests/push.spec.ts', title: 'opens a deep link', profile: 'recovering' },
       { file: 'tests/offline.spec.ts', title: 'queues writes offline', profile: 'flakyHistory', tags: ['@critical'] },
+      ...suite('ui', {
+        feed: ['post', 'story', 'reaction'],
+        messages: ['conversation', 'message', 'attachment'],
+        settings: ['device', 'privacy setting', 'blocked user'],
+      }),
     ],
   },
   {
@@ -225,6 +299,10 @@ const PROJECTS: ProjectDef[] = [
       { file: 'tests/proxy.spec.ts', title: 'retries on upstream 503', profile: 'newlyBroken', tags: ['@critical'] },
       { file: 'tests/cors.spec.ts', title: 'allows preflight requests', profile: 'recovering' },
       { file: 'tests/metrics.spec.ts', title: 'exposes /metrics', profile: 'solid' },
+      ...suite('api', {
+        routes: ['route', 'upstream', 'service'],
+        keys: ['consumer', 'credential', 'plan'],
+      }),
     ],
   },
   {
@@ -325,7 +403,7 @@ function outageError(def: TestDef, baseUrl: string, line: number): NormTest['err
 
 function makeTest(traces: LoadedDemoTrace[], pdef: ProjectDef, def: TestDef, i: number, fallbackLine: number): { test: NormTest, trace?: LoadedDemoTrace } {
   const down = pdef.outage?.run === i && def.profile !== 'fixmeSkip'
-  const status = down ? 'unexpected' : statusAt(def.profile, i)
+  const status = down ? 'unexpected' : def.settling !== undefined && i < 0 ? settlingAt(def.settling, i) : statusAt(def.profile, i)
   const titlePath = [def.file, def.title]
   // A test of the demo suite keeps its real location, so the card matches the trace header.
   const at = traces.find(t => isOwn(t, def))
@@ -393,13 +471,20 @@ async function main(): Promise<void> {
 
   for (const pdef of PROJECTS) {
     const projectId = randomUUID()
+    // Fallback line of each test: its position within its own file.
+    const perFile = new Map<string, number>()
+    const lines = pdef.tests.map((d) => {
+      const n = perFile.get(d.file) ?? 0
+      perFile.set(d.file, n + 1)
+      return 12 + n * 9
+    })
     await db.insert(project).values({ id: projectId, organizationId: orgId, slug: pdef.slug, name: pdef.name })
 
     // k: chronological run index; i: ordinal in the scripted story, negative for history runs.
     for (let k = 0; k < HISTORY + RUNS; k++) {
       const i = k - HISTORY
       const startedAt = new Date(Date.now() - (LATEST - i) * DAY - jitter(6 * 3_600_000))
-      const made = pdef.tests.map((d, idx) => makeTest(traces, pdef, d, i, 12 + idx * 9))
+      const made = pdef.tests.map((d, idx) => makeTest(traces, pdef, d, i, lines[idx]!))
       const tests = made.map(m => m.test)
       // Readable run id: it's the run-page heading (the run table has no name column).
       const runId = `${pdef.slug}-run-${k + 1}`
