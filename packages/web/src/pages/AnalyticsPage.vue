@@ -3,6 +3,7 @@ import type { ChartConfig } from '@kinora/ui/chart'
 import { formatPct } from '@kinora/core'
 import { Button } from '@kinora/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@kinora/ui/card'
+import { LineChart } from '@kinora/ui/line-chart'
 import { SegmentedControl } from '@kinora/ui/segmented-control'
 import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
@@ -49,6 +50,15 @@ const outcomesConfig = {
 } satisfies ChartConfig
 
 const outcomes = computed(() => state.value?.outcomes ?? [])
+// A few percent of flaky results is invisible on the 0-100% outcomes chart: plot the rates on
+// their own scale, where a drift from 1% to 4% reads as one. Skipped results and environment
+// incidents are left out: an outage would otherwise set the scale and flatten everything else.
+const RATE_SERIES = ['flaky', 'unexpected']
+const ratesConfig = { flaky: outcomesConfig.flaky, unexpected: outcomesConfig.unexpected } satisfies ChartConfig
+const rates = computed(() => outcomes.value.flatMap((b) => {
+  const ran = b.countedExpected + b.countedFlaky + b.countedUnexpected
+  return ran ? [{ date: b.date, flaky: b.countedFlaky / ran, unexpected: b.countedUnexpected / ran }] : []
+}))
 const totals = computed(() => outcomes.value.reduce(
   (t, b) => ({ runs: t.runs + b.runs, expected: t.expected + b.expected, flaky: t.flaky + b.flaky, unexpected: t.unexpected + b.unexpected, incidents: t.incidents + b.incidents }),
   { runs: 0, expected: 0, flaky: 0, unexpected: 0, incidents: 0 },
@@ -184,6 +194,35 @@ const incidentBuckets = computed(() => outcomes.value.filter(b => b.incidents > 
           <p v-if="incidentBuckets.length" data-testid="incident-buckets" class="mt-3 font-mono text-xs text-muted-foreground">
             Environment incidents on {{ incidentBuckets.join(', ') }}: the app under test was down, so their failures say nothing about the tests.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card v-if="rates.length > 1">
+        <CardHeader class="flex flex-row flex-wrap items-start justify-between gap-4">
+          <div class="flex flex-col gap-1.5">
+            <CardTitle>Flaky and failure rate</CardTitle>
+            <CardDescription>Share of results that flaked or failed each {{ per }}, environment incidents excluded, on a scale that fits them.</CardDescription>
+          </div>
+          <div class="flex items-center gap-4 font-mono text-xs text-muted-foreground">
+            <span v-for="key in RATE_SERIES" :key="key" class="flex items-center gap-1.5">
+              <span class="size-2.5 rounded-xs" :style="{ background: ratesConfig[key as keyof typeof ratesConfig].color }" />
+              {{ ratesConfig[key as keyof typeof ratesConfig].label }}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <LineChart
+            :data="rates"
+            :x="d => at(d.date)"
+            :series="RATE_SERIES"
+            :config="ratesConfig"
+            :y-format="formatPct"
+            :x-tick-format="shortDate"
+            :x-label-format="bucketLabel"
+            :x-domain="xDomain"
+            :x-ticks="buckets"
+            class="h-48"
+          />
         </CardContent>
       </Card>
     </template>

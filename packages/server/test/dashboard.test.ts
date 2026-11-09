@@ -307,8 +307,9 @@ describe('dashboard analytics', () => {
     const res = await (await caller(a)).dashboard.analytics({ projectId: 'web-app' })
     expect(res).toMatchObject({ days: 30, bucket: 'day' })
     expect(res.outcomes).toEqual([
-      { date: day(new Date(now - 3 * DAY)), runs: 2, expected: 17, flaky: 1, unexpected: 1, skipped: 1, incidents: 1 },
-      { date: day(new Date(now)), runs: 1, expected: 1, flaky: 0, unexpected: 0, skipped: 0, incidents: 0 },
+      // The incident run counts in the outcomes, not in the counted results the rates read.
+      { date: day(new Date(now - 3 * DAY)), runs: 2, expected: 17, flaky: 1, unexpected: 1, skipped: 1, incidents: 1, countedExpected: 8, countedFlaky: 1, countedUnexpected: 1 },
+      { date: day(new Date(now)), runs: 1, expected: 1, flaky: 0, unexpected: 0, skipped: 0, incidents: 0, countedExpected: 1, countedFlaky: 0, countedUnexpected: 0 },
     ])
   })
 

@@ -22,6 +22,11 @@ export interface OutcomeBucket {
   skipped: number
   // Runs flagged as environment incidents: still counted here, but they explain a dip.
   incidents: number
+  // The same results without the incident runs, which say nothing about the tests: what the
+  // flaky and failure rates are judged on.
+  countedExpected: number
+  countedFlaky: number
+  countedUnexpected: number
 }
 
 export interface ProjectAnalytics {
@@ -99,6 +104,7 @@ export async function loadProjectAnalytics(projectId: string, days: AnalyticsRan
   const local = sql`(${run.startedAt} AT TIME ZONE 'UTC') AT TIME ZONE ${sql.raw(`'${timeZone}'`)}`
   const start = sql`date_trunc(${sql.raw(`'${bucket}'`)}, ${local})`
   const total = (key: keyof Counts) => sql<number>`coalesce(sum((${run.counts}->>${sql.raw(`'${key}'`)})::int), 0)::int`
+  const counted = (key: keyof Counts) => sql<number>`coalesce(sum((${run.counts}->>${sql.raw(`'${key}'`)})::int) filter (where ${run.incident} is null), 0)::int`
   const branchOf = sql<string>`${run.git}->>'branch'`
 
   const [outcomes, branches] = await Promise.all([
@@ -111,6 +117,9 @@ export async function loadProjectAnalytics(projectId: string, days: AnalyticsRan
         unexpected: total('unexpected'),
         skipped: total('skipped'),
         incidents: sql<number>`(count(*) filter (where ${run.incident} is not null))::int`,
+        countedExpected: counted('expected'),
+        countedFlaky: counted('flaky'),
+        countedUnexpected: counted('unexpected'),
       })
       .from(run)
       .where(and(inRange, branch ? eq(branchOf, branch) : undefined))

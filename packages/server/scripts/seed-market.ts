@@ -121,8 +121,8 @@ interface TestDef {
   a11y?: A11yViolation[]
   // A component test: the story it mounts, as `@kinora/reporter/ct` records it.
   story?: string
-  // Background suite test: its seed for the flakiness that fades out over the history runs.
-  settling?: number
+  // Background suite test: its seed for the flakiness that creeps up over the history runs.
+  drift?: number
 }
 
 interface ProjectDef {
@@ -179,18 +179,18 @@ function suite(flavor: Flavor, areas: Record<string, string[]>): TestDef[] {
       for (const tpl of templates) {
         // About 1 in 40 gets an old flake; none touch the recent window, so badges stay scripted.
         const profile: Profile = (defs.length * 7 + 3) % 40 === 0 ? 'mostlyGreen' : 'solid'
-        defs.push({ file, title: tpl.replace('{es}', es).replace('{e}', e).replace(/\ba (?=[aeiou])/, 'an '), profile, settling: defs.length })
+        defs.push({ file, title: tpl.replace('{es}', es).replace('{e}', e).replace(/\ba (?=[aeiou])/, 'an '), profile, drift: defs.length })
       }
     }
   }
   return defs
 }
 
-// Flaky in ~14% of the oldest history runs down to ~1% of the newest, so the 90-day analytics
-// show a suite getting healthier. Story runs (i >= 0) are left to the scripted profiles.
-function settlingAt(seed: number, i: number): Status {
+// Flaky in ~1% of the oldest history runs, creeping up to ~8% of the newest: the drift the 90-day
+// analytics catch, fixed by the story runs (i >= 0), which are left to the scripted profiles.
+function driftAt(seed: number, i: number): Status {
   const age = -i / HISTORY
-  return ((seed * 31 + i * 17) % 100 + 100) % 100 < 1 + 13 * age ? 'flaky' : 'expected'
+  return ((seed * 31 + i * 17) % 100 + 100) % 100 < 1 + 7 * (1 - age) ? 'flaky' : 'expected'
 }
 
 function rule(id: string, impact: A11yViolation['impact'], help: string, nodes: string[], nodeCount = nodes.length): A11yViolation {
@@ -403,7 +403,7 @@ function outageError(def: TestDef, baseUrl: string, line: number): NormTest['err
 
 function makeTest(traces: LoadedDemoTrace[], pdef: ProjectDef, def: TestDef, i: number, fallbackLine: number): { test: NormTest, trace?: LoadedDemoTrace } {
   const down = pdef.outage?.run === i && def.profile !== 'fixmeSkip'
-  const status = down ? 'unexpected' : def.settling !== undefined && i < 0 ? settlingAt(def.settling, i) : statusAt(def.profile, i)
+  const status = down ? 'unexpected' : def.drift !== undefined && i < 0 ? driftAt(def.drift, i) : statusAt(def.profile, i)
   const titlePath = [def.file, def.title]
   // A test of the demo suite keeps its real location, so the card matches the trace header.
   const at = traces.find(t => isOwn(t, def))

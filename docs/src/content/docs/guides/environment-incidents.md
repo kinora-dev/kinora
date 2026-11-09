@@ -47,8 +47,9 @@ incident. A test that timed out and then saw its browser close is a timeout, not
 - **[MCP](/guides/mcp/)**: `list_failures` and `get_run` include the incident, so an agent does
   not read an outage as a regression.
 
-The run itself stays: its tests, errors and traces are kept like any other run's, and analytics
-still count it.
+The run itself stays: its tests, errors and traces are kept like any other run's, and the
+analytics outcomes still count it. The analytics flaky and failure rates leave it out, so an
+outage does not hide a slow drift.
 
 ## Stopping a run before it starts
 

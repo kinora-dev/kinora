@@ -46,7 +46,8 @@ const views = [
   { name: 'overview', url: `${WEB}/` },
   { name: 'project', url: `${WEB}/projects/checkout-api` },
   // 90 days, where the seed's recovery shows as a trend. Settles past the chart's entry animation.
-  { name: 'analytics', url: `${WEB}/projects/web-app/analytics?range=90`, settle: 1800 },
+  // Scrolled to the stats, a bit taller, so both charts fit the frame.
+  { name: 'analytics', url: `${WEB}/projects/web-app/analytics?range=90`, settle: 1800, scrollTo: '[aria-label="Range totals"]', height: 1000 },
   { name: 'tests', url: `${WEB}/projects/checkout-api/tests` },
   { name: 'test-history', url: `${WEB}${testHref}` },
   { name: 'compare', url: `${WEB}/projects/checkout-api/compare?base=checkout-api-run-89&head=checkout-api-run-90` },
@@ -65,9 +66,15 @@ for (const theme of ['light', 'dark']) {
   await ctx.addInitScript(`for (const f of ${JSON.stringify(NEW_FEATURES)}) localStorage.setItem('kinora:seen:' + f, 'true')`)
   const page = await ctx.newPage()
   for (const v of views) {
+    await page.setViewportSize({ ...VIEWPORT, height: v.height ?? VIEWPORT.height })
     await page.goto(v.url)
     await page.waitForLoadState('networkidle').catch(() => {})
     await page.waitForTimeout(v.settle ?? 700)
+    if (v.scrollTo) {
+      // Below the sticky app header (56px), with some room above.
+      await page.locator(v.scrollTo).evaluate(el => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 88))
+      await page.waitForTimeout(300)
+    }
     await page.screenshot({ path: `${OUT}/${v.name}-${theme}.png` })
     console.log(`wrote ${v.name}-${theme}.png`)
   }
