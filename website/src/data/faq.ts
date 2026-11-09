@@ -37,8 +37,11 @@ export const HOME_FAQS: Faq[] = [
   },
   {
     q: 'Does kinora support Vitest or Storybook?',
-    a: 'Yes. @kinora/vitest-reporter uploads Vitest browser-mode and Storybook tests, with their Playwright traces and screenshot comparisons, and each Storybook story shows up on the project\'s Components page. Node unit tests are left out by default, since they have no trace and would only use up your monthly results.',
-    docs: [{ label: 'Vitest and Storybook guide', href: DOCS.vitest, event: 'docs-faq-vitest' }],
+    a: 'Yes. @kinora/vitest-reporter uploads Vitest browser-mode and Storybook tests, with their Playwright traces and screenshot comparisons, and each Storybook story shows up on the project\'s Components page. Node unit tests are left out by default, since they have no trace and would only use up your monthly results. Playwright component tests feed the same Components page through @kinora/reporter.',
+    docs: [
+      { label: 'Vitest and Storybook guide', href: DOCS.vitest, event: 'docs-faq-vitest' },
+      { label: 'Component testing guide', href: DOCS.componentTesting, event: 'docs-faq-component-testing' },
+    ],
   },
   {
     q: 'How does kinora detect flaky tests?',
