@@ -1,0 +1,14 @@
+---
+import type { Pillar } from '../data/pillars'
+
+interface Props { pillar: Pillar }
+const { pillar } = Astro.props
+---
+
+<header class="reveal mb-12 max-w-3xl sm:mb-16">
+  <p class="text-sm font-medium text-signal">{pillar.eyebrow}</p>
+  <h2 class="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-5xl">
+    {pillar.title}
+  </h2>
+  <p class="mt-5 text-pretty text-lg text-muted-foreground">{pillar.intro}</p>
+</header>

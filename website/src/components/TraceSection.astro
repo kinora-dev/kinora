@@ -4,12 +4,16 @@ import traceDark from '../assets/screenshots/trace-viewer-dark.png'
 import traceLight from '../assets/screenshots/trace-viewer-light.png'
 import { SITE } from '../lib/site'
 import Screenshot from './Screenshot.astro'
+
+interface Props { eyebrow?: string }
+const { eyebrow } = Astro.props
 ---
 
 <section id="trace" class="border-b border-border bg-card/30">
   <div
     class="mx-auto max-w-7xl px-5 py-20 text-center sm:px-8 sm:py-28"
   >
+    {eyebrow && <p class="reveal mb-3 text-sm font-medium text-signal">{eyebrow}</p>}
     <h2
       class="reveal mx-auto max-w-3xl text-balance text-3xl font-semibold tracking-tight sm:text-5xl"
       style="--reveal-delay: 80ms"

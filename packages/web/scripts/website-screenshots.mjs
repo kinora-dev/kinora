@@ -53,6 +53,8 @@ const views = [
   { name: 'compare', url: `${WEB}/projects/checkout-api/compare?base=checkout-api-run-89&head=checkout-api-run-90` },
   { name: 'trace-viewer', url: traceHref, settle: 3000 },
   { name: 'components', url: `${WEB}/projects/design-system/components` },
+  // The failed visual assertion of the design system: expected, actual and diff side by side.
+  { name: 'screenshot-diff', url: `${WEB}/projects/design-system/runs/design-system-run-90?test=${encodeURIComponent('tests/components/date-picker.spec.ts::tests/components/date-picker.spec.ts › range highlights the selected days::chromium')}`, scrollTo: 'figure[aria-label^="Screenshot "]', prepare: page => page.getByText('Side by side', { exact: true }).click() },
   // Axe scans of a Playwright project: hotspots by test file and the tests breaking a rule.
   { name: 'a11y', url: `${WEB}/projects/web-app/tests?show=all&a11y=true` },
 ].filter(v => !process.env.VIEWS || process.env.VIEWS.split(',').includes(v.name))
@@ -70,6 +72,7 @@ for (const theme of ['light', 'dark']) {
     await page.goto(v.url)
     await page.waitForLoadState('networkidle').catch(() => {})
     await page.waitForTimeout(v.settle ?? 700)
+    await v.prepare?.(page)
     if (v.scrollTo) {
       // Below the sticky app header (56px), with some room above.
       await page.locator(v.scrollTo).evaluate(el => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 88))
