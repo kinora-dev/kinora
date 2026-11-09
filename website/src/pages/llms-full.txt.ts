@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro'
 import type { CompRow } from '../data/comparisons'
 import { COMPARISONS } from '../data/comparisons'
-import { HOME_FAQS } from '../data/faq'
+import { HOME_FAQS, MORE_FAQS } from '../data/faq'
 import { SOLUTIONS } from '../data/solutions'
 import { SITE } from '../lib/site'
 
@@ -77,7 +77,7 @@ kinora runs two ways: self-host the full dashboard and trace viewer for free (FS
 
 ## Product FAQ
 
-${faqBlock(HOME_FAQS)}
+${faqBlock([...HOME_FAQS, ...MORE_FAQS])}
 
 ## Use cases
 

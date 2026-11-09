@@ -36,17 +36,31 @@ export const HOME_FAQS: Faq[] = [
     ],
   },
   {
+    q: 'How does kinora detect flaky tests?',
+    a: 'Over the last 20 runs of a test. It is flaky when it passed and failed on the same commit, needed a retry to pass, or keeps flipping between pass and fail, so flakiness shows even when your suite runs without retries. A test that fails and keeps failing is broken instead, and kinora names the commit where it started.',
+    docs: [{ label: 'Flaky and broken tests', href: DOCS.flakyTests, event: 'docs-faq-flaky' }],
+  },
+  {
+    q: 'Does kinora work with my CI provider?',
+    a: 'Yes, kinora is CI-agnostic. The ingest API is plain REST authed by an API key, so any CI provider such as GitHub Actions or GitLab CI, or a plain curl command, can push results.',
+    docs: [{ label: 'REST API reference', href: DOCS.api, event: 'docs-faq-api' }],
+  },
+  {
+    q: 'Where are my traces and artifacts stored?',
+    a: 'trace.zip artifacts are stored on local disk by default, or in any S3-compatible store (AWS, Cloudflare R2, MinIO). When you self-host, everything stays on your own infrastructure.',
+    docs: [{ label: 'Artifact storage', href: DOCS.storage, event: 'docs-faq-storage' }],
+  },
+]
+
+// Answered by a section of the landing page already: kept out of its FAQ, still in llms-full.txt.
+export const MORE_FAQS: Faq[] = [
+  {
     q: 'Does kinora support Vitest or Storybook?',
     a: 'Yes. @kinora/vitest-reporter uploads Vitest browser-mode and Storybook tests, with their Playwright traces and screenshot comparisons, and each Storybook story shows up on the project\'s Components page. Node unit tests are left out by default, since they have no trace and would only use up your monthly results. Playwright component tests feed the same Components page through @kinora/reporter.',
     docs: [
       { label: 'Vitest and Storybook guide', href: DOCS.vitest, event: 'docs-faq-vitest' },
       { label: 'Component testing guide', href: DOCS.componentTesting, event: 'docs-faq-component-testing' },
     ],
-  },
-  {
-    q: 'How does kinora detect flaky tests?',
-    a: 'Over the last 20 runs of a test. It is flaky when it passed and failed on the same commit, needed a retry to pass, or keeps flipping between pass and fail, so flakiness shows even when your suite runs without retries. A test that fails and keeps failing is broken instead, and kinora names the commit where it started.',
-    docs: [{ label: 'Flaky and broken tests', href: DOCS.flakyTests, event: 'docs-faq-flaky' }],
   },
   {
     q: 'What happens when my staging environment is down?',
@@ -59,19 +73,9 @@ export const HOME_FAQS: Faq[] = [
     docs: [{ label: 'Accessibility guide', href: DOCS.a11y, event: 'docs-faq-a11y' }],
   },
   {
-    q: 'Does kinora work with my CI provider?',
-    a: 'Yes, kinora is CI-agnostic. The ingest API is plain REST authed by an API key, so any CI provider such as GitHub Actions or GitLab CI, or a plain curl command, can push results.',
-    docs: [{ label: 'REST API reference', href: DOCS.api, event: 'docs-faq-api' }],
-  },
-  {
     q: 'Does kinora comment on pull requests?',
     a: 'Yes, on GitHub pull requests and GitLab merge requests. The reporter or CLI posts (and keeps updating) a summary comment: pass/fail counts, tests newly failing versus the base branch, and a link to the run. It posts from the CI job itself, with the job\'s own GITHUB_TOKEN on GitHub or a GITLAB_TOKEN CI variable on GitLab, so no credentials are stored in kinora and it works self-host and cloud alike.',
     docs: [{ label: 'PR comments guide', href: DOCS.prComments, event: 'docs-faq-pr-comments' }],
-  },
-  {
-    q: 'Where are my traces and artifacts stored?',
-    a: 'trace.zip artifacts are stored on local disk by default, or in any S3-compatible store (AWS, Cloudflare R2, MinIO). When you self-host, everything stays on your own infrastructure.',
-    docs: [{ label: 'Artifact storage', href: DOCS.storage, event: 'docs-faq-storage' }],
   },
   {
     q: 'What is the kinora desktop app?',
