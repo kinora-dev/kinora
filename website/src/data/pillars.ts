@@ -1,18 +1,18 @@
 import type { ImageMetadata } from 'astro'
-import a11yDark from '../assets/screenshots/a11y-dark.png'
-import a11yLight from '../assets/screenshots/a11y-light.png'
-import analyticsDark from '../assets/screenshots/analytics-dark.png'
-import analyticsLight from '../assets/screenshots/analytics-light.png'
-import compareDark from '../assets/screenshots/compare-dark.png'
-import compareLight from '../assets/screenshots/compare-light.png'
+import a11yDark from '../assets/screenshots/a11y-card-dark.png'
+import a11yLight from '../assets/screenshots/a11y-card-light.png'
+import analyticsDark from '../assets/screenshots/analytics-card-dark.png'
+import analyticsLight from '../assets/screenshots/analytics-card-light.png'
+import compareDark from '../assets/screenshots/compare-card-dark.png'
+import compareLight from '../assets/screenshots/compare-card-light.png'
 import componentsDark from '../assets/screenshots/components-dark.png'
 import componentsLight from '../assets/screenshots/components-light.png'
-import projectDark from '../assets/screenshots/project-dark.png'
-import projectLight from '../assets/screenshots/project-light.png'
-import screenshotDiffDark from '../assets/screenshots/screenshot-diff-dark.png'
-import screenshotDiffLight from '../assets/screenshots/screenshot-diff-light.png'
-import testHistoryDark from '../assets/screenshots/test-history-dark.png'
-import testHistoryLight from '../assets/screenshots/test-history-light.png'
+import projectDark from '../assets/screenshots/project-card-dark.png'
+import projectLight from '../assets/screenshots/project-card-light.png'
+import screenshotDiffDark from '../assets/screenshots/screenshot-diff-card-dark.png'
+import screenshotDiffLight from '../assets/screenshots/screenshot-diff-card-light.png'
+import testHistoryDark from '../assets/screenshots/test-history-card-dark.png'
+import testHistoryLight from '../assets/screenshots/test-history-card-light.png'
 import testsDark from '../assets/screenshots/tests-dark.png'
 import testsLight from '../assets/screenshots/tests-light.png'
 import { DOCS } from '../lib/site'
@@ -56,7 +56,7 @@ export const UNDERSTAND: Pillar = {
       body: 'Push from CI and kinora keeps the history. Pass rate, run count, and duration per project, with a sparkline trend and one colored strip per run, so a slow drift is obvious long before it breaks the build.',
       light: projectLight,
       dark: projectDark,
-      alt: 'Per-project page with pass rate, trend sparkline and per-run history strips',
+      alt: 'Project cards with their pass rate, a trend sparkline and one colored strip per run',
     },
     {
       eyebrow: 'Analytics',
@@ -72,7 +72,7 @@ export const UNDERSTAND: Pillar = {
       body: 'Each test keeps a stable identity regardless of how it was uploaded, so you can track one test run-to-run: when it started flaking, when it was fixed, and how long it has been green.',
       light: testHistoryLight,
       dark: testHistoryDark,
-      alt: 'Per-test history with a status timeline, pass and flaky rates, and a list of failures and flakes',
+      alt: 'Per-test history with pass, flaky and fail rates, a Broken badge and a status timeline',
     },
     {
       eyebrow: 'Run-to-run diff',
@@ -80,7 +80,7 @@ export const UNDERSTAND: Pillar = {
       body: 'Pick any two runs and kinora groups every difference for you: newly failing, fixed, newly flaky, and still failing. No more diffing two HTML reports by eye to find the one test that regressed since green.',
       light: compareLight,
       dark: compareDark,
-      alt: 'Run comparison page grouping tests into newly failing, fixed, newly flaky and still failing, with pass-rate delta',
+      alt: 'Run comparison grouping tests into broken, fixed, newly flaky and still failing, with the pass rate dropping from 98.2% to 97.3%',
     },
   ],
 }
@@ -106,7 +106,7 @@ export const COVER: Pillar = {
       body: 'kinora reads the axe scans of your Playwright tests and of your Storybook stories: the rules broken, their impact, the elements they hit. Hotspots rank your test files and components by their violations, critical ones first, so you know where fixing pays off.',
       light: a11yLight,
       dark: a11yDark,
-      alt: 'Tests page with accessibility hotspots ranking test files by axe violations and their impact, and the tests breaking a rule',
+      alt: 'A test with its axe violations: a critical missing alternative text and a moderate landmark rule, with the elements they hit',
       docs: { label: 'Accessibility', href: DOCS.a11y, event: 'docs-a11y' },
     },
     {

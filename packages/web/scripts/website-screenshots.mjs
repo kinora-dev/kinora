@@ -16,6 +16,27 @@ const EMAIL = 'market@kinora.dev'
 const PASSWORD = 'password123'
 // Keys of NEW_UNTIL in src/composables/useNewFeature.ts.
 const NEW_FEATURES = ['components', 'analytics']
+const CARD_WIDTH = 1000
+// Room kept around a crop, in CSS pixels.
+const PAD = 24
+
+// The run page card of the one test shown, from its title down to its trace link.
+const testCard = page => page.locator('main div.rounded-xl, main div.rounded-lg').filter({ has: page.getByRole('link', { name: 'View trace' }) }).last()
+// The dashboard card holding a title.
+const card = (page, title) => page.locator('[data-slot="card"]').filter({ hasText: title }).first()
+
+// Rectangle spanning both elements, padded. Crop views get a viewport tall enough to hold the
+// whole crop unscrolled, so viewport coordinates are the screenshot's.
+const CROP_HEIGHT = 2400
+async function cropBox(page, [first, last], pad = PAD) {
+  const [a, b] = await Promise.all([first, last].map(l => l.boundingBox()))
+  const viewport = page.viewportSize()
+  const x = Math.max(0, Math.min(a.x, b.x) - pad)
+  const y = Math.max(0, Math.min(a.y, b.y) - pad)
+  const right = Math.min(viewport.width, Math.max(a.x + a.width, b.x + b.width) + pad)
+  const bottom = Math.min(viewport.height, Math.max(a.y + a.height, b.y + b.height) + pad)
+  return { x, y, width: right - x, height: bottom - y }
+}
 
 const browser = await chromium.launch()
 
@@ -45,18 +66,22 @@ console.log('discovered:', { testHref, traceHref })
 const views = [
   { name: 'overview', url: `${WEB}/` },
   { name: 'project', url: `${WEB}/projects/checkout-api` },
-  // 90 days, where the seed's recovery shows as a trend. Settles past the chart's entry animation.
-  // Scrolled to the stats, a bit taller, so both charts fit the frame.
-  { name: 'analytics', url: `${WEB}/projects/web-app/analytics?range=90`, settle: 1800, scrollTo: '[aria-label="Range totals"]', height: 1000 },
-  { name: 'tests', url: `${WEB}/projects/checkout-api/tests` },
+  // Web App: no new failure there, so its first rows show Flaky and Broken badges side by side.
+  { name: 'tests', url: `${WEB}/projects/web-app/tests` },
   { name: 'test-history', url: `${WEB}${testHref}` },
   { name: 'compare', url: `${WEB}/projects/checkout-api/compare?base=checkout-api-run-89&head=checkout-api-run-90` },
   { name: 'trace-viewer', url: traceHref, settle: 3000 },
   { name: 'components', url: `${WEB}/projects/design-system/components` },
-  // The failed visual assertion of the design system: expected, actual and diff side by side.
-  { name: 'screenshot-diff', url: `${WEB}/projects/design-system/runs/design-system-run-90?test=${encodeURIComponent('tests/components/date-picker.spec.ts::tests/components/date-picker.spec.ts › range highlights the selected days::chromium')}`, scrollTo: 'figure[aria-label^="Screenshot "]', prepare: page => page.getByText('Side by side', { exact: true }).click() },
-  // Axe scans of a Playwright project: hotspots by test file and the tests breaking a rule.
-  { name: 'a11y', url: `${WEB}/projects/web-app/tests?show=all&a11y=true` },
+
+  // Card crops for the landing grids, where a full 1440px page shrinks to unreadable. Narrower and
+  // cut to the part the card talks about. `crop` names the first and last element to keep.
+  { name: 'project-card', url: `${WEB}/`, width: CARD_WIDTH, crop: page => [page.locator('main [data-slot="card"]').nth(1), page.locator('main [data-slot="card"]').nth(4)] },
+  // 90 days, where the seed's flaky drift shows. Settles past the charts' entry animation.
+  { name: 'analytics-card', url: `${WEB}/projects/web-app/analytics?range=90`, settle: 1800, width: CARD_WIDTH, crop: page => [card(page, 'Test outcomes'), card(page, 'Flaky and failure rate')] },
+  { name: 'test-history-card', url: `${WEB}${testHref}`, width: CARD_WIDTH, crop: page => [page.locator('main h1'), page.locator('div.rounded-xl').filter({ has: page.getByText('Status timeline', { exact: true }) }).last()] },
+  { name: 'compare-card', url: `${WEB}/projects/checkout-api/compare?base=checkout-api-run-89&head=checkout-api-run-90`, width: CARD_WIDTH, crop: page => [page.locator('main h1'), page.locator('main a[href*="/test?"]').last()] },
+  { name: 'a11y-card', url: `${WEB}/projects/web-app/runs/web-app-run-90?test=${encodeURIComponent('tests/search.spec.ts::tests/search.spec.ts › returns relevant results::chromium')}`, width: CARD_WIDTH, crop: page => [testCard(page), testCard(page)] },
+  { name: 'screenshot-diff-card', url: `${WEB}/projects/design-system/runs/design-system-run-90?test=${encodeURIComponent('tests/components/date-picker.spec.ts::tests/components/date-picker.spec.ts › range highlights the selected days::chromium')}`, width: CARD_WIDTH, prepare: page => page.getByText('Side by side', { exact: true }).click(), pad: 2, crop: page => [page.locator('figure[aria-label^="Screenshot "]'), page.locator('figure[aria-label^="Screenshot "]')] },
 ].filter(v => !process.env.VIEWS || process.env.VIEWS.split(',').includes(v.name))
 
 for (const theme of ['light', 'dark']) {
@@ -68,17 +93,17 @@ for (const theme of ['light', 'dark']) {
   await ctx.addInitScript(`for (const f of ${JSON.stringify(NEW_FEATURES)}) localStorage.setItem('kinora:seen:' + f, 'true')`)
   const page = await ctx.newPage()
   for (const v of views) {
-    await page.setViewportSize({ ...VIEWPORT, height: v.height ?? VIEWPORT.height })
+    await page.setViewportSize({ width: v.width ?? VIEWPORT.width, height: v.crop ? CROP_HEIGHT : VIEWPORT.height })
     await page.goto(v.url)
     await page.waitForLoadState('networkidle').catch(() => {})
     await page.waitForTimeout(v.settle ?? 700)
     await v.prepare?.(page)
-    if (v.scrollTo) {
-      // Below the sticky app header (56px), with some room above.
-      await page.locator(v.scrollTo).evaluate(el => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 88))
-      await page.waitForTimeout(300)
-    }
-    await page.screenshot({ path: `${OUT}/${v.name}-${theme}.png` })
+    // Images settle a crop's height; wait for them before measuring it.
+    await page.waitForFunction(() => [...document.images].every(img => img.complete)).catch(() => {})
+    if (v.crop)
+      await page.screenshot({ path: `${OUT}/${v.name}-${theme}.png`, clip: await cropBox(page, v.crop(page), v.pad) })
+    else
+      await page.screenshot({ path: `${OUT}/${v.name}-${theme}.png` })
     console.log(`wrote ${v.name}-${theme}.png`)
   }
   await ctx.close()

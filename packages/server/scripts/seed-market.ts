@@ -44,7 +44,7 @@ type Status = NormTest['status']
 type Profile
   = | 'solid' | 'mostlyGreen' | 'flakyHistory' | 'chronicFlaky' | 'flakyCluster'
     | 'degrading' | 'outage' | 'recovering' | 'intermittent' | 'chronicFail'
-    | 'newlyFlaky' | 'newlyBroken' | 'newlyFailing' | 'fixed' | 'fixmeSkip' | 'recurringFail'
+    | 'newlyFlaky' | 'newlyBroken' | 'newlyFailing' | 'fixed' | 'fixmeSkip' | 'recurringFail' | 'longBroken'
 
 // Status sequence per profile across the story run ordinals (0 = oldest story run, LATEST = newest).
 // Events are spread across the timeline (not just the tail) so per-run pass rates
@@ -75,6 +75,8 @@ function statusAt(profile: Profile, i: number): Status {
       return i % 7 === 5 ? 'unexpected' : i % 7 === 2 ? 'flaky' : 'expected'
     case 'newlyFlaky':
       return i === LATEST ? 'flaky' : 'expected'
+    case 'longBroken': // failing since a commit 8 runs back: Broken, past the "New failure" window
+      return i >= LATEST - 7 ? 'unexpected' : 'expected'
     case 'newlyBroken':
       return i >= LATEST - 1 ? 'unexpected' : 'expected'
     // Compare(run-89 -> run-90) story: pass->fail (newly failing) and fail->pass (fixed).
@@ -221,6 +223,7 @@ const PROJECTS: ProjectDef[] = [
       ] },
       { file: 'tests/search.spec.ts', title: 'handles an empty query', profile: 'solid', a11y: [] },
       { file: 'tests/dashboard.spec.ts', title: 'renders widgets', profile: 'flakyHistory' },
+      { file: 'tests/dashboard.spec.ts', title: 'exports the weekly report', profile: 'longBroken' },
       ...suite('ui', {
         account: ['address', 'payment method', 'notification setting', 'api key'],
         admin: ['user', 'role', 'invite', 'audit log'],
@@ -242,6 +245,9 @@ const PROJECTS: ProjectDef[] = [
       { file: 'tests/webhooks.spec.ts', title: 'delivers order.paid', profile: 'intermittent' },
       { file: 'tests/auth.spec.ts', title: 'rejects an expired token', profile: 'fixed', tags: ['@smoke'] },
       { file: 'tests/rate-limit.spec.ts', title: 'throttles past the quota', profile: 'newlyFailing' },
+      // Run 89 -> 90 compares with every group filled and a pass rate that moves.
+      { file: 'tests/payments.spec.ts', title: 'captures a partial refund', profile: 'newlyFailing', tags: ['@critical'] },
+      { file: 'tests/webhooks.spec.ts', title: 'retries a failed delivery', profile: 'newlyFlaky' },
       ...suite('api', {
         cart: ['cart', 'cart item', 'coupon'],
         orders: ['order', 'refund', 'invoice', 'tax rate'],
