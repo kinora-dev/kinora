@@ -1,6 +1,6 @@
 import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRunResult, ShardGroup } from '@kinora/core'
 import { readFile } from 'node:fs/promises'
-import { buildIngestRun, createIngestClient, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, flakyTestsOf, isUploadableAttachment } from '@kinora/core'
+import { artifactsToUpload, buildIngestRun, createIngestClient, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, flakyTestsOf, uploadArtifacts } from '@kinora/core'
 
 // `counts` / `flaky`: the run's, which the PR comment shows. For a grouped shard, the server's view
 // of every shard landed so far; `grouped` says the upload carried a group key.
@@ -42,20 +42,11 @@ export async function uploadReport(raw: unknown, opts: UploadOptions): Promise<U
   })
   const res = await client.uploadRun(payload)
 
-  const kinds = opts.uploadAttachments ?? DEFAULT_UPLOAD_ATTACHMENTS
-  for (const t of payload.tests) {
-    for (const a of t.attachments) {
-      if (!a.path || !isUploadableAttachment(a, kinds))
-        continue
-      try {
-        const art = await client.uploadArtifact({ runId: res.runId, testKey: t.testKey, name: a.name, contentType: a.contentType, body: await readFile(a.path) })
-        console.log(`  ${a.name} ${t.testKey} -> ${art.url}`)
-      }
-      catch (err) {
-        console.warn(`warning: ${a.name} upload failed for ${t.testKey}: ${err instanceof Error ? err.message : err}`)
-      }
-    }
-  }
+  await uploadArtifacts(client, res.runId, artifactsToUpload(payload.tests, opts.uploadAttachments ?? DEFAULT_UPLOAD_ATTACHMENTS), {
+    read: readFile,
+    onUploaded: (a, art) => console.log(`  ${a.name} ${a.testKey} -> ${art.url}`),
+    onFailed: (a, err) => console.warn(`warning: ${a.name} upload failed for ${a.testKey}: ${err instanceof Error ? err.message : err}`),
+  })
 
   return {
     ...res,

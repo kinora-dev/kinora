@@ -226,3 +226,63 @@ export function isUploadableAttachment(a: { name: string, contentType: string, p
   // Asking for every screenshot covers the snapshot images too.
   return kinds.includes(kind) || (kind === 'snapshot' && kinds.includes('screenshot'))
 }
+
+export interface ArtifactToUpload {
+  testKey: string
+  name: string
+  contentType: string
+  path: string
+}
+
+// The uploadable attachments of a run's tests, in test order.
+export function artifactsToUpload(
+  tests: ReadonlyArray<{ testKey: string, attachments: ReadonlyArray<{ name: string, contentType: string, path?: string }> }>,
+  kinds: readonly AttachmentKind[],
+): ArtifactToUpload[] {
+  return tests.flatMap(t => t.attachments.flatMap(a =>
+    a.path && isUploadableAttachment(a, kinds) ? [{ testKey: t.testKey, name: a.name, contentType: a.contentType, path: a.path }] : [],
+  ))
+}
+
+export type IngestClient = ReturnType<typeof createIngestClient>
+
+// Enough to stop a run with many failures from uploading its traces one by one, while keeping
+// at most this many trace files in memory.
+export const DEFAULT_ARTIFACT_CONCURRENCY = 6
+
+export interface UploadArtifactsOptions {
+  // Injected so this module stays node-free.
+  read: (path: string) => Promise<Uint8Array>
+  concurrency?: number
+  onUploaded?: (artifact: ArtifactToUpload, result: UploadArtifactResult) => void
+  onFailed?: (artifact: ArtifactToUpload, error: unknown) => void
+}
+
+// Upload artifacts with bounded concurrency. A failed artifact is reported and skipped, never
+// thrown. Returns how many were uploaded.
+export async function uploadArtifacts(
+  client: Pick<IngestClient, 'uploadArtifact'>,
+  runId: string,
+  artifacts: readonly ArtifactToUpload[],
+  opts: UploadArtifactsOptions,
+): Promise<number> {
+  let next = 0
+  let uploaded = 0
+  async function worker(): Promise<void> {
+    while (next < artifacts.length) {
+      const artifact = artifacts[next++]
+      try {
+        const body = await opts.read(artifact.path)
+        const result = await client.uploadArtifact({ runId, testKey: artifact.testKey, name: artifact.name, contentType: artifact.contentType, body })
+        uploaded++
+        opts.onUploaded?.(artifact, result)
+      }
+      catch (err) {
+        opts.onFailed?.(artifact, err)
+      }
+    }
+  }
+  const workers = Math.min(artifacts.length, Math.max(1, Math.floor(opts.concurrency ?? DEFAULT_ARTIFACT_CONCURRENCY)))
+  await Promise.all(Array.from({ length: workers }, worker))
+  return uploaded
+}

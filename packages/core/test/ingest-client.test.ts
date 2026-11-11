@@ -1,6 +1,6 @@
 import type { IngestRun } from '../src/index'
 import { describe, expect, it } from 'vitest'
-import { buildIngestRun, createIngestClient, describeRetry, IngestError } from '../src/index'
+import { artifactsToUpload, buildIngestRun, createIngestClient, describeRetry, IngestError, uploadArtifacts } from '../src/index'
 
 const PAYLOAD: IngestRun = {
   project: { slug: 'web-app', name: 'web-app' },
@@ -253,5 +253,59 @@ describe('createIngestClient.uploadArtifact', () => {
     await expect(
       client.uploadArtifact({ runId: 'r', testKey: 'k', name: 'trace', contentType: 'application/zip', body: new Blob([new Uint8Array([1])]) }),
     ).resolves.toEqual({ url: 'http://test/a.zip' })
+  })
+})
+
+describe('artifactsToUpload', () => {
+  it('keeps the uploadable attachments with a path, tagged with their test', () => {
+    const tests = [
+      { testKey: 'a', attachments: [{ name: 'trace', contentType: 'application/zip', path: '/a/trace.zip' }, { name: 'log', contentType: 'text/plain', path: '/a/log.txt' }] },
+      { testKey: 'b', attachments: [{ name: 'video', contentType: 'video/webm', path: '/b/video.webm' }, { name: 'trace', contentType: 'application/zip' }] },
+    ]
+    expect(artifactsToUpload(tests, ['trace'])).toEqual([{ testKey: 'a', name: 'trace', contentType: 'application/zip', path: '/a/trace.zip' }])
+    expect(artifactsToUpload(tests, ['trace', 'video']).map(a => a.path)).toEqual(['/a/trace.zip', '/b/video.webm'])
+  })
+})
+
+describe('uploadArtifacts', () => {
+  const artifacts = Array.from({ length: 10 }, (_, i) => ({ testKey: `t${i}`, name: 'trace', contentType: 'application/zip', path: `/p/${i}.zip` }))
+
+  it('uploads in parallel, never more than the concurrency at once', async () => {
+    let inFlight = 0
+    let peak = 0
+    const client = {
+      async uploadArtifact(input: { testKey: string }) {
+        peak = Math.max(peak, ++inFlight)
+        await new Promise(resolve => setTimeout(resolve, 5))
+        inFlight--
+        return { url: `/artifacts/${input.testKey}` }
+      },
+    }
+    const uploaded: string[] = []
+    const count = await uploadArtifacts(client, 'r1', artifacts, { read: async () => new Uint8Array(), concurrency: 3, onUploaded: a => uploaded.push(a.testKey) })
+    expect(count).toBe(10)
+    expect(peak).toBe(3)
+    expect(uploaded.toSorted()).toEqual(artifacts.map(a => a.testKey).toSorted())
+  })
+
+  it('reports a failed read or upload and carries on with the rest', async () => {
+    const client = {
+      async uploadArtifact(input: { testKey: string }) {
+        if (input.testKey === 't2')
+          throw new IngestError(413, 'too large')
+        return { url: '' }
+      },
+    }
+    const failed: string[] = []
+    const count = await uploadArtifacts(client, 'r1', artifacts, {
+      read: async (path) => {
+        if (path === '/p/5.zip')
+          throw new Error('ENOENT')
+        return new Uint8Array()
+      },
+      onFailed: a => failed.push(a.testKey),
+    })
+    expect(count).toBe(8)
+    expect(failed.toSorted()).toEqual(['t2', 't5'])
   })
 })

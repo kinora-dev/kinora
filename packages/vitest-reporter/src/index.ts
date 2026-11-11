@@ -3,7 +3,7 @@ import type { Reporter, TestModule, Vitest } from 'vitest/node'
 import type { IncludeTests } from './convert'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, IngestError, isUploadableAttachment, resolveShardGroup } from '@kinora/core'
+import { artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, IngestError, resolveShardGroup, uploadArtifacts } from '@kinora/core'
 import { toNormTests } from './convert'
 
 export interface KinoraVitestReporterOptions {
@@ -100,21 +100,10 @@ export default class KinoraVitestReporter implements Reporter {
     try {
       const client = createIngestClient({ baseUrl: url, token, onRetry: info => console.warn(`[kinora] ${describeRetry(info)}`) })
       const res = await client.uploadRun(payload)
-      const kinds = this.options.uploadAttachments ?? DEFAULT_UPLOAD_ATTACHMENTS
-      let artifacts = 0
-      for (const t of tests) {
-        for (const a of t.attachments) {
-          if (!a.path || !isUploadableAttachment(a, kinds))
-            continue
-          try {
-            await client.uploadArtifact({ runId: res.runId, testKey: t.testKey, name: a.name, contentType: a.contentType, body: await readFile(a.path) })
-            artifacts++
-          }
-          catch (err) {
-            console.warn(`[kinora] ${a.name} upload failed for ${t.testKey}:`, err instanceof Error ? err.message : err)
-          }
-        }
-      }
+      const artifacts = await uploadArtifacts(client, res.runId, artifactsToUpload(tests, this.options.uploadAttachments ?? DEFAULT_UPLOAD_ATTACHMENTS), {
+        read: readFile,
+        onFailed: (a, err) => console.warn(`[kinora] ${a.name} upload failed for ${a.testKey}:`, err instanceof Error ? err.message : err),
+      })
       // eslint-disable-next-line no-console -- a reporter's job is to report
       console.log(`[kinora] uploaded ${res.tests} tests + ${artifacts} artifacts (run ${res.runId}${res.shardProgress ? `, ${res.shardProgress.landed} of ${res.shardProgress.total} shards` : ''})`)
     }
