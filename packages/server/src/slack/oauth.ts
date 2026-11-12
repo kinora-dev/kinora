@@ -162,7 +162,7 @@ slackOAuth.get('/callback', async (c) => {
     return c.redirect(settingsRedirect(decoded.slug, 'connected'))
   }
   catch (error) {
-    logger.error({ error }, 'slack oauth callback failed')
+    logger.error({ err: error }, 'slack oauth callback failed')
     return c.redirect(settingsRedirect(decoded.slug, 'error'))
   }
 })
