@@ -23,7 +23,7 @@
     "@kinora/trace-viewer": "workspace:*",
     "@kinora/ui": "workspace:*",
     "@lucide/vue": "^1.70.0",
-    "@sentry/electron": "^7.20.2",
+    "@sentry/electron": "^8.4.0",
     "@trpc/client": "^11.28.0",
     "@trpc/server": "11.28.0",
     "electron-updater": "^6.8.11",
