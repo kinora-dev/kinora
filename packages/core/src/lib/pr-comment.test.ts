@@ -57,6 +57,11 @@ describe('resolvePrContext', () => {
     expect(resolvePrContext(mrEnv, () => undefined)).toEqual({ provider: 'gitlab', token: 'gltok', apiUrl: 'https://gitlab.acme.com/api/v4', projectId: '77', mrIid: 5, isShard: false })
   })
 
+  it('posts the status on the pipeline commit, in the project and pipeline running the job', () => {
+    expect(resolvePrContext({ ...mrEnv, CI_COMMIT_SHA: 'abc', CI_PIPELINE_ID: '900' }, () => undefined))
+      .toMatchObject({ projectId: '77', commit: { projectId: '77', sha: 'abc', pipelineId: 900 } })
+  })
+
   it('targets the project the MR lives in for a fork MR', () => {
     expect(resolvePrContext({ ...mrEnv, CI_MERGE_REQUEST_PROJECT_ID: '12' }, () => undefined)).toMatchObject({ projectId: '12' })
   })

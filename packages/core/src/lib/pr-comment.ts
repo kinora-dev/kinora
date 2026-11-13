@@ -30,6 +30,9 @@ export interface GitLabMrContext extends PrContextBase {
   apiUrl: string // CI_API_V4_URL (differs on self-managed)
   projectId: string // the project the MR lives in (the target project for a fork MR)
   mrIid: number
+  // Where the commit status goes: the commit, project and pipeline running the job, so the status
+  // joins the pipeline the MR shows (a merged-results one included) as an external job.
+  commit?: { projectId: string, sha: string, pipelineId?: number }
 }
 
 export type PrContext = GitHubPrContext | GitLabMrContext
@@ -79,12 +82,17 @@ function resolveGitLabContext(env: Record<string, string | undefined>): GitLabMr
   const mrIid = Number(env.CI_MERGE_REQUEST_IID)
   if (!token || !projectId || !Number.isInteger(mrIid) || mrIid <= 0)
     return null
+  const sha = env.CI_COMMIT_SHA
+  const pipelineId = Number(env.CI_PIPELINE_ID)
   return {
     provider: 'gitlab',
     token,
     apiUrl: env.CI_API_V4_URL || 'https://gitlab.com/api/v4',
     projectId,
     mrIid,
+    ...(sha && env.CI_PROJECT_ID && {
+      commit: { projectId: env.CI_PROJECT_ID, sha, ...(Number.isInteger(pipelineId) && pipelineId > 0 && { pipelineId }) },
+    }),
     isShard: !!env.__KINORA_IS_SHARD,
   }
 }

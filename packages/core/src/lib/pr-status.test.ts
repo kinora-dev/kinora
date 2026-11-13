@@ -1,5 +1,5 @@
 import type { Counts } from '../contracts/kinora'
-import type { GitHubPrContext } from './pr-comment'
+import type { GitHubPrContext, GitLabMrContext } from './pr-comment'
 import type { PrStatusInput } from './pr-status'
 import { describe, expect, it, vi } from 'vitest'
 import { buildPrStatus, postPrStatus } from './pr-status'
@@ -59,11 +59,10 @@ describe('postPrStatus', () => {
     expect(JSON.parse(init.body)).toEqual({ state: 'success', context: 'kinora / web', description: '10/10 passed · 1 flaky', target_url: runUrl })
   })
 
-  it('skips a shard run, GitLab, a context without the head commit, and a read-only fork token', async () => {
+  it('skips a shard run, a context without the head commit, and a read-only fork token', async () => {
     const none = vi.fn()
     expect(await postPrStatus({ ...ctx, isShard: true }, input, asFetch(none))).toBe('skipped')
     expect(await postPrStatus({ ...ctx, headSha: undefined }, input, asFetch(none))).toBe('skipped')
-    expect(await postPrStatus({ provider: 'gitlab', token: 't', apiUrl: 'x', projectId: '1', mrIid: 1, isShard: false }, input, asFetch(none))).toBe('skipped')
     expect(none).not.toHaveBeenCalled()
     expect(await postPrStatus(ctx, input, asFetch(vi.fn().mockResolvedValueOnce({ ok: false, status: 403 })))).toBe('skipped')
   })
@@ -92,5 +91,48 @@ describe('postPrStatus', () => {
     const fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({}) })
     expect(await postPrStatus(ctx, { ...input, shards: { runId: 'r1', landed: 4, total: 4 } }, asFetch(fetch))).toBe('posted')
     expect(fetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('postPrStatus on GitLab', () => {
+  const ctx: GitLabMrContext = { provider: 'gitlab', token: 'gl', apiUrl: 'https://gitlab.acme.com/api/v4', projectId: '12', mrIid: 5, commit: { projectId: '77', sha: 'abc', pipelineId: 900 }, isShard: false }
+  const runUrl = 'https://app.kinora.dev/projects/web/runs/r1'
+  const input: PrStatusInput = { projectSlug: 'web', counts: red, runUrl, regression: { base: 'base-branch', newlyFailing, newlyFlaky: [], fixed: 0 }, baseBranch: 'main' }
+  const asFetch = (f: ReturnType<typeof vi.fn>) => f as unknown as typeof globalThis.fetch
+
+  it('adds the verdict to the job\'s pipeline as an external job', async () => {
+    const fetch = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+    expect(await postPrStatus(ctx, input, asFetch(fetch))).toBe('posted')
+    const [url, init] = fetch.mock.calls[0]
+    expect(url).toBe('https://gitlab.acme.com/api/v4/projects/77/statuses/abc')
+    expect(init.headers).toMatchObject({ 'private-token': 'gl' })
+    expect(JSON.parse(init.body)).toEqual({ state: 'failed', name: 'kinora / web', description: '1 newly failing vs main', target_url: runUrl, pipeline_id: 900 })
+  })
+
+  it('skips without the pipeline commit', async () => {
+    const none = vi.fn()
+    expect(await postPrStatus({ ...ctx, commit: undefined }, input, asFetch(none))).toBe('skipped')
+    expect(none).not.toHaveBeenCalled()
+  })
+
+  it('leaves a newer view of the same sharded run alone', async () => {
+    const current = (statuses: object[]) => vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => statuses })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) })
+    const post = (fetch: ReturnType<typeof vi.fn>) => postPrStatus(ctx, { ...input, shards: { runId: 'r1', landed: 2, total: 4 } }, asFetch(fetch))
+    const status = (id: number, status: string, description: string) => ({ id, name: 'kinora / web', status, description, target_url: runUrl })
+
+    expect(await post(current([status(1, 'running', '1 of 4 shards landed'), status(2, 'failed', '1 newly failing vs main')]))).toBe('skipped')
+    expect(await post(current([status(3, 'running', '3 of 4 shards landed')]))).toBe('skipped')
+    const fetch = current([status(1, 'running', '1 of 4 shards landed')])
+    expect(await post(fetch)).toBe('posted')
+    expect(fetch.mock.calls[0][0]).toContain('/projects/77/repository/commits/abc/statuses?name=kinora+%2F+web')
+    expect(JSON.parse(fetch.mock.calls[1][1].body).state).toBe('running')
+  })
+
+  it('leaves the current status standing when GitLab refuses the transition, and throws otherwise', async () => {
+    const reply = (status: number, text: string) => vi.fn().mockResolvedValueOnce({ ok: false, status, text: async () => text })
+    expect(await postPrStatus(ctx, input, asFetch(reply(400, '{"message":"Cannot transition status via :run from :running"}')))).toBe('skipped')
+    await expect(postPrStatus(ctx, input, asFetch(reply(401, 'Unauthorized')))).rejects.toThrow('401')
   })
 })

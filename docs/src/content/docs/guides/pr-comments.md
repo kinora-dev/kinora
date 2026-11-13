@@ -93,12 +93,12 @@ previous comment on the PR, and edits it in place. Re-running the job updates th
 rather than adding a new one. On GitLab, "its own" means a note written by the user behind
 `GITLAB_TOKEN`, so keep using the same token to keep a single comment.
 
-## Commit status (GitHub)
+## Commit status
 
-kinora can also set a `kinora / <project>` commit status on the pull request, next to your CI
-jobs in the checks list. It is red only when the PR breaks something: a test failing on the PR
-that passed on the base branch. A test already failing on the base branch, or a flaky one, leaves
-it green.
+kinora can also set a `kinora / <project>` commit status: in the checks of a GitHub pull request,
+next to your CI jobs, or as an external job of the GitLab merge request pipeline. It is red only
+when the PR breaks something: a test failing on the PR that passed on the base branch. A test
+already failing on the base branch, or a flaky one, leaves it green.
 
 ```
 ✓ kinora / web-app   No new failures vs main · 1 already failing · 2 flaky   Details
@@ -115,32 +115,47 @@ reporter: [['@kinora/reporter', { project: { slug: 'web-app' }, prStatus: true }
 npx @kinora/cli upload results.json --project web-app --pr-status
 ```
 
-The job needs to write statuses:
+On GitHub, the job needs to write statuses:
 
 ```yaml
 permissions:
   statuses: write
 ```
 
+On GitLab, it uses the same `GITLAB_TOKEN` as the comment, whose role must be **Developer** or
+above to set a commit status (Reporter is enough for the comment alone).
+
 ### Block merges on regressions only
 
-Mark `kinora / web-app` as a required status check in the branch protection rules, and let the
-Playwright job itself continue on error. A PR then can't merge when it makes a test fail, while a
-test that was already broken on the base branch or a flaky one no longer blocks it.
+Let the Playwright job itself fail without failing the build, and gate merges on the kinora
+status instead. A PR then can't merge when it makes a test fail, while a test that was already
+broken on the base branch or a flaky one no longer blocks it.
+
+**GitHub**: mark `kinora / web-app` as a required status check in the branch protection rules.
 
 ```yaml
 - run: npx playwright test
   continue-on-error: true # the kinora status is the required check
 ```
 
+**GitLab**: the status joins the job's pipeline, so with **Pipelines must succeed** turned on in
+the merge request settings, a red status blocks the merge.
+
+```yaml
+e2e:
+  allow_failure: true # the kinora status fails the pipeline instead
+  script:
+    - npx playwright test
+```
+
 ### How the status reads the run
 
 - **Without a baseline** (the base branch has no run yet), the status falls back to the run's own
   result: red if any test failed.
-- **Sharded runs** show as pending ("2 of 4 shards landed") until the last shard lands.
+- **Sharded runs** show as pending (running on GitLab, "2 of 4 shards landed") until the last
+  shard lands.
 - **An environment incident** sets it red: nothing was tested, so the PR should not merge on it.
   Re-run once the app is back.
 - **Matrix legs** get one status each from their label: `kinora / web-app (firefox)`. It reuses
   `prComment.label` / `--pr-label`, or set `prStatus: { label }`.
-- **Fork PRs** are skipped, as for the comment: their `GITHUB_TOKEN` is read-only.
-- **GitLab** is not supported yet: the option does nothing there.
+- **Fork PRs** are skipped, as for the comment: their token can't write to the repository.

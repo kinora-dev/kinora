@@ -22,8 +22,9 @@ export interface KinoraReporterOptions {
    */
   prComment?: boolean | { label?: string, policy?: 'always' | 'on-failure' }
   /**
-   * Set a `kinora / <project>` commit status on the GitHub PR (needs `permissions: statuses: write`):
-   * red only for tests newly failing vs the base branch, so branch protection can require it.
+   * Set a `kinora / <project>` commit status on the GitHub PR (needs `permissions: statuses: write`)
+   * or the GitLab MR pipeline (GITLAB_TOKEN with the Developer role): red only for tests newly
+   * failing vs the base branch, so branch protection or "Pipelines must succeed" can require it.
    * `label` distinguishes matrix legs, defaulting to the `prComment` one.
    */
   prStatus?: boolean | { label?: string }

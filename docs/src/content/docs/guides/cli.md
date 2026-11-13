@@ -60,7 +60,7 @@ npx @kinora/cli import ./reports --project web-app --token <project-token> --con
 --ci-run-number <n>
 --git-base-branch <b> PR base branch (auto-detected in CI); powers "regression vs base"
 --pr-comment          post/update a summary on the GitHub PR or GitLab MR (see PR comments guide)
---pr-status           set a kinora commit status on the GitHub PR, red only for new failures
+--pr-status           set a kinora commit status on the GitHub PR or GitLab MR, red only for new failures
 --pr-label <label>    distinguish matrix legs that share one PR
 --pr-policy <policy>  always (default) | on-failure (no new comment on green runs)
 --upload-attachments <kinds>

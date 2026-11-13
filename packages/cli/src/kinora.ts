@@ -52,7 +52,8 @@ Options:
   --pr-comment          Post/update a summary on the GitHub PR (needs GITHUB_TOKEN + pull-requests: write)
                         or the GitLab MR (needs a GITLAB_TOKEN variable with the api scope)
   --pr-status           Set a "kinora / <project>" commit status on the GitHub PR (needs GITHUB_TOKEN +
-                        statuses: write): red only for tests newly failing vs the base branch
+                        statuses: write) or the GitLab MR pipeline (GITLAB_TOKEN, Developer role):
+                        red only for tests newly failing vs the base branch
   --pr-label <label>    Distinguish matrix legs that share one PR
   --pr-policy <policy>  always (default) | on-failure (no new comment on green runs)
   --group-key <key>     Sharded report (--shard): the run its shards are assembled into
