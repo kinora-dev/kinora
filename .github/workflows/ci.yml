@@ -183,9 +183,47 @@ jobs:
         run: pnpm --filter @kinora/server test:coverage
 
   # One runner per suite (and two web shards): sharing a runner, the suites competed for its CPU.
+  # Splits the web e2e suite by the durations of its nightly runs (kinora-web-e2e) instead of by test
+  # count, so both shards take about as long. Planned once: shards planned apart could read different
+  # durations and skip or repeat tests.
+  shard_plan:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: List the web e2e tests
+        run: pnpm --filter @kinora/web exec playwright test --list --reporter=json > "$RUNNER_TEMP/list.json"
+
+      # The CLI from this checkout. Without the token (pull requests from forks) the plan falls back
+      # to the list itself, which has no durations: a split by test count, like --shard.
+      - name: Plan the shards
+        env:
+          KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
+        run: |
+          if [ -n "$KINORA_TOKEN" ]; then source=(--project kinora-web-e2e); else source=(--from-report "$RUNNER_TEMP/list.json"); fi
+          pnpm --filter @kinora/cli exec tsx src/kinora.ts shard --list "$RUNNER_TEMP/list.json" --total 2 --granularity test --out-dir "$GITHUB_WORKSPACE/shards" "${source[@]}"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: shards
+          path: shards/
+          retention-days: 1
+
   e2e:
     name: e2e (${{ matrix.name }})
-    needs: changes
+    needs: [changes, shard_plan]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -197,10 +235,10 @@ jobs:
             package: '@kinora/trace-viewer'
           - name: web 1/2
             package: '@kinora/web'
-            args: --shard=1/2
+            shard: 1
           - name: web 2/2
             package: '@kinora/web'
-            args: --shard=2/2
+            shard: 2
     services:
       postgres:
         image: postgres:18.6
@@ -271,19 +309,25 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @kinora/web exec playwright install-deps chromium
 
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: matrix.shard
+        with:
+          name: shards
+          path: shards/
+
       # The web test:e2e resets kinora_e2e + self-boots the stack on dedicated ports (same as local).
       - name: E2E
-        run: pnpm --filter '${{ matrix.package }}' test:e2e ${{ matrix.args }}
+        run: pnpm --filter '${{ matrix.package }}' test:e2e ${{ matrix.shard && format('--test-list {0}/shards/shard-{1}.txt', github.workspace, matrix.shard) || '' }}
 
   # Single required check over the e2e matrix, whose job names carry the matrix values.
   e2e_tests:
-    needs: [changes, e2e]
+    needs: [changes, shard_plan, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Check e2e results
-        if: needs.changes.result != 'success' || contains(fromJSON('["failure", "cancelled"]'), needs.e2e.result)
+        if: needs.changes.result != 'success' || contains(fromJSON('["failure", "cancelled"]'), needs.shard_plan.result) || contains(fromJSON('["failure", "cancelled"]'), needs.e2e.result)
         run: exit 1
 
   # @kinora/ui component + visual tests and the Vitest reporter contract, in parallel with e2e_tests.
