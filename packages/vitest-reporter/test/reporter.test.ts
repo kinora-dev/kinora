@@ -260,7 +260,7 @@ describe('pull requests', () => {
     r.onInit({ config: { shard: { index: 1, count: 3 } }, projects: [] } as unknown as Vitest)
     await r.onTestRunEnd(run())
 
-    expect(calls.filter(c => c.url.includes('api.github.com'))).toEqual([])
+    expect(calls.filter(c => new URL(c.url).host === 'api.github.com')).toEqual([])
   })
 
   it('never fails the test run when GitHub refuses the status', async () => {
