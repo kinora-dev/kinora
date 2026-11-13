@@ -53,6 +53,17 @@ const testDurationsResponseSchema = z.object({
 
 export type TestDurations = z.infer<typeof testDurationsResponseSchema>
 
+const quarantinesResponseSchema = z.object({
+  quarantines: z.array(z.object({
+    testKey: z.string(),
+    reason: z.string().optional(),
+    expiresAt: z.string().optional(),
+    test: z.object({ file: z.string(), titlePath: z.array(z.string()), projectName: z.string() }).optional(),
+  })),
+})
+
+export type QuarantinedTest = z.infer<typeof quarantinesResponseSchema>['quarantines'][number]
+
 // Typed client over the API-key read API (`GET /api/v1/*`). Same auth as the ingest client; used by
 // the MCP server so agents can pull last-run failures, run reports, and per-test history.
 export function createReadClient(opts: ReadClientOptions) {
@@ -109,6 +120,11 @@ export function createReadClient(opts: ReadClientOptions) {
     getTestDurations(slug: string, runs?: number): Promise<TestDurations> {
       const q = runs ? `?runs=${runs}` : ''
       return get(`${project(slug)}/test-durations${q}`, testDurationsResponseSchema)
+    },
+
+    // Active (unexpired) quarantines, each with the test identity a Playwright test list needs.
+    async getQuarantines(slug: string): Promise<QuarantinedTest[]> {
+      return (await get(`${project(slug)}/quarantines`, quarantinesResponseSchema)).quarantines
     },
   }
 }

@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import type { AttachmentKind } from '@kinora/core'
 import { existsSync, readFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
 import { DEFAULT_KINORA_URL, detectCiEnv, IngestError, postPrComment, resolvePrContext, resolveShardGroup, shardFromEnv } from '@kinora/core'
 import { parseAttachmentKinds, parseBaseUrls } from './args'
 import { importReports } from './import'
+import { quarantineHeader, writeQuarantineList } from './quarantine'
 import { formatShardPlan, loadDurations, parseGranularity, parseShardTotal, writeShardPlan } from './shard'
 import { uploadReport } from './upload'
 
@@ -16,6 +18,7 @@ Usage:
   kinora upload <results.json> --project <slug> [options]
   kinora import <dir>          --project <slug> [options]   # bulk-import every *.json (historical, no traces)
   kinora shard --list <list.json> --total <n> (--project <slug> | --from-report <results.json>) [options]
+  kinora quarantine --project <slug> [--out quarantine.txt]
 
 Shard (balance CI shards by past durations; run each with \`playwright test --test-list <out-dir>/shard-<i>.txt\`
 and KINORA_SHARD=<i>/<n> so its upload joins the others):
@@ -25,6 +28,10 @@ and KINORA_SHARD=<i>/<n> so its upload joins the others):
   --runs <n>            Newest kinora runs to take durations from (default 30)
   --out-dir <dir>       Where shard-<i>.txt files go (default: shards)
   --granularity <g>     file (default: a file stays on one shard) | test (split files, for fullyParallel suites)
+
+Quarantine (the tests quarantined in the dashboard, as a Playwright test list):
+  --out <file>          Where the list goes (default: quarantine.txt). Skip them in the blocking job with
+                        \`playwright test --test-list-invert <file>\`, run them in a non-blocking one with --test-list
 
 Required:
   --project <slug>      Target project slug
@@ -95,6 +102,13 @@ interface ShardFlags {
   'granularity'?: string
 }
 
+// A bad token or an unknown project is a setup mistake to fix, not an outage CI should ride out. A
+// server too old for the route also answers 404, and is ridden out.
+function failOnSetupError(err: unknown): void {
+  if (err instanceof IngestError && (err.status === 401 || err.status === 403 || (err.status === 404 && err.message === 'Project not found')))
+    fail(err.message)
+}
+
 async function readJson(file: string, flag: string): Promise<unknown> {
   if (!existsSync(file))
     fail(`${flag} file not found: ${file}`)
@@ -127,6 +141,7 @@ async function shard(values: ShardFlags, url: string, token: string | undefined)
       durations = await loadDurations({ kind: 'kinora', project: values.project, url, token, runs: values.runs ? Number(values.runs) : undefined })
     }
     catch (err) {
+      failOnSetupError(err)
       console.warn(`warning: could not read durations from kinora, splitting by test count: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
@@ -135,6 +150,26 @@ async function shard(values: ShardFlags, url: string, token: string | undefined)
   console.log(formatShardPlan(plan))
   if (plan.shards.some(s => !s.tests))
     console.warn('warning: some shards are empty; run them with --pass-with-no-tests or lower --total')
+}
+
+async function quarantine(project: string | undefined, out: string, url: string, token: string | undefined): Promise<void> {
+  if (!project)
+    fail('--project <slug> is required')
+  if (!token)
+    fail('--token or KINORA_TOKEN is required')
+  try {
+    const res = await writeQuarantineList({ project, url, token, out })
+    console.log(`${res.listed} quarantined tests written to ${res.file}`)
+    for (const s of res.skipped)
+      console.warn(`warning: ${s.testKey} is quarantined but not listed: ${s.why}`)
+  }
+  catch (err) {
+    failOnSetupError(err)
+    // An empty list quarantines nothing: CI then runs the whole suite as it would without kinora.
+    console.warn(`warning: could not read quarantines from kinora, none applied: ${err instanceof Error ? err.message : String(err)}`)
+    await mkdir(dirname(out), { recursive: true })
+    await writeFile(out, quarantineHeader(project))
+  }
 }
 
 async function main(): Promise<void> {
@@ -166,6 +201,7 @@ async function main(): Promise<void> {
       'runs': { type: 'string' },
       'out-dir': { type: 'string' },
       'granularity': { type: 'string' },
+      'out': { type: 'string' },
       'help': { type: 'boolean', short: 'h' },
     },
   })
@@ -180,6 +216,11 @@ async function main(): Promise<void> {
 
   if (positionals[0] === 'shard') {
     await shard(values, url, token)
+    return
+  }
+
+  if (positionals[0] === 'quarantine') {
+    await quarantine(values.project, values.out ?? 'quarantine.txt', url, token)
     return
   }
 

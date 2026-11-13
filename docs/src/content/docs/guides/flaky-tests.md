@@ -50,3 +50,27 @@ Each page filters on **Needs attention** (flaky or broken, the default of the Te
 
 [Coding agents](/guides/mcp/) read the same verdicts: `test_history` and `component_health` return
 a `health` of `stable`, `flaky` or `broken` with its reason.
+
+## Quarantine in CI
+
+Quarantining a test in the dashboard marks it everywhere kinora shows it. To keep it from failing
+your pipeline while someone stabilizes it, write the quarantine as a Playwright
+[test list](https://playwright.dev/docs/test-cli#test-list) with the [CLI](/guides/cli/#quarantine),
+then skip those tests in the blocking job and run them in one that cannot fail the pipeline:
+
+```yaml
+- run: npx @kinora/cli quarantine --project web-app --out quarantine.txt
+  env:
+    KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
+
+# Blocking: everything but the quarantined tests.
+- run: npx playwright test --test-list-invert quarantine.txt
+
+# Not blocking: the quarantined tests still run and upload, so their history keeps going.
+- run: npx playwright test --test-list quarantine.txt --pass-with-no-tests
+  continue-on-error: true
+```
+
+Keep running them: a quarantined test that passes again over its next runs shows up as stable,
+which tells you when to lift the quarantine. An expired quarantine is no longer listed.
+

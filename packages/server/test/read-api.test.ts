@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { app } from '../src/app'
 import { db } from '../src/db'
-import { artifact, project, run, test } from '../src/db/schemas/index'
+import { artifact, project, run, test, testQuarantine } from '../src/db/schemas/index'
 import { createApiKey, createUser, ingest, runPayload } from './helpers'
 
 function get(path: string, key: string | null) {
@@ -153,5 +153,27 @@ describe('read api test durations', () => {
     const recent = await (await get('/projects/web-app/test-durations?runs=2', key)).json() as { tests: { duration: number, samples: number }[] }
     expect(recent.tests[0]).toMatchObject({ duration: 2000, samples: 1 })
     expect((await get('/projects/nope/test-durations', key)).status).toBe(404)
+  })
+})
+
+describe('read api quarantines', () => {
+  it('lists the active quarantines with the identity of each test', async () => {
+    const a = await createUser('a@test.dev')
+    const key = await createApiKey(a.id)
+    await ingest(key)
+    const p = await db.query.project.findFirst({ where: eq(project.slug, 'web-app') })
+    const stored = await db.query.test.findFirst({ where: eq(test.projectId, p!.id) })
+    const quarantine = (testKey: string, over: Partial<typeof testQuarantine.$inferInsert> = {}) =>
+      db.insert(testQuarantine).values({ id: randomUUID(), projectId: p!.id, testKey, ...over })
+    await quarantine(stored!.testKey, { reason: 'races the toast' })
+    await quarantine('gone.spec.ts::gone.spec.ts › old::chromium')
+    await quarantine('expired', { expiresAt: new Date(Date.now() - 60_000) })
+
+    const body = await (await get('/projects/web-app/quarantines', key)).json() as { quarantines: unknown[] }
+    expect(body.quarantines).toEqual([
+      { testKey: 'gone.spec.ts::gone.spec.ts › old::chromium' },
+      { testKey: stored!.testKey, reason: 'races the toast', test: { file: 'tests/checkout.spec.ts', titlePath: ['tests/checkout.spec.ts', 'completes a purchase'], projectName: 'chromium' } },
+    ])
+    expect((await get('/projects/nope/quarantines', key)).status).toBe(404)
   })
 })

@@ -186,6 +186,16 @@ it to [balance CI shards](/guides/cli/#balanced-shards).
 { "runs": 30, "tests": [{ "testKey": "…", "duration": 4210, "samples": 30 }] }
 ```
 
+### GET /api/v1/projects/:slug/quarantines
+
+The project's active quarantines (expired ones are left out), each with the identity of its test
+from its stored results. `test` is absent once retention removed every result of the test.
+`kinora quarantine` uses it to [skip quarantined tests in CI](/guides/flaky-tests/#quarantine-in-ci).
+
+```json
+{ "quarantines": [{ "testKey": "…", "reason": "…", "expiresAt": "…", "test": { "file": "…", "titlePath": ["…"], "projectName": "chromium" } }] }
+```
+
 ## Examples
 
 Upload a run with `curl`:

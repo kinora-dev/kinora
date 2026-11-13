@@ -190,3 +190,24 @@ reporter and `kinora upload` read it to assemble the shards into one run, as wit
 - **If kinora cannot be reached**, the command warns and splits by test count, so CI still runs.
 - **A shard can be empty** when there are fewer files than shards. Playwright then fails with "No
   tests found": lower `--total`, or pass `--pass-with-no-tests`.
+
+## Quarantine
+
+`kinora quarantine` writes the tests [quarantined in the dashboard](/guides/flaky-tests/#quarantine-in-ci)
+as a Playwright test list, one line per test with its reason as a comment:
+
+```bash
+npx @kinora/cli quarantine --project web-app --out quarantine.txt
+npx playwright test --test-list-invert quarantine.txt
+```
+
+It combines with [balanced shards](#balanced-shards): `--test-list shards/shard-1.txt
+--test-list-invert quarantine.txt` runs that shard's tests minus the quarantined ones.
+
+- **A test no list line can name exactly** (a title containing `›`, or surrounding spaces) is left
+  out with a warning, rather than written as a line that would match other tests. Playwright also
+  matches by title prefix, so quarantining a test titled like a `describe` of the same file skips
+  that `describe` too.
+- **If kinora cannot be reached**, the command warns and writes an empty list: nothing is skipped
+  and the whole suite runs. A bad token or an unknown project fails the command instead.
+

@@ -4,11 +4,12 @@ import type { TestHistoryPage } from '../reports/queries'
 import { randomUUID } from 'node:crypto'
 import { compareRuns, SCHEMA_VERSION } from '@kinora/core'
 import { TRPCError } from '@trpc/server'
-import { and, desc, eq, gt, isNull, or } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db'
 import { project, run, test, testQuarantine } from '../db/schemas/index'
 import { ANALYTICS_RANGES, isTimeZone, loadProjectAnalytics } from '../reports/analytics'
+import { activeQuarantineWhere } from '../reports/quarantine'
 import { findProject, incidentState, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectListings, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchRuns, searchTests, toNormTest } from '../reports/queries'
 import { orgProcedure, router } from '../trpc/index'
 
@@ -28,13 +29,6 @@ const quarantineInput = z.object({
   projectId: z.string().min(1),
   testKey: z.string().min(1),
 })
-
-function activeQuarantineWhere(projectId: string) {
-  return and(
-    eq(testQuarantine.projectId, projectId),
-    or(isNull(testQuarantine.expiresAt), gt(testQuarantine.expiresAt, new Date())),
-  )
-}
 
 export const dashboardRouter = router({
   // Every run of every project, up to MAX_DASHBOARD_RUNS each: only desktop apps up to 0.19 still read it.

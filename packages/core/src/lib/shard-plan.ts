@@ -49,11 +49,21 @@ function entryOf(projectName: string, path: string[]): string {
   return projectName ? `[${projectName}]${SEP}${path.join(SEP)}` : path.join(SEP)
 }
 
-// Playwright splits a list line on "›" and trims each token, and matches title paths by prefix.
+// The `--test-list` line naming one test.
+export function testListEntry(t: Pick<ListedTest, 'titlePath' | 'projectName'>): string {
+  return entryOf(t.projectName, t.titlePath)
+}
+
+// Playwright splits a list line on "›" and trims each token, so such titles cannot be named.
+export function isListableTitle(titlePath: string[]): boolean {
+  return titlePath.slice(1).every(s => s && !s.includes('›') && s === s.trim())
+}
+
+// Playwright also matches title paths by prefix: a test titled like a describe would select it too.
 function fileNeedsWholeEntry(tests: ListedTest[]): boolean {
-  const titles = tests.map(t => t.titlePath.slice(1))
-  if (titles.some(path => path.some(s => s.includes('›') || s !== s.trim() || !s)))
+  if (tests.some(t => !isListableTitle(t.titlePath)))
     return true
+  const titles = tests.map(t => t.titlePath.slice(1))
   const describes = new Set<string>()
   for (const path of titles) {
     for (let i = 1; i < path.length; i++)
@@ -80,7 +90,7 @@ function unitsOf(tests: ListedTest[], granularity: ShardGranularity, estimate: (
       continue
     }
     for (const t of group)
-      units.push({ key: t.testKey, entry: entryOf(projectName, t.titlePath), tests: 1, duration: estimate(t) })
+      units.push({ key: t.testKey, entry: testListEntry(t), tests: 1, duration: estimate(t) })
   }
   return units
 }

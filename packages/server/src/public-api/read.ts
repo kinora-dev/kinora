@@ -1,4 +1,5 @@
 import type { Hono } from 'hono'
+import { loadQuarantinedTests } from '../reports/quarantine'
 import { findProject, listProjects, loadLatestRun, loadProjectHistory, loadRun, loadRunReport, loadRunSummaries, loadTestDurations, loadTestHistory } from '../reports/queries'
 
 type ReadApi = Hono<{ Variables: { orgId: string } }>
@@ -82,5 +83,12 @@ export function registerReadRoutes(api: ReadApi): void {
     if (!p)
       return c.json({ error: 'Project not found' }, 404)
     return c.json(await loadTestDurations(p, limitParam(c.req.query('runs'), DEFAULT_DURATION_RUNS)))
+  })
+
+  api.get('/projects/:slug/quarantines', async (c) => {
+    const p = await findProject(c.get('orgId'), c.req.param('slug'))
+    if (!p)
+      return c.json({ error: 'Project not found' }, 404)
+    return c.json({ quarantines: await loadQuarantinedTests(p) })
   })
 }
