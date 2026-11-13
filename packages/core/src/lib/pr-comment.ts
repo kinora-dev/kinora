@@ -21,6 +21,8 @@ export interface GitHubPrContext extends PrContextBase {
   owner: string
   repo: string
   prNumber: number
+  // The PR's head commit, from the event payload (GITHUB_SHA is the merge commit). For the status.
+  headSha?: string
 }
 
 export interface GitLabMrContext extends PrContextBase {
@@ -105,9 +107,11 @@ function resolveGitHubContext(
   if (!owner || !repo)
     return null
 
-  const prNumber = prNumberFrom(env, readFile)
+  const event = readEvent(env, readFile)
+  const prNumber = prNumberFrom(env, event)
   if (prNumber == null)
     return null
+  const headSha = event?.pull_request?.head?.sha
 
   return {
     provider: 'github',
@@ -116,27 +120,31 @@ function resolveGitHubContext(
     owner,
     repo,
     prNumber,
+    ...(typeof headSha === 'string' && { headSha }),
     isShard: !!env.__KINORA_IS_SHARD, // set by the reporter when config.shard is present
   }
 }
 
-function prNumberFrom(env: Record<string, string | undefined>, readFile: (path: string) => string | undefined): number | null {
-  // Event payload is the reliable source; fall back to parsing refs/pull/<N>/merge.
+interface PrEvent { pull_request?: { number?: number, head?: { sha?: string } }, number?: number }
+
+function readEvent(env: Record<string, string | undefined>, readFile: (path: string) => string | undefined): PrEvent | undefined {
   const eventPath = env.GITHUB_EVENT_PATH
-  if (eventPath) {
-    try {
-      const raw = readFile(eventPath)
-      if (raw) {
-        const event = JSON.parse(raw) as { pull_request?: { number?: number }, number?: number }
-        const n = event.pull_request?.number ?? event.number
-        if (typeof n === 'number')
-          return n
-      }
-    }
-    catch {
-      // fall through to ref parsing
-    }
+  if (!eventPath)
+    return undefined
+  try {
+    const raw = readFile(eventPath)
+    return raw ? JSON.parse(raw) as PrEvent : undefined
   }
+  catch {
+    return undefined
+  }
+}
+
+function prNumberFrom(env: Record<string, string | undefined>, event: PrEvent | undefined): number | null {
+  // Event payload is the reliable source; fall back to parsing refs/pull/<N>/merge.
+  const n = event?.pull_request?.number ?? event?.number
+  if (typeof n === 'number')
+    return n
   const m = env.GITHUB_REF?.match(/^refs\/pull\/(\d+)\//)
   return m ? Number(m[1]) : null
 }

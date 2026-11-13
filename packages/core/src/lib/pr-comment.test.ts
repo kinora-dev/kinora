@@ -31,6 +31,12 @@ describe('resolvePrContext', () => {
     expect(ctx).toMatchObject({ provider: 'github', prNumber: 7 })
   })
 
+  it('reads the PR head commit from the event payload, not the merge commit', () => {
+    const ctx = resolvePrContext({ ...prEnv, GITHUB_SHA: 'merge', GITHUB_EVENT_PATH: '/evt' }, () => JSON.stringify({ pull_request: { number: 42, head: { sha: 'head' } } }))
+    expect(ctx).toMatchObject({ provider: 'github', headSha: 'head' })
+    expect(resolvePrContext(prEnv, () => undefined)).not.toHaveProperty('headSha')
+  })
+
   it('honors GITHUB_API_URL for GHES', () => {
     expect(resolvePrContext({ ...prEnv, GITHUB_API_URL: 'https://ghe.acme.com/api/v3' }, () => undefined)?.apiUrl).toBe('https://ghe.acme.com/api/v3')
   })

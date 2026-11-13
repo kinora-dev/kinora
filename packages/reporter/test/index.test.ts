@@ -337,6 +337,36 @@ describe('reporter onEnd', () => {
     expect(calls.some(c => c.startsWith('POST') && c.includes('api.github.com/repos/acme/app/issues/9/comments'))).toBe(true)
   })
 
+  it('sets a commit status on the PR head when only prStatus is enabled', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'kinora-event-'))
+    const eventPath = join(dir, 'event.json')
+    await writeFile(eventPath, JSON.stringify({ pull_request: { number: 9, head: { sha: 'headsha' } } }))
+    const calls: { method: string, url: string, body?: string }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: unknown, init?: RequestInit) => {
+      const u = String(url)
+      calls.push({ method: init?.method ?? 'GET', url: u, body: init?.body as string | undefined })
+      if (u.includes('/api/v1/runs'))
+        return new Response(JSON.stringify({ projectId: 'p', runId: 'r', tests: 1, runUrl: 'https://app.kinora.dev/x', regression: { base: 'base-branch', newlyFailing: [], newlyFlaky: [], fixed: 0 } }), { status: 201 })
+      return new Response('{}', { status: 201 })
+    }))
+    process.env.GITHUB_TOKEN = 'ghtok'
+    process.env.GITHUB_EVENT_NAME = 'pull_request'
+    process.env.GITHUB_REPOSITORY = 'acme/app'
+    process.env.GITHUB_SHA = 'mergesha'
+    process.env.GITHUB_BASE_REF = 'main'
+    process.env.GITHUB_EVENT_PATH = eventPath
+
+    const reporter = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' }, prStatus: true })
+    reporter.onBegin({ version: '1.60.0' } as FullConfig, fakeSuite([fakeTest()]))
+    await reporter.onEnd(fakeResult())
+    await rm(dir, { recursive: true, force: true })
+
+    expect(calls[0].url).toContain('regression=1')
+    const status = calls.find(c => c.url === 'https://api.github.com/repos/acme/app/statuses/headsha')
+    expect(JSON.parse(status!.body!)).toMatchObject({ state: 'success', context: 'kinora / web-app', description: 'No new failures vs main', target_url: 'https://app.kinora.dev/x' })
+    expect(calls.some(c => c.url.includes('/issues/'))).toBe(false)
+  })
+
   it('names the run\'s flaky tests in the PR comment', async () => {
     let comment = ''
     vi.stubGlobal('fetch', vi.fn(async (url: unknown, init?: RequestInit) => {

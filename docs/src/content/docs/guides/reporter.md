@@ -55,6 +55,7 @@ server with `KINORA_URL` - see [Self-hosting](/self-hosting/).
 | `git` | `{ sha?, branch?, baseBranch?, repoUrl? }` | auto on GitHub Actions / GitLab CI | Git metadata. `repoUrl` links a sha to its commit; `baseBranch` powers "regression vs base" in the PR comment. |
 | `ci` | `{ provider?, runUrl?, runNumber? }` | auto on GitHub Actions / GitLab CI | CI metadata for the run. |
 | `prComment` | `boolean \| { label?, policy? }` | off | Post/update a summary comment on the GitHub PR or GitLab MR. See [PR comments](/guides/pr-comments/). |
+| `prStatus` | `boolean \| { label? }` | off | Set a `kinora / <project>` commit status on the GitHub PR, red only for tests newly failing vs the base branch. See [Commit status](/guides/pr-comments/#commit-status-github). |
 | `uploadAttachments` | `('trace' \| 'snapshot' \| 'video' \| 'screenshot')[]` | `['trace', 'snapshot']` | Which attachment kinds to upload. `'snapshot'` is the images behind [screenshot comparisons](#screenshot-comparisons). Add `'video'` / `'screenshot'` when you run without traces. |
 | `groupKey` | `string \| false` | env `KINORA_GROUP_KEY`, then the CI run | Groups the uploads of every shard of a CI run into one run. `false` uploads each shard as its own run. See [Sharded runs](#sharded-runs). |
 

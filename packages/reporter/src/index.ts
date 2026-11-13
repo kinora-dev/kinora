@@ -4,7 +4,7 @@ import type { Buffer } from 'node:buffer'
 import { readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { a11yFromScans, artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, effectiveAttachments, flakyTestsOf, IngestError, makeTestKey, parseAxeScan, postPrComment, resolvePrContext, resolveShardGroup, shardFromEnv, uploadArtifacts } from '@kinora/core'
+import { a11yFromScans, artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, effectiveAttachments, flakyTestsOf, IngestError, makeTestKey, parseAxeScan, postPrComment, postPrStatus, resolvePrContext, resolveShardGroup, shardFromEnv, uploadArtifacts } from '@kinora/core'
 
 export interface KinoraReporterOptions {
   /** kinora server base URL. Defaults to env KINORA_URL, then the hosted cloud. Set for self-host. */
@@ -21,6 +21,12 @@ export interface KinoraReporterOptions {
    * the `api` scope). `label` distinguishes matrix legs sharing one PR.
    */
   prComment?: boolean | { label?: string, policy?: 'always' | 'on-failure' }
+  /**
+   * Set a `kinora / <project>` commit status on the GitHub PR (needs `permissions: statuses: write`):
+   * red only for tests newly failing vs the base branch, so branch protection can require it.
+   * `label` distinguishes matrix legs, defaulting to the `prComment` one.
+   */
+  prStatus?: boolean | { label?: string }
   /**
    * Which attachment kinds to upload. Defaults to `['trace', 'snapshot']` (`snapshot` = the images
    * of a failed screenshot assertion, shown as a comparison). Add `'video'` / `'screenshot'`
@@ -140,7 +146,7 @@ export default class KinoraReporter implements Reporter {
     const detected = detectCiEnv(process.env)
     const shard = this.shard()
     const group = shard && this.options.groupKey !== false
-      ? resolveShardGroup(process.env, { groupKey: this.options.groupKey, leg: this.prCommentLabel() })
+      ? resolveShardGroup(process.env, { groupKey: this.options.groupKey, leg: this.prCommentLabel() ?? this.prStatusLabel() })
       : undefined
     const baseUrls = [...new Set((this.config?.projects ?? []).flatMap(p => p.use.baseURL ? [p.use.baseURL] : []))]
     const payload: IngestRun = {
@@ -159,7 +165,7 @@ export default class KinoraReporter implements Reporter {
     }
 
     try {
-      const client = createIngestClient({ baseUrl: url, token, regression: !!this.options.prComment, onRetry: info => console.warn(`[kinora] ${describeRetry(info)}`) })
+      const client = createIngestClient({ baseUrl: url, token, regression: !!(this.options.prComment || this.options.prStatus), onRetry: info => console.warn(`[kinora] ${describeRetry(info)}`) })
       const res = await client.uploadRun(payload)
 
       const artifacts = await uploadArtifacts(client, res.runId, artifactsToUpload(tests, this.options.uploadAttachments ?? DEFAULT_UPLOAD_ATTACHMENTS), {
@@ -171,7 +177,7 @@ export default class KinoraReporter implements Reporter {
       if (res.incident)
         console.warn(`[kinora] environment incident, not counted: ${res.incident.reason}`)
 
-      await this.maybePostPrComment(payload, res)
+      await this.maybePostToPr(payload, res)
     }
     catch (err) {
       if (err instanceof IngestError && err.status === 402)
@@ -190,48 +196,76 @@ export default class KinoraReporter implements Reporter {
     return typeof opt === 'object' ? opt.label : undefined
   }
 
-  // Best-effort PR/MR comment from the CI job. Never throws (mirrors "upload never fails the run").
-  private async maybePostPrComment(payload: IngestRun, res: IngestRunResult): Promise<void> {
-    if (!this.options.prComment)
+  private prStatusLabel(): string | undefined {
+    const opt = this.options.prStatus
+    return (typeof opt === 'object' ? opt.label : undefined) ?? this.prCommentLabel()
+  }
+
+  // Best-effort PR/MR comment and commit status from the CI job. Never throws (mirrors "upload never fails the run").
+  private async maybePostToPr(payload: IngestRun, res: IngestRunResult): Promise<void> {
+    if (!this.options.prComment && !this.options.prStatus)
       return
-    const opt = this.options.prComment
-    const label = this.prCommentLabel()
-    const policy = typeof opt === 'object' ? opt.policy : undefined
     const grouped = !!payload.run.groupKey
-    // Every shard of a grouped run updates the comment with the shards landed so far. A server
-    // that predates grouping sends no progress: each shard is then a partial run of its own.
+    // Every shard of a grouped run updates the PR with the shards landed so far. A server that
+    // predates grouping sends no progress: each shard is then a partial run of its own.
     if (grouped && !res.shardProgress)
       return
-    try {
-      // An ungrouped shard is a partial run: only the merged report (blob + merge-reports) comments.
-      const env = this.shard() && !grouped ? { ...process.env, __KINORA_IS_SHARD: '1' } : process.env
-      const ctx = resolvePrContext(env, (p) => {
-        try {
-          return readFileSync(p, 'utf8')
-        }
-        catch {
-          return undefined
-        }
-      })
-      if (!ctx)
-        return
-      const outcome = await postPrComment(ctx, {
-        projectSlug: payload.project.slug,
-        projectName: payload.project.name,
-        label,
-        runUrl: res.runUrl,
-        ciRunUrl: payload.run.ci?.runUrl,
-        counts: res.counts ?? payload.run.counts,
-        regression: res.regression,
-        flaky: res.flaky ?? flakyTestsOf(payload.tests),
-        ...(res.shardProgress && { shards: { runId: res.runId, ...res.shardProgress } }),
-        ...(res.incident && { incident: res.incident }),
-      }, policy ?? 'always')
-      if (outcome !== 'skipped')
-        console.warn(`[kinora] PR comment ${outcome}`)
+    // An ungrouped shard is a partial run: only the merged report (blob + merge-reports) posts.
+    const env = this.shard() && !grouped ? { ...process.env, __KINORA_IS_SHARD: '1' } : process.env
+    const ctx = resolvePrContext(env, (p) => {
+      try {
+        return readFileSync(p, 'utf8')
+      }
+      catch {
+        return undefined
+      }
+    })
+    if (!ctx)
+      return
+    const counts = res.counts ?? payload.run.counts
+    const shards = res.shardProgress && { runId: res.runId, ...res.shardProgress }
+
+    if (this.options.prComment) {
+      const opt = this.options.prComment
+      try {
+        const outcome = await postPrComment(ctx, {
+          projectSlug: payload.project.slug,
+          projectName: payload.project.name,
+          label: this.prCommentLabel(),
+          runUrl: res.runUrl,
+          ciRunUrl: payload.run.ci?.runUrl,
+          counts,
+          regression: res.regression,
+          flaky: res.flaky ?? flakyTestsOf(payload.tests),
+          ...(shards && { shards }),
+          ...(res.incident && { incident: res.incident }),
+        }, (typeof opt === 'object' ? opt.policy : undefined) ?? 'always')
+        if (outcome !== 'skipped')
+          console.warn(`[kinora] PR comment ${outcome}`)
+      }
+      catch (err) {
+        console.warn('[kinora] PR comment failed:', err instanceof Error ? err.message : err)
+      }
     }
-    catch (err) {
-      console.warn('[kinora] PR comment failed:', err instanceof Error ? err.message : err)
+
+    if (this.options.prStatus) {
+      try {
+        const outcome = await postPrStatus(ctx, {
+          projectSlug: payload.project.slug,
+          label: this.prStatusLabel(),
+          runUrl: res.runUrl,
+          counts,
+          regression: res.regression,
+          baseBranch: payload.run.git?.baseBranch,
+          ...(shards && { shards }),
+          ...(res.incident && { incident: res.incident }),
+        })
+        if (outcome !== 'skipped')
+          console.warn(`[kinora] PR status ${outcome}`)
+      }
+      catch (err) {
+        console.warn('[kinora] PR status failed:', err instanceof Error ? err.message : err)
+      }
     }
   }
 }

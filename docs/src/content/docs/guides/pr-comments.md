@@ -92,3 +92,55 @@ kinora tags its comment with a hidden marker keyed by project (and label, if set
 previous comment on the PR, and edits it in place. Re-running the job updates the same comment
 rather than adding a new one. On GitLab, "its own" means a note written by the user behind
 `GITLAB_TOKEN`, so keep using the same token to keep a single comment.
+
+## Commit status (GitHub)
+
+kinora can also set a `kinora / <project>` commit status on the pull request, next to your CI
+jobs in the checks list. It is red only when the PR breaks something: a test failing on the PR
+that passed on the base branch. A test already failing on the base branch, or a flaky one, leaves
+it green.
+
+```
+✓ kinora / web-app   No new failures vs main · 1 already failing · 2 flaky   Details
+✗ kinora / web-app   2 newly failing vs main                                  Details
+```
+
+**Details** opens the run in kinora. Turn it on alongside the comment or on its own:
+
+```ts
+reporter: [['@kinora/reporter', { project: { slug: 'web-app' }, prStatus: true }]]
+```
+
+```bash
+npx @kinora/cli upload results.json --project web-app --pr-status
+```
+
+The job needs to write statuses:
+
+```yaml
+permissions:
+  statuses: write
+```
+
+### Block merges on regressions only
+
+Mark `kinora / web-app` as a required status check in the branch protection rules, and let the
+Playwright job itself continue on error. A PR then can't merge when it makes a test fail, while a
+test that was already broken on the base branch or a flaky one no longer blocks it.
+
+```yaml
+- run: npx playwright test
+  continue-on-error: true # the kinora status is the required check
+```
+
+### How the status reads the run
+
+- **Without a baseline** (the base branch has no run yet), the status falls back to the run's own
+  result: red if any test failed.
+- **Sharded runs** show as pending ("2 of 4 shards landed") until the last shard lands.
+- **An environment incident** sets it red: nothing was tested, so the PR should not merge on it.
+  Re-run once the app is back.
+- **Matrix legs** get one status each from their label: `kinora / web-app (firefox)`. It reuses
+  `prComment.label` / `--pr-label`, or set `prStatus: { label }`.
+- **Fork PRs** are skipped, as for the comment: their `GITHUB_TOKEN` is read-only.
+- **GitLab** is not supported yet: the option does nothing there.

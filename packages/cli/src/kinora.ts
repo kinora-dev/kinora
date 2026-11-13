@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { DEFAULT_KINORA_URL, detectCiEnv, IngestError, postPrComment, resolvePrContext, resolveShardGroup, shardFromEnv } from '@kinora/core'
+import { DEFAULT_KINORA_URL, detectCiEnv, IngestError, postPrComment, postPrStatus, resolvePrContext, resolveShardGroup, shardFromEnv } from '@kinora/core'
 import { parseAttachmentKinds, parseBaseUrls } from './args'
 import { importReports } from './import'
 import { quarantineHeader, writeQuarantineList } from './quarantine'
@@ -51,6 +51,8 @@ Options:
   (In GitHub Actions and GitLab CI, git + ci metadata auto-detect from the env; flags override.)
   --pr-comment          Post/update a summary on the GitHub PR (needs GITHUB_TOKEN + pull-requests: write)
                         or the GitLab MR (needs a GITLAB_TOKEN variable with the api scope)
+  --pr-status           Set a "kinora / <project>" commit status on the GitHub PR (needs GITHUB_TOKEN +
+                        statuses: write): red only for tests newly failing vs the base branch
   --pr-label <label>    Distinguish matrix legs that share one PR
   --pr-policy <policy>  always (default) | on-failure (no new comment on green runs)
   --group-key <key>     Sharded report (--shard): the run its shards are assembled into
@@ -188,6 +190,7 @@ async function main(): Promise<void> {
       'ci-run-number': { type: 'string' },
       'git-base-branch': { type: 'string' },
       'pr-comment': { type: 'boolean' },
+      'pr-status': { type: 'boolean' },
       'pr-label': { type: 'string' },
       'pr-policy': { type: 'string' },
       'concurrency': { type: 'string' },
@@ -275,7 +278,7 @@ async function main(): Promise<void> {
     token,
     git,
     ci,
-    regression: !!values['pr-comment'],
+    regression: !!(values['pr-comment'] || values['pr-status']),
     uploadAttachments: attachmentKinds(values['upload-attachments']),
     baseUrls,
     group: values['no-group'] ? undefined : resolveShardGroup(process.env, { groupKey: values['group-key'], leg: values['pr-label'] }),
@@ -287,20 +290,21 @@ async function main(): Promise<void> {
   if (res.incident)
     console.warn(`warning: environment incident, not counted: ${res.incident.reason}`)
 
-  // Best-effort PR/MR comment (GitHub: the job's GITHUB_TOKEN; GitLab: GITLAB_TOKEN). Never fails the upload.
-  // A grouped shard updates the comment with the shards landed so far; a server that predates
-  // grouping sends no progress, and that shard is then a partial run that must not comment.
-  if (values['pr-comment'] && !(res.grouped && !res.shardProgress)) {
-    try {
-      const ctx = resolvePrContext(process.env, (p) => {
-        try {
-          return readFileSync(p, 'utf8')
-        }
-        catch {
-          return undefined
-        }
-      })
-      if (ctx) {
+  // Best-effort PR/MR comment and commit status (GitHub: the job's GITHUB_TOKEN; GitLab: GITLAB_TOKEN).
+  // Never fails the upload. A grouped shard updates the PR with the shards landed so far; a server
+  // that predates grouping sends no progress, and that shard is then a partial run that must not post.
+  if ((values['pr-comment'] || values['pr-status']) && !(res.grouped && !res.shardProgress)) {
+    const ctx = resolvePrContext(process.env, (p) => {
+      try {
+        return readFileSync(p, 'utf8')
+      }
+      catch {
+        return undefined
+      }
+    })
+    const shards = res.shardProgress && { runId: res.runId, ...res.shardProgress }
+    if (ctx && values['pr-comment']) {
+      try {
         const policy = values['pr-policy'] === 'on-failure' ? 'on-failure' : 'always'
         const outcome = await postPrComment(ctx, {
           projectSlug: values.project,
@@ -311,15 +315,34 @@ async function main(): Promise<void> {
           counts: res.counts,
           regression: res.regression,
           flaky: res.flaky,
-          ...(res.shardProgress && { shards: { runId: res.runId, ...res.shardProgress } }),
+          ...(shards && { shards }),
           ...(res.incident && { incident: res.incident }),
         }, policy)
         if (outcome !== 'skipped')
           console.log(`PR comment ${outcome}`)
       }
+      catch (err) {
+        console.warn(`warning: PR comment failed: ${err instanceof Error ? err.message : err}`)
+      }
     }
-    catch (err) {
-      console.warn(`warning: PR comment failed: ${err instanceof Error ? err.message : err}`)
+    if (ctx && values['pr-status']) {
+      try {
+        const outcome = await postPrStatus(ctx, {
+          projectSlug: values.project,
+          label: values['pr-label'],
+          runUrl: res.runUrl,
+          counts: res.counts,
+          regression: res.regression,
+          baseBranch,
+          ...(shards && { shards }),
+          ...(res.incident && { incident: res.incident }),
+        })
+        if (outcome !== 'skipped')
+          console.log(`PR status ${outcome}`)
+      }
+      catch (err) {
+        console.warn(`warning: PR status failed: ${err instanceof Error ? err.message : err}`)
+      }
     }
   }
 }
