@@ -26,7 +26,7 @@ export const GET: APIRoute = async () => {
 
   const body = `# kinora docs - full content
 
-> Documentation for kinora, the dashboard for Playwright test reports across projects and over time, with an embedded trace viewer. CI runs push their results to kinora; it tracks pass rates, trends, and flaky tests, and opens the full Playwright trace inline for any failure. Every documentation page is concatenated below in one file.
+> Documentation for kinora, the dashboard for browser test reports (Playwright, Vitest browser mode, Storybook) across projects and over time, with an embedded trace viewer. CI runs push their results to kinora; it tracks pass rates, trends, and flaky tests, and opens the full Playwright trace inline for any failure. Every documentation page is concatenated below in one file.
 
 ${pages}
 `
