@@ -1,9 +1,10 @@
-import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRun, NormTest } from '@kinora/core'
+import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRun, IngestRunResult, NormTest, PrCommentOption, PrReportOptions, PrStatusOption } from '@kinora/core'
 import type { Reporter, TestModule, Vitest } from 'vitest/node'
 import type { IncludeTests } from './convert'
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, IngestError, resolveShardGroup, uploadArtifacts } from '@kinora/core'
+import { artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, flakyTestsOf, IngestError, postToPr, prLegLabel, resolvePrContext, resolvePrReportOptions, resolveShardGroup, uploadArtifacts } from '@kinora/core'
 import { toNormTests } from './convert'
 
 export interface KinoraVitestReporterOptions {
@@ -30,6 +31,18 @@ export interface KinoraVitestReporterOptions {
    * tell the legs apart. `false` uploads each shard as its own run.
    */
   groupKey?: string | false
+  /**
+   * Post/update a summary comment on the GitHub PR (uses the job's GITHUB_TOKEN; needs
+   * `permissions: pull-requests: write`) or the GitLab MR (needs a GITLAB_TOKEN CI variable with
+   * the `api` scope). `label` distinguishes matrix legs sharing one PR.
+   */
+  prComment?: PrCommentOption
+  /**
+   * Set a `kinora / <project>` commit status on the GitHub PR (needs `permissions: statuses: write`)
+   * or the GitLab MR pipeline (GITLAB_TOKEN with the Developer role): red only for tests newly
+   * failing vs the base branch. `label` distinguishes matrix legs, defaulting to the `prComment` one.
+   */
+  prStatus?: PrStatusOption
 }
 
 function countsOf(tests: NormTest[]): Counts {
@@ -69,8 +82,9 @@ export default class KinoraVitestReporter implements Reporter {
     }
 
     const { tests, skippedNodeTests } = toNormTests(modules, this.options.include)
+    const prOptions = resolvePrReportOptions(this.options.prComment, this.options.prStatus)
     const group = this.shard && this.options.groupKey !== false
-      ? resolveShardGroup(process.env, { groupKey: this.options.groupKey })
+      ? resolveShardGroup(process.env, { groupKey: this.options.groupKey, leg: prLegLabel(prOptions) })
       : undefined
     if (!tests.length) {
       // A shard that ran no test still fills its slot, or the run would wait for it and close as incomplete.
@@ -98,7 +112,7 @@ export default class KinoraVitestReporter implements Reporter {
 
     // Upload never fails the test run.
     try {
-      const client = createIngestClient({ baseUrl: url, token, onRetry: info => console.warn(`[kinora] ${describeRetry(info)}`) })
+      const client = createIngestClient({ baseUrl: url, token, regression: !!(prOptions.comment || prOptions.status), onRetry: info => console.warn(`[kinora] ${describeRetry(info)}`) })
       const res = await client.uploadRun(payload)
       const artifacts = await uploadArtifacts(client, res.runId, artifactsToUpload(tests, this.options.uploadAttachments ?? DEFAULT_UPLOAD_ATTACHMENTS), {
         read: readFile,
@@ -106,6 +120,9 @@ export default class KinoraVitestReporter implements Reporter {
       })
       // eslint-disable-next-line no-console -- a reporter's job is to report
       console.log(`[kinora] uploaded ${res.tests} tests + ${artifacts} artifacts (run ${res.runId}${res.shardProgress ? `, ${res.shardProgress.landed} of ${res.shardProgress.total} shards` : ''})`)
+      if (res.incident)
+        console.warn(`[kinora] environment incident, not counted: ${res.incident.reason}`)
+      await this.maybePostToPr(prOptions, payload, res)
     }
     catch (err) {
       if (err instanceof IngestError && err.status === 402)
@@ -113,5 +130,36 @@ export default class KinoraVitestReporter implements Reporter {
       else
         console.error('[kinora] upload failed:', err instanceof Error ? err.message : err)
     }
+  }
+
+  // Every shard of a grouped run updates the PR with the shards landed so far. A shard uploaded on
+  // its own is a partial run, and a server that predates grouping sends no progress: neither posts.
+  private async maybePostToPr(opts: PrReportOptions, payload: IngestRun, res: IngestRunResult): Promise<void> {
+    if (!opts.comment && !opts.status)
+      return
+    if (this.shard && !res.shardProgress)
+      return
+    const ctx = resolvePrContext(process.env, (p) => {
+      try {
+        return readFileSync(p, 'utf8')
+      }
+      catch {
+        return undefined
+      }
+    })
+    if (!ctx)
+      return
+    await postToPr(ctx, opts, {
+      projectSlug: payload.project.slug,
+      projectName: payload.project.name,
+      runUrl: res.runUrl,
+      ciRunUrl: payload.run.ci?.runUrl,
+      counts: res.counts ?? payload.run.counts,
+      regression: res.regression,
+      flaky: res.flaky ?? flakyTestsOf(payload.tests),
+      baseBranch: payload.run.git?.baseBranch,
+      ...(res.shardProgress && { shards: { runId: res.runId, ...res.shardProgress } }),
+      ...(res.incident && { incident: res.incident }),
+    }, { info: m => console.warn(`[kinora] ${m}`), warn: m => console.warn(`[kinora] ${m}`) })
   }
 }

@@ -1,10 +1,10 @@
-import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRun, IngestRunResult, NormTest } from '@kinora/core'
+import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRun, IngestRunResult, NormTest, PrCommentOption, PrReportOptions, PrStatusOption } from '@kinora/core'
 import type { FullConfig, FullResult, Reporter, Suite, TestCase } from '@playwright/test/reporter'
 import type { Buffer } from 'node:buffer'
 import { readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { a11yFromScans, artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, effectiveAttachments, flakyTestsOf, IngestError, makeTestKey, parseAxeScan, postPrComment, postPrStatus, resolvePrContext, resolveShardGroup, shardFromEnv, uploadArtifacts } from '@kinora/core'
+import { a11yFromScans, artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, effectiveAttachments, flakyTestsOf, IngestError, makeTestKey, parseAxeScan, postToPr, prLegLabel, resolvePrContext, resolvePrReportOptions, resolveShardGroup, shardFromEnv, uploadArtifacts } from '@kinora/core'
 
 export interface KinoraReporterOptions {
   /** kinora server base URL. Defaults to env KINORA_URL, then the hosted cloud. Set for self-host. */
@@ -20,14 +20,14 @@ export interface KinoraReporterOptions {
    * `permissions: pull-requests: write`) or the GitLab MR (needs a GITLAB_TOKEN CI variable with
    * the `api` scope). `label` distinguishes matrix legs sharing one PR.
    */
-  prComment?: boolean | { label?: string, policy?: 'always' | 'on-failure' }
+  prComment?: PrCommentOption
   /**
    * Set a `kinora / <project>` commit status on the GitHub PR (needs `permissions: statuses: write`)
    * or the GitLab MR pipeline (GITLAB_TOKEN with the Developer role): red only for tests newly
    * failing vs the base branch, so branch protection or "Pipelines must succeed" can require it.
    * `label` distinguishes matrix legs, defaulting to the `prComment` one.
    */
-  prStatus?: boolean | { label?: string }
+  prStatus?: PrStatusOption
   /**
    * Which attachment kinds to upload. Defaults to `['trace', 'snapshot']` (`snapshot` = the images
    * of a failed screenshot assertion, shown as a comparison). Add `'video'` / `'screenshot'`
@@ -147,7 +147,7 @@ export default class KinoraReporter implements Reporter {
     const detected = detectCiEnv(process.env)
     const shard = this.shard()
     const group = shard && this.options.groupKey !== false
-      ? resolveShardGroup(process.env, { groupKey: this.options.groupKey, leg: this.prCommentLabel() ?? this.prStatusLabel() })
+      ? resolveShardGroup(process.env, { groupKey: this.options.groupKey, leg: prLegLabel(this.prOptions()) })
       : undefined
     const baseUrls = [...new Set((this.config?.projects ?? []).flatMap(p => p.use.baseURL ? [p.use.baseURL] : []))]
     const payload: IngestRun = {
@@ -192,19 +192,14 @@ export default class KinoraReporter implements Reporter {
     return this.config?.shard ?? shardFromEnv(process.env)
   }
 
-  private prCommentLabel(): string | undefined {
-    const opt = this.options.prComment
-    return typeof opt === 'object' ? opt.label : undefined
-  }
-
-  private prStatusLabel(): string | undefined {
-    const opt = this.options.prStatus
-    return (typeof opt === 'object' ? opt.label : undefined) ?? this.prCommentLabel()
+  private prOptions(): PrReportOptions {
+    return resolvePrReportOptions(this.options.prComment, this.options.prStatus)
   }
 
   // Best-effort PR/MR comment and commit status from the CI job. Never throws (mirrors "upload never fails the run").
   private async maybePostToPr(payload: IngestRun, res: IngestRunResult): Promise<void> {
-    if (!this.options.prComment && !this.options.prStatus)
+    const opts = this.prOptions()
+    if (!opts.comment && !opts.status)
       return
     const grouped = !!payload.run.groupKey
     // Every shard of a grouped run updates the PR with the shards landed so far. A server that
@@ -223,50 +218,17 @@ export default class KinoraReporter implements Reporter {
     })
     if (!ctx)
       return
-    const counts = res.counts ?? payload.run.counts
-    const shards = res.shardProgress && { runId: res.runId, ...res.shardProgress }
-
-    if (this.options.prComment) {
-      const opt = this.options.prComment
-      try {
-        const outcome = await postPrComment(ctx, {
-          projectSlug: payload.project.slug,
-          projectName: payload.project.name,
-          label: this.prCommentLabel(),
-          runUrl: res.runUrl,
-          ciRunUrl: payload.run.ci?.runUrl,
-          counts,
-          regression: res.regression,
-          flaky: res.flaky ?? flakyTestsOf(payload.tests),
-          ...(shards && { shards }),
-          ...(res.incident && { incident: res.incident }),
-        }, (typeof opt === 'object' ? opt.policy : undefined) ?? 'always')
-        if (outcome !== 'skipped')
-          console.warn(`[kinora] PR comment ${outcome}`)
-      }
-      catch (err) {
-        console.warn('[kinora] PR comment failed:', err instanceof Error ? err.message : err)
-      }
-    }
-
-    if (this.options.prStatus) {
-      try {
-        const outcome = await postPrStatus(ctx, {
-          projectSlug: payload.project.slug,
-          label: this.prStatusLabel(),
-          runUrl: res.runUrl,
-          counts,
-          regression: res.regression,
-          baseBranch: payload.run.git?.baseBranch,
-          ...(shards && { shards }),
-          ...(res.incident && { incident: res.incident }),
-        })
-        if (outcome !== 'skipped')
-          console.warn(`[kinora] PR status ${outcome}`)
-      }
-      catch (err) {
-        console.warn('[kinora] PR status failed:', err instanceof Error ? err.message : err)
-      }
-    }
+    await postToPr(ctx, opts, {
+      projectSlug: payload.project.slug,
+      projectName: payload.project.name,
+      runUrl: res.runUrl,
+      ciRunUrl: payload.run.ci?.runUrl,
+      counts: res.counts ?? payload.run.counts,
+      regression: res.regression,
+      flaky: res.flaky ?? flakyTestsOf(payload.tests),
+      baseBranch: payload.run.git?.baseBranch,
+      ...(res.shardProgress && { shards: { runId: res.runId, ...res.shardProgress } }),
+      ...(res.incident && { incident: res.incident }),
+    }, { info: m => console.warn(`[kinora] ${m}`), warn: m => console.warn(`[kinora] ${m}`) })
   }
 }

@@ -27,7 +27,7 @@ function reporter(options: Partial<ConstructorParameters<typeof KinoraVitestRepo
   return new KinoraVitestReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'ui' }, ...options })
 }
 
-const CI_VARS = ['KINORA_GROUP_KEY', 'KINORA_ATTEMPT', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'CI_PIPELINE_ID', 'CI_JOB_ID']
+const CI_VARS = ['KINORA_GROUP_KEY', 'KINORA_ATTEMPT', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'CI_PIPELINE_ID', 'CI_JOB_ID', 'GITHUB_ACTIONS', 'GITHUB_TOKEN', 'GITHUB_EVENT_NAME', 'GITHUB_EVENT_PATH', 'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_SHA', 'GITHUB_BASE_REF', 'GITHUB_HEAD_REF', 'GITHUB_REF_NAME', 'GITHUB_SERVER_URL', 'GITHUB_API_URL', 'GITLAB_CI']
 
 // A CI runner sets these itself: start every test without them.
 beforeEach(() => {
@@ -183,5 +183,94 @@ describe('sharded runs', () => {
     await shardedReporter().onTestRunEnd([fakeModule([fakeTest()])])
 
     expect(log).toHaveBeenCalledWith(expect.stringContaining('2 of 3 shards'))
+  })
+})
+
+describe('pull requests', () => {
+  let dir: string
+
+  // A pull_request run: the event payload carries the PR number and its head commit.
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'kinora-vitest-pr-'))
+    const eventPath = join(dir, 'event.json')
+    await writeFile(eventPath, JSON.stringify({ pull_request: { number: 9, head: { sha: 'headsha' } } }))
+    Object.assign(process.env, { GITHUB_TOKEN: 'ghtok', GITHUB_EVENT_NAME: 'pull_request', GITHUB_REPOSITORY: 'acme/ui', GITHUB_SHA: 'mergesha', GITHUB_BASE_REF: 'main', GITHUB_EVENT_PATH: eventPath })
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  // kinora answers the run with a regression; GitHub lists no comment yet and accepts the writes.
+  function stubPr(run: object = {}): { method: string, url: string, body?: string }[] {
+    const calls: { method: string, url: string, body?: string }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      const u = String(url)
+      calls.push({ method: init?.method ?? 'GET', url: u, body: init?.body as string | undefined })
+      if (u.includes('/api/v1/runs'))
+        return new Response(JSON.stringify({ projectId: 'p', runId: 'run-1', tests: 2, runUrl: 'https://app.kinora.dev/r', regression: { base: 'base-branch', newlyFailing: [{ testKey: 'k', title: 'fails', file: 'a.test.ts' }], newlyFlaky: [], fixed: 0 }, ...run }), { status: 201 })
+      return new Response(init?.method === 'POST' ? '{}' : '[]', { status: init?.method === 'POST' ? 201 : 200 })
+    }))
+    return calls
+  }
+
+  const run = () => [fakeModule([fakeTest({ name: 'passes' }), fakeTest({ name: 'fails', state: 'failed' })])]
+
+  it('posts the comment and the commit status, asking kinora for the regression', async () => {
+    const calls = stubPr()
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await reporter({ prComment: true, prStatus: true }).onTestRunEnd(run())
+
+    expect(calls[0].url).toContain('regression=1')
+    const comment = calls.find(c => c.method === 'POST' && c.url === 'https://api.github.com/repos/acme/ui/issues/9/comments')
+    expect(JSON.parse(comment!.body!).body).toContain('1 newly failing** vs base branch')
+    const status = calls.find(c => c.url === 'https://api.github.com/repos/acme/ui/statuses/headsha')
+    expect(JSON.parse(status!.body!)).toMatchObject({ state: 'failure', context: 'kinora / ui', description: '1 newly failing vs main', target_url: 'https://app.kinora.dev/r' })
+    expect(warn.mock.calls.flat()).toEqual(expect.arrayContaining(['[kinora] PR comment created', '[kinora] PR status posted']))
+  })
+
+  it('posts nothing to the PR unless asked', async () => {
+    const calls = stubPr()
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    await reporter().onTestRunEnd(run())
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).not.toContain('regression')
+  })
+
+  it('keeps matrix legs apart: their own status, and their own run when sharded', async () => {
+    const calls = stubPr({ shardProgress: { landed: 3, total: 3 } })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    process.env.GITHUB_RUN_ID = '42'
+    const r = reporter({ prStatus: { label: 'firefox' } })
+    r.onInit({ config: { shard: { index: 3, count: 3 } }, projects: [] } as unknown as Vitest)
+    await r.onTestRunEnd(run())
+
+    expect(JSON.parse(calls[0].body!).run.groupKey).toBe('gh-42:firefox')
+    const status = calls.find(c => c.url.endsWith('/statuses/headsha'))
+    expect(JSON.parse(status!.body!).context).toBe('kinora / ui (firefox)')
+  })
+
+  it('leaves the PR alone when a shard is uploaded as a run of its own', async () => {
+    const calls = stubPr()
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const r = reporter({ prStatus: true, groupKey: false })
+    r.onInit({ config: { shard: { index: 1, count: 3 } }, projects: [] } as unknown as Vitest)
+    await r.onTestRunEnd(run())
+
+    expect(calls.filter(c => c.url.includes('api.github.com'))).toEqual([])
+  })
+
+  it('never fails the test run when GitHub refuses the status', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).includes('/api/v1/runs')
+      ? new Response(JSON.stringify({ projectId: 'p', runId: 'run-1', tests: 2 }), { status: 201 })
+      : new Response('boom', { status: 500 })))
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(reporter({ prStatus: true }).onTestRunEnd(run())).resolves.toBeUndefined()
+
+    expect(warn).toHaveBeenCalledWith('[kinora] PR status failed: github: create status failed (500)')
   })
 })

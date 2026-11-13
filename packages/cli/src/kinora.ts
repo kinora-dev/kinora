@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { DEFAULT_KINORA_URL, detectCiEnv, IngestError, postPrComment, postPrStatus, resolvePrContext, resolveShardGroup, shardFromEnv } from '@kinora/core'
+import { DEFAULT_KINORA_URL, detectCiEnv, IngestError, postToPr, resolvePrContext, resolvePrReportOptions, resolveShardGroup, shardFromEnv } from '@kinora/core'
 import { parseAttachmentKinds, parseBaseUrls } from './args'
 import { importReports } from './import'
 import { quarantineHeader, writeQuarantineList } from './quarantine'
@@ -272,6 +272,11 @@ async function main(): Promise<void> {
   const ciRunNumber = values['ci-run-number'] ?? detected.ci?.runNumber
   const ci = ciProvider || ciRunUrl || ciRunNumber ? { provider: ciProvider, runUrl: ciRunUrl, runNumber: ciRunNumber } : undefined
 
+  const prOptions = resolvePrReportOptions(
+    values['pr-comment'] && { label: values['pr-label'], policy: values['pr-policy'] === 'on-failure' ? 'on-failure' : 'always' },
+    values['pr-status'] && { label: values['pr-label'] },
+  )
+
   const raw: unknown = JSON.parse(await readFile(reportFile, 'utf8'))
   const res = await uploadReport(raw, {
     project: { slug: values.project, name: values.name },
@@ -279,7 +284,7 @@ async function main(): Promise<void> {
     token,
     git,
     ci,
-    regression: !!(values['pr-comment'] || values['pr-status']),
+    regression: !!(prOptions.comment || prOptions.status),
     uploadAttachments: attachmentKinds(values['upload-attachments']),
     baseUrls,
     group: values['no-group'] ? undefined : resolveShardGroup(process.env, { groupKey: values['group-key'], leg: values['pr-label'] }),
@@ -294,7 +299,7 @@ async function main(): Promise<void> {
   // Best-effort PR/MR comment and commit status (GitHub: the job's GITHUB_TOKEN; GitLab: GITLAB_TOKEN).
   // Never fails the upload. A grouped shard updates the PR with the shards landed so far; a server
   // that predates grouping sends no progress, and that shard is then a partial run that must not post.
-  if ((values['pr-comment'] || values['pr-status']) && !(res.grouped && !res.shardProgress)) {
+  if ((prOptions.comment || prOptions.status) && !(res.grouped && !res.shardProgress)) {
     const ctx = resolvePrContext(process.env, (p) => {
       try {
         return readFileSync(p, 'utf8')
@@ -303,47 +308,19 @@ async function main(): Promise<void> {
         return undefined
       }
     })
-    const shards = res.shardProgress && { runId: res.runId, ...res.shardProgress }
-    if (ctx && values['pr-comment']) {
-      try {
-        const policy = values['pr-policy'] === 'on-failure' ? 'on-failure' : 'always'
-        const outcome = await postPrComment(ctx, {
-          projectSlug: values.project,
-          projectName: values.name ?? values.project,
-          label: values['pr-label'],
-          runUrl: res.runUrl,
-          ciRunUrl: ci?.runUrl,
-          counts: res.counts,
-          regression: res.regression,
-          flaky: res.flaky,
-          ...(shards && { shards }),
-          ...(res.incident && { incident: res.incident }),
-        }, policy)
-        if (outcome !== 'skipped')
-          console.log(`PR comment ${outcome}`)
-      }
-      catch (err) {
-        console.warn(`warning: PR comment failed: ${err instanceof Error ? err.message : err}`)
-      }
-    }
-    if (ctx && values['pr-status']) {
-      try {
-        const outcome = await postPrStatus(ctx, {
-          projectSlug: values.project,
-          label: values['pr-label'],
-          runUrl: res.runUrl,
-          counts: res.counts,
-          regression: res.regression,
-          baseBranch,
-          ...(shards && { shards }),
-          ...(res.incident && { incident: res.incident }),
-        })
-        if (outcome !== 'skipped')
-          console.log(`PR status ${outcome}`)
-      }
-      catch (err) {
-        console.warn(`warning: PR status failed: ${err instanceof Error ? err.message : err}`)
-      }
+    if (ctx) {
+      await postToPr(ctx, prOptions, {
+        projectSlug: values.project,
+        projectName: values.name ?? values.project,
+        runUrl: res.runUrl,
+        ciRunUrl: ci?.runUrl,
+        counts: res.counts,
+        regression: res.regression,
+        flaky: res.flaky,
+        baseBranch,
+        ...(res.shardProgress && { shards: { runId: res.runId, ...res.shardProgress } }),
+        ...(res.incident && { incident: res.incident }),
+      }, { info: m => console.log(m), warn: m => console.warn(`warning: ${m}`) })
     }
   }
 }

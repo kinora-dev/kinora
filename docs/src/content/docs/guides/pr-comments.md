@@ -9,12 +9,19 @@ to the run. It works on
 GitHub pull requests and GitLab merge requests, and it posts from the CI job itself, so **no
 credentials are stored in kinora**. It works the same on cloud and self-host.
 
-Both upload paths support it: the [reporter](/guides/reporter/) and the [CLI](/guides/cli/).
+Every upload path supports it: the [reporter](/guides/reporter/), the
+[Vitest reporter](/guides/vitest/) and the [CLI](/guides/cli/).
 
 ## Reporter
 
 ```ts
 reporter: [['@kinora/reporter', { project: { slug: 'web-app' }, prComment: true }]]
+```
+
+## Vitest reporter
+
+```ts
+reporters: ['default', ['@kinora/vitest-reporter', { project: { slug: 'web-app' }, prComment: true }]]
 ```
 
 ## CLI

@@ -57,6 +57,8 @@ server with `KINORA_URL`.
 | `git` | `{ sha?, branch?, baseBranch?, repoUrl? }` | auto on GitHub Actions / GitLab CI | Git metadata. |
 | `ci` | `{ provider?, runUrl?, runNumber? }` | auto on GitHub Actions / GitLab CI | CI metadata for the run. |
 | `groupKey` | `string \| false` | env `KINORA_GROUP_KEY`, then the CI run | Groups the uploads of every shard of a CI run into one run. `false` uploads each shard as its own run. See [Sharded runs](#sharded-runs). |
+| `prComment` | `boolean \| { label?, policy? }` | off | Post/update a summary comment on the GitHub PR or GitLab MR. See [PR comments](/guides/pr-comments/). |
+| `prStatus` | `boolean \| { label? }` | off | Set a `kinora / <project>` commit status on the GitHub PR or GitLab MR pipeline, red only for tests newly failing vs the base branch. See [Commit status](/guides/pr-comments/#commit-status). |
 
 ## Node tests
 
@@ -90,7 +92,8 @@ then uploads no test, but still fills its slot, so the run can complete.
 The run shows as "2 of 4 shards" until the last shard landed, is closed as incomplete if one never
 uploads, and a re-run of a failed shard fills its slot again, keeping a test that failed then passed
 as flaky. All of it works as for Playwright: see [Sharded runs](/guides/reporter/#sharded-runs).
-The Vitest reporter posts no PR comment, so there is none to update.
+With `prComment` or `prStatus`, each shard updates the PR with the shards landed so far, until
+the last one shows the whole run.
 
 ## Traces
 
