@@ -152,6 +152,7 @@ jobs:
 
   e2e:
     needs: plan
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         shard: [1, 2, 3, 4]
@@ -201,9 +202,6 @@ npx @kinora/cli quarantine --project web-app --out quarantine.txt
 npx playwright test --test-list-invert quarantine.txt
 ```
 
-It combines with [balanced shards](#balanced-shards): `--test-list shards/shard-1.txt
---test-list-invert quarantine.txt` runs that shard's tests minus the quarantined ones.
-
 - **A test no list line can name exactly** (a title containing `›`, or surrounding spaces) is left
   out with a warning, rather than written as a line that would match other tests. Playwright also
   matches by title prefix, so quarantining a test titled like a `describe` of the same file skips
@@ -211,3 +209,63 @@ It combines with [balanced shards](#balanced-shards): `--test-list shards/shard-
 - **If kinora cannot be reached**, the command warns and writes an empty list: nothing is skipped
   and the whole suite runs. A bad token or an unknown project fails the command instead.
 
+
+### With balanced shards
+
+Write the quarantine in the same job that plans the shards, and ship it in the same artifact: every
+shard then skips the same tests, even if someone changes the quarantine while CI runs. Each shard
+runs its list minus the quarantined tests, and one non-blocking job runs the quarantined tests so
+their history keeps going.
+
+```yaml
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      # ... checkout, install (no browsers needed)
+      - run: npx playwright test --list --reporter=json > list.json
+      - run: npx @kinora/cli shard --list list.json --total 4 --project web-app
+        env:
+          KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
+      - run: npx @kinora/cli quarantine --project web-app --out shards/quarantine.txt
+        env:
+          KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shards
+          path: shards/
+
+  e2e:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      # ... checkout, install
+      - uses: actions/download-artifact@v4
+        with:
+          name: shards
+          path: shards/
+      - run: npx playwright test --test-list shards/shard-${{ matrix.shard }}.txt --test-list-invert shards/quarantine.txt
+        env:
+          KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
+          KINORA_SHARD: ${{ matrix.shard }}/4
+
+  quarantined:
+    needs: plan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      # ... checkout, install
+      - uses: actions/download-artifact@v4
+        with:
+          name: shards
+          path: shards/
+      - run: npx playwright test --test-list shards/quarantine.txt --pass-with-no-tests
+        env:
+          KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
+```
+
+A shard whose tests are all quarantined finds no test to run: add `--pass-with-no-tests` to the
+`e2e` step if that can happen.

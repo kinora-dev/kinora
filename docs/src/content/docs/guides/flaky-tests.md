@@ -74,3 +74,5 @@ then skip those tests in the blocking job and run them in one that cannot fail t
 Keep running them: a quarantined test that passes again over its next runs shows up as stable,
 which tells you when to lift the quarantine. An expired quarantine is no longer listed.
 
+With [balanced shards](/guides/cli/#balanced-shards), see the [sharded workflow](/guides/cli/#with-balanced-shards).
+
