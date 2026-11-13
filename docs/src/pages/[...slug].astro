@@ -1,13 +1,11 @@
 ---
 import { getCollection, render } from 'astro:content'
 import DocsLayout from '../layouts/DocsLayout.astro'
+import { markdownHrefFor, slugOf } from '../lib/markdown'
 
 export async function getStaticPaths() {
   const entries = await getCollection('docs')
-  return entries.map((entry) => {
-    const slug = entry.id === 'index' ? undefined : entry.id.replace(/\/index$/, '')
-    return { params: { slug }, props: { entry } }
-  })
+  return entries.map(entry => ({ params: { slug: slugOf(entry) || undefined }, props: { entry } }))
 }
 
 const { entry } = Astro.props
@@ -21,6 +19,7 @@ const editPath = `docs/src/content/docs/${entry.id}.md`
   section={entry.data.section}
   headings={headings}
   editPath={editPath}
+  markdownHref={markdownHrefFor(slugOf(entry))}
 >
   <Content />
 </DocsLayout>

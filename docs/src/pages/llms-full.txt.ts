@@ -1,27 +1,16 @@
 import type { APIRoute } from 'astro'
 import { getCollection } from 'astro:content'
-import { hrefFor, NAV } from '../lib/nav'
-import { SITE } from '../lib/site'
+import { pageMarkdown, slugOf } from '../lib/markdown'
+import { NAV } from '../lib/nav'
 
 export const GET: APIRoute = async () => {
-  const url = SITE.url
   const entries = await getCollection('docs')
-
-  const bySlug = new Map()
-  for (const e of entries) {
-    const slug = e.id === 'index' ? '' : e.id.replace(/\/index$/, '')
-    bySlug.set(slug, e)
-  }
+  const bySlug = new Map(entries.map(e => [slugOf(e), e]))
 
   const pages = NAV.flatMap(g => g.items)
-    .map((item) => {
-      const e = bySlug.get(item.slug)
-      if (!e)
-        return null
-      const desc = e.data.description ? `\n\n${e.data.description}` : ''
-      return `# ${e.data.title}\n${url}${hrefFor(item.slug)}${desc}\n\n${(e.body ?? '').trim()}`
-    })
-    .filter(Boolean)
+    .map(item => bySlug.get(item.slug))
+    .filter(e => e !== undefined)
+    .map(pageMarkdown)
     .join('\n\n---\n\n')
 
   const body = `# kinora docs - full content

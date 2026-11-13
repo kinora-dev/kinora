@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro'
-import { hrefFor, NAV } from '../lib/nav'
+import { markdownHrefFor } from '../lib/markdown'
+import { NAV } from '../lib/nav'
 import { SITE } from '../lib/site'
 
 export const GET: APIRoute = () => {
@@ -7,7 +8,7 @@ export const GET: APIRoute = () => {
 
   const sections = NAV.map((group) => {
     const items = group.items
-      .map(it => `- [${it.label}](${url}${hrefFor(it.slug)})`)
+      .map(it => `- [${it.label}](${url}${markdownHrefFor(it.slug)})`)
       .join('\n')
     return group.label ? `## ${group.label}\n${items}` : items
   }).join('\n\n')
@@ -24,6 +25,7 @@ ${sections}
 - Live demo: ${SITE.demo}
 - GitHub: ${SITE.repo}
 - Full text (every page in one file): ${url}/llms-full.txt
+- Every page is also served as HTML without the .md suffix (e.g. ${url}/guides/cli/)
 
 ## Key facts
 - License: FSL-1.1-MIT. The server, web, and desktop are FSL-1.1 (source-available, converts to MIT after 2 years); the reporter, Vitest reporter, CLI, core, ui, mcp, and the trace viewer are MIT.

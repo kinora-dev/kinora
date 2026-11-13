@@ -19,9 +19,10 @@ interface Props {
   section?: string
   headings: Heading[]
   editPath?: string
+  markdownHref?: string
 }
 
-const { title, description, headings, editPath } = Astro.props
+const { title, description, headings, editPath, markdownHref } = Astro.props
 
 const norm = (h: string) => h.replace(/\/+$/, '') || '/'
 const here = norm(Astro.url.pathname)
@@ -58,6 +59,7 @@ const editUrl = editPath ? `${SITE.repo}/edit/main/${editPath}` : SITE.repo
 ---
 
 <BaseLayout title={docTitle} description={description}>
+  {markdownHref && <link slot="head" rel="alternate" type="text/markdown" href={markdownHref} />}
   {breadcrumb && (
     <script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumb)} />
   )}
@@ -260,6 +262,11 @@ const editUrl = editPath ? `${SITE.repo}/edit/main/${editPath}` : SITE.repo
               <a href={editUrl} target="_blank" rel="noopener noreferrer" class="mt-6 inline-block border-l border-border/70 pl-4 text-[13px] text-muted-foreground transition-colors hover:text-signal">
                 Edit this page →
               </a>
+              {markdownHref && (
+                <a href={markdownHref} class="mt-2 block border-l border-border/70 pl-4 text-[13px] text-muted-foreground transition-colors hover:text-signal">
+                  View as Markdown
+                </a>
+              )}
             </>
           )}
         </div>

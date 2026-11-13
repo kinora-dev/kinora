@@ -32,6 +32,8 @@ const isProd = import.meta.env.MODE === 'production'
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="kinora docs" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+    <slot name="head" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="robots" content={robots} />
