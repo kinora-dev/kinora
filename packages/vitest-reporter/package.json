@@ -1,7 +1,7 @@
 {
   "name": "@kinora/vitest-reporter",
   "type": "module",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Vitest reporter that uploads browser-mode and Storybook test results to a kinora server",
   "author": "Joris Gallot",
   "license": "MIT",
