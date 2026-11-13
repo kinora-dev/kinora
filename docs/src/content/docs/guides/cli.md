@@ -122,3 +122,71 @@ reporter. Grouping, partial and incomplete runs, and re-runs work as described i
 ```
 
 `kinora import` never groups: each imported report stays a run of its own.
+
+## Balanced shards
+
+Playwright's `--shard` splits a suite by test count, so one shard can draw every slow test and
+hold up the whole CI run. `kinora shard` splits it by duration instead: it reads each test's
+median duration over the project's latest runs, then writes one
+[test list](https://playwright.dev/docs/test-cli#test-list) per shard, each with about the same
+total time.
+
+Plan the shards once, in a job of its own, and hand the lists to the test jobs. Two jobs computing
+their own plan could read different durations, if a run lands in between, and then skip or repeat
+tests.
+
+```yaml
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      # ... checkout, install (no browsers needed)
+      - run: npx playwright test --list --reporter=json > list.json
+      - run: npx @kinora/cli shard --list list.json --total 4 --project web-app
+        env:
+          KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shards
+          path: shards/
+
+  e2e:
+    needs: plan
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      # ... checkout, install
+      - uses: actions/download-artifact@v4
+        with:
+          name: shards
+          path: shards/
+      - run: npx playwright test --test-list shards/shard-${{ matrix.shard }}.txt
+        env:
+          KINORA_TOKEN: ${{ secrets.KINORA_TOKEN }}
+          KINORA_SHARD: ${{ matrix.shard }}/4
+```
+
+A run split by a test list does not record a shard, so set `KINORA_SHARD=<shard>/<total>`: the
+reporter and `kinora upload` read it to assemble the shards into one run, as with `--shard`.
+
+```
+--list <file>         required, output of `playwright test --list --reporter=json`
+--total <n>           required, number of shards
+--project <slug>      read durations from this kinora project (with a token)
+--from-report <file>  read durations from a previous Playwright JSON report instead, no account needed
+--runs <n>            latest kinora runs to read durations from (default: 30)
+--out-dir <dir>       where shard-1.txt ... shard-N.txt go (default: shards)
+--granularity <g>     file (default) | test
+```
+
+- **Files stay whole by default**, which keeps `describe.serial` groups and per-file `beforeAll`
+  hooks together. With `fullyParallel` suites, `--granularity test` balances single tests. A file
+  whose test titles a list entry cannot name exactly (a title containing `›`, or one that is also
+  a `describe` title) still stays whole.
+- **Tests without history**, new or renamed, are estimated at the median of the known durations.
+- **Skipped results and [environment incidents](/guides/environment-incidents/)** are left out of
+  the durations.
+- **If kinora cannot be reached**, the command warns and splits by test count, so CI still runs.
+- **A shard can be empty** when there are fewer files than shards. Playwright then fails with "No
+  tests found": lower `--total`, or pass `--pass-with-no-tests`.

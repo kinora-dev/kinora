@@ -1,6 +1,6 @@
 import type { IngestRun, IngestRunResult, UploadArtifactResult } from '../contracts/ingest'
 import type { CiMeta, GitMeta } from '../contracts/kinora'
-import type { ShardGroup } from './shards'
+import type { ShardGroup, ShardSlot } from './shards'
 import { ingestRunResultSchema, uploadArtifactResultSchema } from '../contracts/ingest'
 import { pwConfigSchema } from '../contracts/playwright'
 import { isSnapshotImage } from './attachments'
@@ -16,6 +16,8 @@ export interface BuildIngestRunOptions {
   shards?: number
   // Group a sharded report (its `config.shard`) into the run of its CI run. Ignored when unsharded.
   group?: ShardGroup
+  // The shard when the report does not record one (see shardFromEnv).
+  shard?: ShardSlot
   // The app's `baseURL`s, which a JSON report does not carry (see IngestRun `baseUrls`).
   baseUrls?: string[]
 }
@@ -29,7 +31,7 @@ export function buildIngestRun(raw: unknown, opts: BuildIngestRunOptions): Inges
     git: opts.git,
     ci: opts.ci,
   })
-  const shard = opts.group ? pwConfigSchema.safeParse((raw as { config?: unknown } | null)?.config).data?.shard : undefined
+  const shard = opts.group ? pwConfigSchema.safeParse((raw as { config?: unknown } | null)?.config).data?.shard ?? opts.shard : undefined
   return {
     project: opts.project,
     run: {

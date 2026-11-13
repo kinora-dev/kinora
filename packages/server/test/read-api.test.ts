@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { app } from '../src/app'
 import { db } from '../src/db'
-import { artifact, project, test } from '../src/db/schemas/index'
+import { artifact, project, run, test } from '../src/db/schemas/index'
 import { createApiKey, createUser, ingest, runPayload } from './helpers'
 
 function get(path: string, key: string | null) {
@@ -125,5 +125,33 @@ describe('read api history', () => {
 
     const one = await (await get(`/projects/web-app/history?testKey=${encodeURIComponent(all.histories[0].testKey)}`, key)).json() as { histories: unknown[] }
     expect(one.histories).toHaveLength(1)
+  })
+})
+
+describe('read api test durations', () => {
+  let minute = 0
+  function timed(duration: number, status: 'expected' | 'skipped' = 'expected') {
+    const payload = runPayload('web-app', '@smoke', status)
+    payload.run.startedAt = new Date(Date.UTC(2026, 0, 1, 0, minute++)).toISOString()
+    payload.tests[0].duration = duration
+    return payload
+  }
+
+  it('returns the median duration per test, leaving out skipped results and incident runs', async () => {
+    const a = await createUser('a@test.dev')
+    const key = await createApiKey(a.id)
+    for (const d of [1000, 3000, 2000])
+      await ingest(key, timed(d))
+    await ingest(key, timed(0, 'skipped'))
+    const { runId } = await (await ingest(key, timed(90000))).json() as { runId: string }
+    await db.update(run).set({ incident: { rule: 'host-unreachable', reason: 'down' } }).where(eq(run.id, runId))
+
+    const body = await (await get('/projects/web-app/test-durations', key)).json() as { runs: number, tests: { duration: number, samples: number }[] }
+    expect(body.runs).toBe(4)
+    expect(body.tests).toEqual([expect.objectContaining({ duration: 2000, samples: 3 })])
+
+    const recent = await (await get('/projects/web-app/test-durations?runs=2', key)).json() as { tests: { duration: number, samples: number }[] }
+    expect(recent.tests[0]).toMatchObject({ duration: 2000, samples: 1 })
+    expect((await get('/projects/nope/test-durations', key)).status).toBe(404)
   })
 })

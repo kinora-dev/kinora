@@ -139,6 +139,17 @@ export function countsByTagFrom(tests: Pick<NormTest, 'tags' | 'status'>[]): Rec
   return out
 }
 
+function flattenReport(report: PlaywrightReport, meta: IngestMeta): NormTest[] {
+  const tests: NormTest[] = []
+  flattenSpecs(report.suites, { titlePath: [], file: '' }, tests, meta)
+  return tests
+}
+
+// The tests of a Playwright JSON report, including a `--list` one, with the same identity as ingest.
+export function playwrightReportTests(raw: unknown): NormTest[] {
+  return flattenReport(playwrightReportSchema.parse(raw), { projectId: '', runId: '' })
+}
+
 // Parse + normalize a raw Playwright JSON report into the kinora contract.
 // Attachment bodies are dropped (only metadata kept) to keep payloads small.
 export function ingestPlaywrightReport(
@@ -146,8 +157,7 @@ export function ingestPlaywrightReport(
   meta: IngestMeta,
 ): { summary: RunSummary, report: RunReport } {
   const parsed: PlaywrightReport = playwrightReportSchema.parse(raw)
-  const tests: NormTest[] = []
-  flattenSpecs(parsed.suites, { titlePath: [], file: '' }, tests, meta)
+  const tests = flattenReport(parsed, meta)
 
   const counts = countsFrom(parsed, tests)
   const startedAt = parsed.stats.startTime

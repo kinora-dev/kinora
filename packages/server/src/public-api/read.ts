@@ -1,10 +1,16 @@
 import type { Hono } from 'hono'
-import { findProject, listProjects, loadLatestRun, loadProjectHistory, loadRun, loadRunReport, loadRunSummaries, loadTestHistory } from '../reports/queries'
+import { findProject, listProjects, loadLatestRun, loadProjectHistory, loadRun, loadRunReport, loadRunSummaries, loadTestDurations, loadTestHistory } from '../reports/queries'
 
 type ReadApi = Hono<{ Variables: { orgId: string } }>
 
 const DEFAULT_RUNS_LIMIT = 50
 const MAX_RUNS_LIMIT = 200
+const DEFAULT_DURATION_RUNS = 30
+
+function limitParam(raw: string | undefined, fallback: number): number {
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), MAX_RUNS_LIMIT) : fallback
+}
 
 // Registered on publicApi so these inherit its Bearer auth, org scope, and rate limit.
 export function registerReadRoutes(api: ReadApi): void {
@@ -26,9 +32,7 @@ export function registerReadRoutes(api: ReadApi): void {
     const p = await findProject(c.get('orgId'), c.req.param('slug'))
     if (!p)
       return c.json({ error: 'Project not found' }, 404)
-    const raw = Number(c.req.query('limit'))
-    const limit = Number.isFinite(raw) && raw > 0 ? Math.min(raw, MAX_RUNS_LIMIT) : DEFAULT_RUNS_LIMIT
-    return c.json({ runs: await loadRunSummaries(p, limit) })
+    return c.json({ runs: await loadRunSummaries(p, limitParam(c.req.query('limit'), DEFAULT_RUNS_LIMIT)) })
   })
 
   api.get('/projects/:slug/runs/:runId', async (c) => {
@@ -71,5 +75,12 @@ export function registerReadRoutes(api: ReadApi): void {
     }
     const { histories } = await loadProjectHistory(p)
     return c.json({ histories })
+  })
+
+  api.get('/projects/:slug/test-durations', async (c) => {
+    const p = await findProject(c.get('orgId'), c.req.param('slug'))
+    if (!p)
+      return c.json({ error: 'Project not found' }, 404)
+    return c.json(await loadTestDurations(p, limitParam(c.req.query('runs'), DEFAULT_DURATION_RUNS)))
   })
 }

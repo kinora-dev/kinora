@@ -3,7 +3,7 @@ import type { SQL } from 'drizzle-orm'
 import type { PgSelect } from 'drizzle-orm/pg-core'
 import type { CodeownersRule } from '../lib/codeowners'
 import { applyTotals, buildFailureClusters, buildTestHistories, downsampleTrend, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
-import { and, asc, count, desc, eq, getTableColumns, ilike, lte, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, getTableColumns, ilike, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { artifact, project, run, test } from '../db/schemas/index'
 import { matchCodeowners, parseCodeowners } from '../lib/codeowners'
@@ -466,6 +466,31 @@ async function testHistoryOver(p: ProjectRow, runs: RunRow[], testKey: string): 
     where t.project_id = ${p.id} and t.test_key = ${testKey}
       and t.run_id in (${sql.join(runs.map(r => sql`${r.id}`), sql`, `)})`)
   return buildTestHistories(pointReports(p.slug, runs, rows.rows, parseCodeowners(p.codeownersText)))[0]
+}
+
+export interface TestDuration {
+  testKey: string
+  duration: number
+  samples: number
+}
+
+// Median duration per test over the newest counted runs, for planning CI shards. Skipped results
+// take no time and an incident run's timings come from a broken environment, so both are left out.
+export async function loadTestDurations(p: ProjectRow, runLimit: number): Promise<{ runs: number, tests: TestDuration[] }> {
+  const runs = await db.query.run.findMany({
+    columns: { id: true },
+    where: and(eq(run.projectId, p.id), isNull(run.incident)),
+    orderBy: [desc(run.startedAt), desc(run.id)],
+    limit: runLimit,
+  })
+  if (!runs.length)
+    return { runs: 0, tests: [] }
+  const rows = await db.execute<TestDuration & Record<string, unknown>>(sql`
+    select t.test_key as "testKey", round(percentile_cont(0.5) within group (order by t.duration))::int as duration, count(*)::int as samples
+    from test t
+    where t.run_id in (${sql.join(runs.map(r => sql`${r.id}`), sql`, `)}) and t.status <> 'skipped'
+    group by t.test_key`)
+  return { runs: runs.length, tests: rows.rows.map(r => ({ testKey: r.testKey, duration: r.duration, samples: r.samples })) }
 }
 
 // One test over the project's newest runs, every point: agents reading one test's history.

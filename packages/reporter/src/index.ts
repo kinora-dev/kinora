@@ -4,7 +4,7 @@ import type { Buffer } from 'node:buffer'
 import { readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { a11yFromScans, artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, effectiveAttachments, flakyTestsOf, IngestError, makeTestKey, parseAxeScan, postPrComment, resolvePrContext, resolveShardGroup, uploadArtifacts } from '@kinora/core'
+import { a11yFromScans, artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, effectiveAttachments, flakyTestsOf, IngestError, makeTestKey, parseAxeScan, postPrComment, resolvePrContext, resolveShardGroup, shardFromEnv, uploadArtifacts } from '@kinora/core'
 
 export interface KinoraReporterOptions {
   /** kinora server base URL. Defaults to env KINORA_URL, then the hosted cloud. Set for self-host. */
@@ -138,7 +138,7 @@ export default class KinoraReporter implements Reporter {
 
     const tests = (this.suite?.allTests() ?? []).map(toNormTest)
     const detected = detectCiEnv(process.env)
-    const shard = this.config?.shard
+    const shard = this.shard()
     const group = shard && this.options.groupKey !== false
       ? resolveShardGroup(process.env, { groupKey: this.options.groupKey, leg: this.prCommentLabel() })
       : undefined
@@ -181,6 +181,10 @@ export default class KinoraReporter implements Reporter {
     }
   }
 
+  private shard() {
+    return this.config?.shard ?? shardFromEnv(process.env)
+  }
+
   private prCommentLabel(): string | undefined {
     const opt = this.options.prComment
     return typeof opt === 'object' ? opt.label : undefined
@@ -200,7 +204,7 @@ export default class KinoraReporter implements Reporter {
       return
     try {
       // An ungrouped shard is a partial run: only the merged report (blob + merge-reports) comments.
-      const env = this.config?.shard && !grouped ? { ...process.env, __KINORA_IS_SHARD: '1' } : process.env
+      const env = this.shard() && !grouped ? { ...process.env, __KINORA_IS_SHARD: '1' } : process.env
       const ctx = resolvePrContext(env, (p) => {
         try {
           return readFileSync(p, 'utf8')

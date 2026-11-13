@@ -57,6 +57,16 @@ describe('uploadReport, sharded reports', () => {
     expect(res.grouped).toBe(true)
   })
 
+  it('groups a report run from a kinora shard list with the shard from KINORA_SHARD', async () => {
+    const { sent, fetch } = capture({})
+    await uploadReport(RAW, { ...opts, fetch, group: { groupKey: 'gh-42', attempt: 1 }, shard: { current: 1, total: 2 } })
+    expect(sent.run).toMatchObject({ groupKey: 'gh-42', shard: { current: 1, total: 2 } })
+
+    const recorded = capture({})
+    await uploadReport(sharded, { ...opts, fetch: recorded.fetch, group: { groupKey: 'gh-42', attempt: 1 }, shard: { current: 1, total: 2 } })
+    expect(recorded.sent.run).toMatchObject({ shard: { current: 2, total: 3 } })
+  })
+
   it('uploads an unsharded report, or one without a group, as a run of its own', async () => {
     const plain = capture({})
     await uploadReport(RAW, { ...opts, fetch: plain.fetch, group: { groupKey: 'gh-42', attempt: 1 } })

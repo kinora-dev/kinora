@@ -176,6 +176,16 @@ Per-test history over the project's latest 500 runs: counts, rates, and one poin
 { "histories": [{ "testKey": "…", "…": "…" }] }
 ```
 
+### GET /api/v1/projects/:slug/test-durations
+
+Median duration per test, in milliseconds, over the project's latest counted runs (`runs`, default
+30, at most 200). Skipped results and environment incident runs are left out. `kinora shard` uses
+it to [balance CI shards](/guides/cli/#balanced-shards).
+
+```json
+{ "runs": 30, "tests": [{ "testKey": "…", "duration": 4210, "samples": 30 }] }
+```
+
 ## Examples
 
 Upload a run with `curl`:

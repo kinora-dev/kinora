@@ -1,6 +1,6 @@
 import type { NormTest } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
-import { mergeShardAttempt, RERUN_ANNOTATION, resolveShardGroup } from './shards'
+import { mergeShardAttempt, RERUN_ANNOTATION, resolveShardGroup, shardFromEnv } from './shards'
 
 function makeTest(over: Partial<NormTest> & { testKey: string, status: NormTest['status'] }): NormTest {
   return {
@@ -70,5 +70,19 @@ describe('resolveShardGroup', () => {
   it('returns nothing outside CI without a key, and falls back to attempt 1 on junk', () => {
     expect(resolveShardGroup({})).toBeUndefined()
     expect(resolveShardGroup({ GITHUB_RUN_ID: '1', GITHUB_RUN_ATTEMPT: 'x' })?.attempt).toBe(1)
+  })
+})
+
+describe('shardFromEnv', () => {
+  it('reads KINORA_SHARD as current/total', () => {
+    expect(shardFromEnv({ KINORA_SHARD: '2/4' })).toEqual({ current: 2, total: 4 })
+    expect(shardFromEnv({ KINORA_SHARD: ' 1/1 ' })).toEqual({ current: 1, total: 1 })
+  })
+
+  it('ignores a missing or malformed value', () => {
+    expect(shardFromEnv({})).toBeUndefined()
+    expect(shardFromEnv({ KINORA_SHARD: '5/4' })).toBeUndefined()
+    expect(shardFromEnv({ KINORA_SHARD: '0/4' })).toBeUndefined()
+    expect(shardFromEnv({ KINORA_SHARD: '2' })).toBeUndefined()
   })
 })

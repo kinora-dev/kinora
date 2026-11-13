@@ -46,6 +46,13 @@ const failuresResponseSchema = z.object({
 
 const historyResponseSchema = z.object({ histories: z.array(testHistorySchema) })
 
+const testDurationsResponseSchema = z.object({
+  runs: z.number(),
+  tests: z.array(z.object({ testKey: z.string(), duration: z.number(), samples: z.number() })),
+})
+
+export type TestDurations = z.infer<typeof testDurationsResponseSchema>
+
 // Typed client over the API-key read API (`GET /api/v1/*`). Same auth as the ingest client; used by
 // the MCP server so agents can pull last-run failures, run reports, and per-test history.
 export function createReadClient(opts: ReadClientOptions) {
@@ -96,6 +103,12 @@ export function createReadClient(opts: ReadClientOptions) {
     async getHistory(slug: string, testKey?: string): Promise<TestHistory[]> {
       const q = testKey ? `?testKey=${encodeURIComponent(testKey)}` : ''
       return (await get(`${project(slug)}/history${q}`, historyResponseSchema)).histories
+    },
+
+    // Median duration per test over the newest `runs` counted runs (server default 30).
+    getTestDurations(slug: string, runs?: number): Promise<TestDurations> {
+      const q = runs ? `?runs=${runs}` : ''
+      return get(`${project(slug)}/test-durations${q}`, testDurationsResponseSchema)
     },
   }
 }

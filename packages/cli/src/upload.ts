@@ -1,4 +1,4 @@
-import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRunResult, ShardGroup } from '@kinora/core'
+import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRunResult, ShardGroup, ShardSlot } from '@kinora/core'
 import { readFile } from 'node:fs/promises'
 import { artifactsToUpload, buildIngestRun, createIngestClient, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, flakyTestsOf, uploadArtifacts } from '@kinora/core'
 
@@ -19,6 +19,8 @@ export interface UploadOptions {
   uploadAttachments?: AttachmentKind[]
   // A sharded report lands in the run of this CI run (see resolveShardGroup).
   group?: ShardGroup
+  // The shard when the report does not record one, from KINORA_SHARD.
+  shard?: ShardSlot
   // The app's `baseURL`s, so the server can tell an environment incident on its host.
   baseUrls?: string[]
 }
@@ -31,6 +33,7 @@ export async function uploadReport(raw: unknown, opts: UploadOptions): Promise<U
     git: opts.git,
     ci: opts.ci,
     group: opts.group,
+    shard: opts.shard,
     baseUrls: opts.baseUrls,
   })
   const client = createIngestClient({

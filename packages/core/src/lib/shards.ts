@@ -28,6 +28,22 @@ export function rerunAttemptOf(annotations: NormTest['annotations']): number | u
   return Number.isInteger(attempt) ? attempt : undefined
 }
 
+export interface ShardSlot {
+  current: number
+  total: number
+}
+
+// A shard planned outside Playwright (`kinora shard` + `--test-list`) has no `config.shard`, so
+// KINORA_SHARD=<current>/<total> names it for grouping.
+export function shardFromEnv(env: Record<string, string | undefined>): ShardSlot | undefined {
+  const m = env.KINORA_SHARD?.trim().match(/^(\d+)\/(\d+)$/)
+  if (!m)
+    return undefined
+  const current = Number(m[1])
+  const total = Number(m[2])
+  return current >= 1 && current <= total ? { current, total } : undefined
+}
+
 export interface ShardGroup {
   groupKey: string
   attempt: number

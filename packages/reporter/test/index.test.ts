@@ -33,7 +33,7 @@ const GH_VARS = ['GITHUB_ACTIONS', 'GITHUB_SHA', 'GITHUB_REF_NAME', 'GITHUB_HEAD
 
 const GL_VARS = ['GITLAB_CI', 'CI_COMMIT_SHA', 'CI_COMMIT_REF_NAME', 'CI_PROJECT_URL', 'CI_PIPELINE_URL', 'CI_PIPELINE_IID', 'CI_MERGE_REQUEST_SOURCE_BRANCH_NAME', 'CI_MERGE_REQUEST_TARGET_BRANCH_NAME']
 
-const SHARD_VARS = ['KINORA_GROUP_KEY', 'KINORA_ATTEMPT', 'GITHUB_RUN_ATTEMPT', 'CI_PIPELINE_ID', 'CI_JOB_ID']
+const SHARD_VARS = ['KINORA_GROUP_KEY', 'KINORA_ATTEMPT', 'GITHUB_RUN_ATTEMPT', 'CI_PIPELINE_ID', 'CI_JOB_ID', 'KINORA_SHARD']
 
 function fakeSuite(tests: TestCase[]): Suite {
   return { allTests: () => tests } as unknown as Suite
@@ -387,6 +387,18 @@ describe('reporter onEnd', () => {
       process.env.GITHUB_REPOSITORY = 'acme/app'
       process.env.GITHUB_REF = 'refs/pull/9/merge'
     }
+
+    it('takes the slot from KINORA_SHARD when the run was split by a test list', async () => {
+      const sent = stubServer({ status: 'open' })
+      process.env.GITHUB_RUN_ID = '42'
+      process.env.KINORA_SHARD = '1/2'
+
+      const reporter = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' } })
+      reporter.onBegin({ version: '1.60.0' } as FullConfig, fakeSuite([fakeTest()]))
+      await reporter.onEnd(fakeResult())
+
+      expect(sent.run).toMatchObject({ groupKey: 'gh-42', shard: { current: 1, total: 2 } })
+    })
 
     it('groups a shard by the CI run, with its attempt and slot', async () => {
       const sent = stubServer({ status: 'open' })

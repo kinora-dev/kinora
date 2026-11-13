@@ -4,9 +4,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { DEFAULT_KINORA_URL, detectCiEnv, IngestError, postPrComment, resolvePrContext, resolveShardGroup } from '@kinora/core'
+import { DEFAULT_KINORA_URL, detectCiEnv, IngestError, postPrComment, resolvePrContext, resolveShardGroup, shardFromEnv } from '@kinora/core'
 import { parseAttachmentKinds, parseBaseUrls } from './args'
 import { importReports } from './import'
+import { formatShardPlan, loadDurations, parseGranularity, parseShardTotal, writeShardPlan } from './shard'
 import { uploadReport } from './upload'
 
 const USAGE = `kinora - upload a Playwright json report to a kinora server
@@ -14,6 +15,16 @@ const USAGE = `kinora - upload a Playwright json report to a kinora server
 Usage:
   kinora upload <results.json> --project <slug> [options]
   kinora import <dir>          --project <slug> [options]   # bulk-import every *.json (historical, no traces)
+  kinora shard --list <list.json> --total <n> (--project <slug> | --from-report <results.json>) [options]
+
+Shard (balance CI shards by past durations; run each with \`playwright test --test-list <out-dir>/shard-<i>.txt\`
+and KINORA_SHARD=<i>/<n> so its upload joins the others):
+  --list <file>         Output of \`playwright test --list --reporter=json\`
+  --total <n>           Number of shards
+  --from-report <file>  Read durations from a previous Playwright JSON report instead of kinora
+  --runs <n>            Newest kinora runs to take durations from (default 30)
+  --out-dir <dir>       Where shard-<i>.txt files go (default: shards)
+  --granularity <g>     file (default: a file stays on one shard) | test (split files, for fullyParallel suites)
 
 Required:
   --project <slug>      Target project slug
@@ -38,6 +49,7 @@ Options:
   --group-key <key>     Sharded report (--shard): the run its shards are assembled into
                         (default: env KINORA_GROUP_KEY, then GITHUB_RUN_ID / CI_PIPELINE_ID)
   --no-group            Upload a sharded report as a run of its own
+  (A shard run with --test-list records no shard: set KINORA_SHARD=<i>/<n> so it is grouped.)
   --base-url <url>      The app's baseURL, repeatable (one per Playwright project), or env
                         KINORA_BASE_URL (comma-separated). A JSON report does not carry it, and it
                         tells an environment incident on the app's host from a third-party outage
@@ -73,6 +85,58 @@ function fail(msg: string): never {
   process.exit(1)
 }
 
+interface ShardFlags {
+  'project'?: string
+  'list'?: string
+  'total'?: string
+  'from-report'?: string
+  'runs'?: string
+  'out-dir'?: string
+  'granularity'?: string
+}
+
+async function readJson(file: string, flag: string): Promise<unknown> {
+  if (!existsSync(file))
+    fail(`${flag} file not found: ${file}`)
+  return JSON.parse(await readFile(file, 'utf8'))
+}
+
+async function shard(values: ShardFlags, url: string, token: string | undefined): Promise<void> {
+  if (!values.list)
+    fail('--list <file> is required')
+  let total: number
+  let granularity: ReturnType<typeof parseGranularity>
+  try {
+    total = parseShardTotal(values.total)
+    granularity = parseGranularity(values.granularity)
+  }
+  catch (err) {
+    fail(err instanceof Error ? err.message : String(err))
+  }
+  const list = await readJson(values.list, '--list')
+
+  let durations = new Map<string, number>()
+  if (values['from-report']) {
+    durations = await loadDurations({ kind: 'report', report: await readJson(values['from-report'], '--from-report') })
+  }
+  else {
+    if (!values.project || !token)
+      fail('pass --project and a token (--token or KINORA_TOKEN), or --from-report <results.json>')
+    // A shard plan without history is still a valid split, so kinora being unreachable must not fail CI.
+    try {
+      durations = await loadDurations({ kind: 'kinora', project: values.project, url, token, runs: values.runs ? Number(values.runs) : undefined })
+    }
+    catch (err) {
+      console.warn(`warning: could not read durations from kinora, splitting by test count: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  const plan = await writeShardPlan({ list, total, outDir: values['out-dir'] ?? 'shards', granularity, durations })
+  console.log(formatShardPlan(plan))
+  if (plan.shards.some(s => !s.tests))
+    console.warn('warning: some shards are empty; run them with --pass-with-no-tests or lower --total')
+}
+
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
@@ -96,6 +160,12 @@ async function main(): Promise<void> {
       'group-key': { type: 'string' },
       'no-group': { type: 'boolean' },
       'base-url': { type: 'string', multiple: true },
+      'list': { type: 'string' },
+      'total': { type: 'string' },
+      'from-report': { type: 'string' },
+      'runs': { type: 'string' },
+      'out-dir': { type: 'string' },
+      'granularity': { type: 'string' },
       'help': { type: 'boolean', short: 'h' },
     },
   })
@@ -105,11 +175,16 @@ async function main(): Promise<void> {
     return
   }
 
-  if (!values.project)
-    fail('--project <slug> is required')
-
   const url = values.url ?? process.env.KINORA_URL ?? DEFAULT_KINORA_URL
   const token = values.token ?? process.env.KINORA_TOKEN
+
+  if (positionals[0] === 'shard') {
+    await shard(values, url, token)
+    return
+  }
+
+  if (!values.project)
+    fail('--project <slug> is required')
   if (!token)
     fail('--token or KINORA_TOKEN is required')
   const baseUrls = baseUrlsOf(values['base-url'])
@@ -163,6 +238,7 @@ async function main(): Promise<void> {
     uploadAttachments: attachmentKinds(values['upload-attachments']),
     baseUrls,
     group: values['no-group'] ? undefined : resolveShardGroup(process.env, { groupKey: values['group-key'], leg: values['pr-label'] }),
+    shard: shardFromEnv(process.env),
   })
 
   const shards = res.shardProgress ? `, ${res.shardProgress.landed} of ${res.shardProgress.total} shards` : ''

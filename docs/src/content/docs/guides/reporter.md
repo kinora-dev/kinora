@@ -210,6 +210,10 @@ CI), and the shard count comes from Playwright, so there is nothing to configure
 the sharded suite once per leg (one per browser, say), give each leg its own `prComment.label` or
 `groupKey`, or their shards would fill the same slots.
 
+To split by duration instead of test count, plan the shards with
+[`kinora shard`](/guides/cli/#balanced-shards) and set `KINORA_SHARD=<shard>/<total>` on each
+`--test-list` job, since such a run does not record its shard.
+
 - **Until every shard landed**, the run shows as "2 of 4 shards" instead of a health, so a run
   missing shards never reads as green. Alerts wait for the last shard, then cover every shard's
   tests. The PR comment updates as each shard lands ("2 of 4 shards landed"), so a shard that
