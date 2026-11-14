@@ -252,11 +252,11 @@ importers:
         specifier: ^7.20.2
         version: 7.20.2(@opentelemetry/core@2.12.0(@opentelemetry/api@1.10.0))(supports-color@10.2.2)
       '@trpc/client':
-        specifier: ^11.28.0
-        version: 11.28.0(@trpc/server@11.28.0(typescript@6.0.3))(typescript@6.0.3)
+        specifier: ^11.28.1
+        version: 11.28.1(@trpc/server@11.28.1(typescript@6.0.3))(typescript@6.0.3)
       '@trpc/server':
-        specifier: 11.28.0
-        version: 11.28.0(typescript@6.0.3)
+        specifier: 11.28.1
+        version: 11.28.1(typescript@6.0.3)
       electron-updater:
         specifier: ^6.8.11
         version: 6.8.11(supports-color@10.2.2)
@@ -388,7 +388,7 @@ importers:
         version: 2.1.8(hono@4.13.18)
       '@hono/trpc-server':
         specifier: ^0.4.2
-        version: 0.4.2(@trpc/server@11.28.0(typescript@6.0.3))(hono@4.13.18)
+        version: 0.4.2(@trpc/server@11.28.1(typescript@6.0.3))(hono@4.13.18)
       '@hono/zod-validator':
         specifier: ^0.9.1
         version: 0.9.1(hono@4.13.18)(zod@4.6.7)
@@ -402,8 +402,8 @@ importers:
         specifier: ^11.11.0
         version: 11.11.0
       '@trpc/server':
-        specifier: ^11.28.0
-        version: 11.28.0(typescript@6.0.3)
+        specifier: ^11.28.1
+        version: 11.28.1(typescript@6.0.3)
       better-auth:
         specifier: ^1.7.18
         version: 1.7.18(@opentelemetry/api@1.10.0)(drizzle-orm@0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(knex@3.3.0(pg@8.23.1)(supports-color@10.2.2))(kysely@0.29.8)(pg@8.23.1))(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0)(vue@3.5.45(typescript@6.0.3))
@@ -730,8 +730,8 @@ importers:
         specifier: ^11.11.0
         version: 11.11.0(vue@3.5.45(typescript@6.0.3))
       '@trpc/client':
-        specifier: ^11.28.0
-        version: 11.28.0(@trpc/server@11.28.0(typescript@6.0.3))(typescript@6.0.3)
+        specifier: ^11.28.1
+        version: 11.28.1(@trpc/server@11.28.1(typescript@6.0.3))(typescript@6.0.3)
       '@vee-validate/zod':
         specifier: ^4.15.1
         version: 4.15.1(vue@3.5.45(typescript@6.0.3))(zod@4.6.7)
@@ -791,8 +791,8 @@ importers:
         specifier: ^4.3.5
         version: 4.3.5(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@trpc/server':
-        specifier: ^11.28.0
-        version: 11.28.0(typescript@6.0.3)
+        specifier: ^11.28.1
+        version: 11.28.1(typescript@6.0.3)
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -2987,14 +2987,14 @@ packages:
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
 
-  '@trpc/client@11.28.0':
-    resolution: {integrity: sha512-uaj/19rUZKcUkQHAw8mBpjHeR5N/SJyCEy1HPPOC0fpgfV7Zz3cXbz/L9Tqhy+0YMlHwb0PuFGEo2krNjV+Sng==}
+  '@trpc/client@11.28.1':
+    resolution: {integrity: sha512-/Z6Nwoc3GO35ZeXwR2gTLIZEIBqr9oZ4GanKDb4WvrE8I4t8HtpbY+ILe1LGEJywQWBN3aG+oVRL7nqNDEQ/zQ==}
     peerDependencies:
-      '@trpc/server': 11.28.0
+      '@trpc/server': 11.28.1
       typescript: '>=5.7.2'
 
-  '@trpc/server@11.28.0':
-    resolution: {integrity: sha512-jj/JplNMKCyNZChmOxYRVnN4vNsS1zvLEnFfPkuvoYmrouKMuFNi4zaIMn1lDx6yyuuru/e5+rjcrBrIGc3p4g==}
+  '@trpc/server@11.28.1':
+    resolution: {integrity: sha512-Xb+bHKcCUvwLkJCHfq6sNYFQHiRMJW/F2aCj7cbF3ufr7pPNx61mic/McDL3pTTx29IqL/chQTLOXoB28UcS2Q==}
     peerDependencies:
       '@types/aws-lambda': '*'
       '@types/express': '*'
@@ -8544,9 +8544,9 @@ snapshots:
     dependencies:
       hono: 4.13.18
 
-  '@hono/trpc-server@0.4.2(@trpc/server@11.28.0(typescript@6.0.3))(hono@4.13.18)':
+  '@hono/trpc-server@0.4.2(@trpc/server@11.28.1(typescript@6.0.3))(hono@4.13.18)':
     dependencies:
-      '@trpc/server': 11.28.0(typescript@6.0.3)
+      '@trpc/server': 11.28.1(typescript@6.0.3)
       hono: 4.13.18
 
   '@hono/zod-validator@0.9.1(hono@4.13.18)(zod@4.6.7)':
@@ -9644,12 +9644,12 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.2
 
-  '@trpc/client@11.28.0(@trpc/server@11.28.0(typescript@6.0.3))(typescript@6.0.3)':
+  '@trpc/client@11.28.1(@trpc/server@11.28.1(typescript@6.0.3))(typescript@6.0.3)':
     dependencies:
-      '@trpc/server': 11.28.0(typescript@6.0.3)
+      '@trpc/server': 11.28.1(typescript@6.0.3)
       typescript: 6.0.3
 
-  '@trpc/server@11.28.0(typescript@6.0.3)':
+  '@trpc/server@11.28.1(typescript@6.0.3)':
     dependencies:
       typescript: 6.0.3
 
