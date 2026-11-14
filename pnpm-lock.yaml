@@ -593,8 +593,8 @@ importers:
         specifier: ^1.7.1
         version: 1.7.1(supports-color@10.2.2)
       '@unovis/vue':
-        specifier: ^1.7.1
-        version: 1.7.1(@unovis/ts@1.7.1(supports-color@10.2.2))(vue@3.5.45(typescript@6.0.3))
+        specifier: ^1.8.1
+        version: 1.8.1(@unovis/ts@1.7.1(supports-color@10.2.2))(vue@3.5.45(typescript@6.0.3))
       '@vueuse/core':
         specifier: ^15.0.0
         version: 15.0.0(vue@3.5.45(typescript@6.0.3))
@@ -3313,10 +3313,10 @@ packages:
   '@unovis/ts@1.7.1':
     resolution: {integrity: sha512-QjSbkTU+0PlLubGosCrvgxbtiaZgbSwyYDZQcx/pYYDLKmtlgSuuWkNJI5U496KO8no9mzxuKoM9Ogi2MRQI8Q==}
 
-  '@unovis/vue@1.7.1':
-    resolution: {integrity: sha512-lkA+97pTGLmcya57EOw1r0Czb4EfymB/UXJWKVOpJVh8lleGiogKcBWBdtpk9QkvXOMapS0GYzjE+m5/BDeEeA==}
+  '@unovis/vue@1.8.1':
+    resolution: {integrity: sha512-Kt/HfYvIq6fJfTMXHg1rdusmd2JdzQpF6ln9EAb59n+GrVn7Qb+vscjJ5ckrCqv+AhxAbeBew1W8+tt+VmnWZQ==}
     peerDependencies:
-      '@unovis/ts': 1.7.1
+      '@unovis/ts': 1.8.1
       vue: ^3
 
   '@vee-validate/zod@4.15.1':
@@ -10109,7 +10109,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@unovis/vue@1.7.1(@unovis/ts@1.7.1(supports-color@10.2.2))(vue@3.5.45(typescript@6.0.3))':
+  '@unovis/vue@1.8.1(@unovis/ts@1.7.1(supports-color@10.2.2))(vue@3.5.45(typescript@6.0.3))':
     dependencies:
       '@unovis/ts': 1.7.1(supports-color@10.2.2)
       vue: 3.5.45(typescript@6.0.3)
