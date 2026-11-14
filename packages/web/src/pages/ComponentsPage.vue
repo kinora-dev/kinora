@@ -21,7 +21,6 @@ import TestHealthBadge from '@/components/viz/TestHealthBadge.vue'
 import TestStatusBadge from '@/components/viz/TestStatusBadge.vue'
 import { useComponentHistory } from '@/composables/queries'
 import { matchesHealth, useHealthFilter } from '@/composables/useHealthFilter'
-import { useNewFeature } from '@/composables/useNewFeature'
 import { useQuarantine } from '@/composables/useQuarantine'
 import { testLabel } from '@/lib/test-display'
 
@@ -33,8 +32,6 @@ function retry() {
   void reloadHistory()
   void reloadQuarantines()
 }
-
-useNewFeature('components').markSeen()
 
 const DOCS_URL = 'https://docs.kinora.dev/guides/component-testing/'
 const VITEST_DOCS_URL = 'https://docs.kinora.dev/guides/vitest/'

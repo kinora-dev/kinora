@@ -4,7 +4,6 @@ import { computed } from 'vue'
 // Features announced with a "New" badge. The badge goes away once the user has opened the
 // feature, and for everyone after the given day: drop the entry and its call sites then.
 const NEW_UNTIL = {
-  components: '2026-11-11',
   analytics: '2026-12-15',
 } as const
 

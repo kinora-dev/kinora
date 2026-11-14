@@ -41,28 +41,6 @@ test('components page explains itself on a project without stories', async ({ pa
   await expect(page.getByRole('link', { name: 'Vitest and Storybook guide' })).toBeVisible()
 })
 
-test('components link carries a New badge until the page is opened', async ({ page }) => {
-  await page.clock.setFixedTime(new Date('2026-11-01'))
-  await page.goto('/projects/web-app')
-  const link = page.getByRole('link', { name: 'Components' })
-  await expect(link.getByText('New')).toBeVisible()
-
-  await link.click()
-  await expect(page.getByText('No component stories recorded yet.')).toBeVisible()
-  await page.goBack()
-  await expect(link).toBeVisible()
-  await expect(link.getByText('New')).toHaveCount(0)
-})
-
-test('components link drops its New badge after the announcement window', async ({ page }) => {
-  await page.clock.setFixedTime(new Date('2026-11-12'))
-  await page.goto('/projects/web-app')
-
-  const link = page.getByRole('link', { name: 'Components' })
-  await expect(link).toBeVisible()
-  await expect(link.getByText('New')).toHaveCount(0)
-})
-
 test('components page shares the health filter with the tests page', async ({ page }) => {
   await page.goto('/projects/design-system/components')
 

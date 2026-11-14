@@ -28,7 +28,6 @@ import { useOrg } from '@/composables/useOrg'
 const props = defineProps<{ projectId: string }>()
 
 const { isAdmin } = useOrg()
-const { isNew: componentsIsNew } = useNewFeature('components')
 const { isNew: analyticsIsNew } = useNewFeature('analytics')
 const { state: project, isLoading, error, execute: retrySummary } = useProjectSummary(props.projectId)
 
@@ -125,9 +124,6 @@ function showOlder() {
               >
                 <Blocks class="size-3" />
                 Components
-                <Badge v-if="componentsIsNew" class="border-signal/30 bg-signal px-1.5 py-0.5 text-[9px] leading-none tracking-wider text-white">
-                  New
-                </Badge>
               </RouterLink>
               <RouterLink
                 :to="{ name: 'analytics', params: { projectId: project.id } }"
