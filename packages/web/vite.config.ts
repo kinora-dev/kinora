@@ -54,7 +54,7 @@ export default defineConfig({
         })
       : undefined,
   ],
-  server: { port: 5173 },
+  server: { port: 5173, strictPort: true },
   resolve: {
     alias: {
       '@': path.resolve(new URL('./src', import.meta.url).pathname),

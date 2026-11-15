@@ -25,9 +25,7 @@ pnpm test:e2e      # pnpm -r test:e2e (trace viewer + web); --filter @kinora/web
                    # web e2e self-boots server+web via Playwright `webServer` (packages/web/playwright.config.ts)
                    # on dedicated ports against the `kinora_e2e` DB; only needs Postgres up on :5436
 
-pnpm dev:server    # @kinora/server on :3000 (tsx watch)
-pnpm dev:web       # dashboard on :5173
-pnpm dev:viewer    # trace viewer on :5174
+portcall up        # server :3000, web (dashboard) :5173, trace-viewer :5174; see "Dev servers"
 ```
 
 Desktop (from `packages/desktop`; build the viewer once first - the app serves its `dist/`):
@@ -68,6 +66,16 @@ pnpm send-onboarding-emails # cloud: nudge verified accounts with no run yet, 2 
 ```
 
 Migrations are **knex**, not drizzle: hand-written `.ts` files in `packages/server/migrations/` (timestamp-prefixed), run by `scripts/migrate.ts`. Drizzle is the query/ORM layer only - there is no `drizzle.config.ts` and no schema-push/generate flow. To change the schema: edit `src/db/schemas/`, then add a matching knex migration. The migrate config reads connection details from `src/lib/env.ts`; in dev it loads `.ts` migrations, in prod the build emits them as `.mjs` in `dist/`.
+
+## Dev servers
+
+Dev servers run under portcall (config: `portcall.json`). Never start them yourself (no `pnpm dev`, `vite`, `tsx watch`, `node --watch`...).
+
+- `portcall status`: what runs, on which port. Check it before assuming a server is down.
+- `portcall up [service]`: start what is not running; a no-op for what already is. It waits for the port and prints the log tail if the server crashes.
+- `portcall restart <service>`: after changing env, config or dependencies (watch mode reloads code by itself).
+- `portcall logs <service> --errors`, `--since 2m`, `--grep <regex>`, `-n 200`: server output, e.g. after a failing request.
+- Leave servers running when you are done. Add `--json` to any command for machine-readable output.
 
 ## Architecture
 
@@ -128,7 +136,7 @@ A `@kinora/ui` wrapper around a Reka component must bind `useForwardProps(...)`,
 `packages/trace-viewer` is the Playwright trace replay engine **vendored from microsoft/playwright (Apache-2.0)** under `src/core/` and `src/sw/`, wrapped by kinora's own Vue UI in `src/ui/`
 
 - **Playwright must stay current, and one workflow owns that.** The engine refuses traces whose format is newer than the one it vendors (`latestVersion` in `traceModernizer.ts`), so users on a newer Playwright cannot open their traces until kinora catches up. **Playwright Update** (`.github/workflows/playwright-update.yml`, every 6 hours, also manual) is the only thing that bumps Playwright: when a newer `@playwright/test` has been on npm for 24 hours (pnpm's `minimumReleaseAge`, which CI enforces) it opens a pull request that bumps every package, re-vendors the engine (`pnpm vendor:playwright-trace`, which follows imports so new upstream files are fetched) and builds the viewer. Renovate is disabled for Playwright (`renovate.json`) so there is a single owner. Two checks guard the result on every pull request: `pnpm vendor:playwright-trace:check` in the `check` job (vendored files match the installed version) and `e2e/live-trace.spec.ts` (a trace recorded by the installed Playwright opens). Merge and release these pull requests quickly; to bump by hand, follow the steps in `packages/trace-viewer/README.md`.
-- **A running `pnpm dev:viewer` serves a stale service worker after a sync.** `public/sw.bundle.js` and `public/console-api.bundle.js` are only rebuilt when `dev` or `build` starts, and local e2e reuses a running dev server: after re-vendoring, run `pnpm --filter @kinora/trace-viewer build:sw` and `build:console-api` (or restart the dev server) before trusting local viewer tests.
+- **A running trace viewer dev server serves a stale service worker after a sync.** `public/sw.bundle.js` and `public/console-api.bundle.js` are only rebuilt when `dev` or `build` starts, and local e2e reuses a running dev server: after re-vendoring, run `pnpm --filter @kinora/trace-viewer build:sw` and `build:console-api` (or `portcall restart trace-viewer`) before trusting local viewer tests.
 - **Do not edit or lint the vendored code.** `src/core/**` (including the injected script in `src/core/injected/`), `src/sw/**`, `src/sw-main.ts`, `public/sw.bundle.js` and `public/console-api.bundle.js` are in eslint's `ignores` (`eslint.config.js`).
 - The service worker is built as a separate step: `build:sw` (`vite.sw.config.ts`) bundles `src/sw-main.ts` into a single IIFE classic script at `public/sw.bundle.js`. Likewise `build:console-api` (`vite.console.config.ts`) bundles `src/console-api-main.ts` to `public/console-api.bundle.js`, the `playwright.$` console API injected into popped-out snapshots (their CSP only runs nonce'd scripts, so it must be one classic script). `dev` and `build` run both first.
 - Generated trace fixtures live in `public/fixtures/` and are refreshed with `pnpm --filter @kinora/trace-viewer fixtures:generate`. Use this when changing fixture scenarios; `aria-trace.zip` (DOM + ARIA + screenshots) and `aria-only-trace.zip` (no DOM) are recorded with context tracing (`snapshots: { aria: true, screen: true }`), since the test runner's `trace` option cannot capture ARIA snapshots.
@@ -157,11 +165,11 @@ Two per-package Dockerfiles, both built from the **repo root** (workspace contex
 
 ### Marketing site
 
-`website/` is a standalone **Astro** site (its own pnpm workspace + lockfile + `Dockerfile`, **not** part of the root `packages/*` workspace). Build/dev separately from `website/` (`pnpm dev` / `pnpm build`).
+`website/` is a standalone **Astro** site (its own pnpm workspace + lockfile + `Dockerfile`, **not** part of the root `packages/*` workspace). Build separately from `website/` (`pnpm build`); dev server: `portcall up website` (:5178).
 
 ### Docs site
 
-`docs/` is the public documentation (https://docs.kinora.dev), also a standalone **Astro** site with its own pnpm workspace + lockfile + `Dockerfile`, **not** part of the root workspace. Pages are markdown in `docs/src/content/docs/` (`guides/`, `self-hosting/`, `reference/`); the sidebar is hand-maintained in `docs/src/lib/nav.ts`, so a new page needs an entry there. Build from `docs/` with `pnpm build` (astro + pagefind). Update the matching page when a change affects user-facing behavior of the reporter, CLI, MCP, desktop app, or self-host config.
+`docs/` is the public documentation (https://docs.kinora.dev), also a standalone **Astro** site with its own pnpm workspace + lockfile + `Dockerfile`, **not** part of the root workspace. Pages are markdown in `docs/src/content/docs/` (`guides/`, `self-hosting/`, `reference/`); the sidebar is hand-maintained in `docs/src/lib/nav.ts`, so a new page needs an entry there. Build from `docs/` with `pnpm build` (astro + pagefind); dev server: `portcall up docs` (:5179). Update the matching page when a change affects user-facing behavior of the reporter, CLI, MCP, desktop app, or self-host config.
 
 ### Dependency updates
 

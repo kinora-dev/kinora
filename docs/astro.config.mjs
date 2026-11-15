@@ -5,6 +5,7 @@ import { defineConfig } from 'astro/config'
 
 export default defineConfig({
   site: 'https://docs.kinora.dev',
+  server: { port: 5179 },
   integrations: [sitemap()],
   build: { inlineStylesheets: 'always' },
   markdown: {
@@ -15,5 +16,6 @@ export default defineConfig({
   },
   vite: {
     plugins: [tailwindcss()],
+    server: { strictPort: true },
   },
 })

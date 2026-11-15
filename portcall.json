@@ -1,0 +1,31 @@
+{
+  "$schema": "https://unpkg.com/portcall/schema.json",
+  "name": "kinora",
+  "services": {
+    "server": {
+      "command": "pnpm dev:server",
+      "port": 3000
+    },
+    "web": {
+      "command": "pnpm dev:web",
+      "port": 5173
+    },
+    "trace-viewer": {
+      "command": "pnpm dev:viewer",
+      "port": 5174
+    },
+    "website": {
+      "command": "pnpm dev",
+      "cwd": "website",
+      "port": 5178
+    },
+    "docs": {
+      "command": "pnpm dev",
+      "cwd": "docs",
+      "port": 5179
+    },
+    "db": {
+      "port": 5436
+    }
+  }
+}

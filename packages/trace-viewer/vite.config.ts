@@ -34,7 +34,7 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/trace/' : '/',
   // Dedicated port so the service worker always lives on its own origin,
   // separate from the dashboard app (5173).
-  server: { port: 5174 },
+  server: { port: 5174, strictPort: true },
   plugins: [
     vue(),
     tailwindcss(),

@@ -12,6 +12,7 @@ const PRIORITY = [
 
 export default defineConfig({
   site: 'https://kinora.dev',
+  server: { port: 5178 },
   // Canonical URLs have no trailing slash; keeps sitemap and <link rel=canonical> identical.
   trailingSlash: 'never',
   integrations: [
@@ -40,5 +41,6 @@ export default defineConfig({
   build: { inlineStylesheets: 'always' },
   vite: {
     plugins: [tailwindcss()],
+    server: { strictPort: true },
   },
 })
