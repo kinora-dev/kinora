@@ -26,8 +26,8 @@ describe('organizations', () => {
     await db.insert(member).values({ id: randomUUID(), organizationId: orgA, userId: b.id, role: 'member' })
 
     // b acting in orgA sees the shared project; b in their own org sees nothing
-    expect((await (await caller(b, orgA)).dashboard.manifest()).projects).toHaveLength(1)
-    expect((await (await caller(b)).dashboard.manifest()).projects).toHaveLength(0)
+    expect((await (await caller(b, orgA)).dashboard.projects())).toHaveLength(1)
+    expect((await (await caller(b)).dashboard.projects())).toHaveLength(0)
   })
 
   it('scopes a run query to the active org', async () => {

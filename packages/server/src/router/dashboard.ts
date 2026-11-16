@@ -1,19 +1,17 @@
-import type { DashboardOverview, Manifest, OverviewProject, ProjectEntry, ProjectHistory, ProjectListing, ProjectRunsPage, RunComparison, RunIncident, RunReport, RunSummary } from '@kinora/core'
+import type { DashboardOverview, OverviewProject, ProjectHistory, ProjectListing, ProjectRunsPage, RunComparison, RunIncident, RunReport, RunSummary } from '@kinora/core'
 import type { ProjectAnalytics } from '../reports/analytics'
 import type { TestHistoryPage } from '../reports/queries'
 import { randomUUID } from 'node:crypto'
-import { compareRuns, SCHEMA_VERSION } from '@kinora/core'
+import { compareRuns } from '@kinora/core'
 import { TRPCError } from '@trpc/server'
 import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db'
-import { project, run, test, testQuarantine } from '../db/schemas/index'
+import { run, test, testQuarantine } from '../db/schemas/index'
 import { ANALYTICS_RANGES, isTimeZone, loadProjectAnalytics } from '../reports/analytics'
 import { activeQuarantineWhere } from '../reports/quarantine'
-import { findProject, incidentState, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectListings, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadRunSummaries, loadTestAttachments, loadTestHistoryPage, MAX_DASHBOARD_RUNS, searchRuns, searchTests, toNormTest } from '../reports/queries'
+import { findProject, incidentState, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectListings, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadTestAttachments, loadTestHistoryPage, searchRuns, searchTests, toNormTest } from '../reports/queries'
 import { orgProcedure, router } from '../trpc/index'
-
-export { MAX_DASHBOARD_RUNS }
 
 // What a page needs to name the project it shows, without loading the project's runs.
 interface ProjectRef { id: string, name: string }
@@ -31,20 +29,6 @@ const quarantineInput = z.object({
 })
 
 export const dashboardRouter = router({
-  // Every run of every project, up to MAX_DASHBOARD_RUNS each: only desktop apps up to 0.19 still read it.
-  manifest: orgProcedure.query(async ({ ctx }): Promise<Manifest> => {
-    const projects = await db.query.project.findMany({
-      where: eq(project.organizationId, ctx.organizationId),
-      orderBy: desc(project.updatedAt),
-    })
-    // Per-project queries run concurrently (not a sequential N+1) and each is capped so one
-    // long-lived project can't load its entire run history into memory.
-    const entries: ProjectEntry[] = await Promise.all(projects.map(async (p) => {
-      return { id: p.slug, name: p.name, description: p.description ?? undefined, runs: await loadRunSummaries(p) }
-    }))
-    return { schemaVersion: SCHEMA_VERSION, generatedAt: new Date().toISOString(), projects: entries }
-  }),
-
   projects: orgProcedure.query(({ ctx }): Promise<ProjectListing[]> => loadProjectListings(ctx.organizationId)),
 
   overview: orgProcedure

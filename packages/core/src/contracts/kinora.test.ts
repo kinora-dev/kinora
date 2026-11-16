@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gitMetaSchema, manifestSchema, runSummarySchema, SCHEMA_VERSION } from './kinora'
+import { gitMetaSchema, runSummarySchema } from './kinora'
 
 describe('runSummarySchema', () => {
   it('defaults countsByTag to an empty object', () => {
@@ -12,22 +12,6 @@ describe('runSummarySchema', () => {
       reportPath: 'x',
     })
     expect(r.countsByTag).toEqual({})
-  })
-})
-
-describe('manifestSchema', () => {
-  it('accepts a minimal valid manifest', () => {
-    const ok = manifestSchema.safeParse({
-      schemaVersion: SCHEMA_VERSION,
-      generatedAt: '2026-01-01T00:00:00Z',
-      projects: [],
-    })
-    expect(ok.success).toBe(true)
-  })
-
-  it('rejects an unknown schemaVersion', () => {
-    const bad = manifestSchema.safeParse({ schemaVersion: 99, generatedAt: 'x', projects: [] })
-    expect(bad.success).toBe(false)
   })
 })
 

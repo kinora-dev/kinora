@@ -33,7 +33,7 @@ describe('role permissions (adminProcedure)', () => {
     await expect((await caller(b, orgA)).project.delete({ projectId: 'web-app' })).rejects.toThrow()
 
     await (await caller(a, orgA)).project.delete({ projectId: 'web-app' })
-    expect((await (await caller(a, orgA)).dashboard.manifest()).projects).toHaveLength(0)
+    expect((await (await caller(a, orgA)).dashboard.projects())).toHaveLength(0)
   })
 
   it('a member cannot configure alerts', async () => {

@@ -15,7 +15,7 @@ npm i @kinora/core
 **Contracts** (zod schemas + inferred types):
 
 - `contracts/ingest` - the wire payload uploaded to `POST /api/v1/runs` (`ingestRunSchema`, `IngestRun`).
-- `contracts/kinora` - the stored / dashboard shapes (`manifestSchema`, `runReportSchema`, `projectHistorySchema`, `runComparisonSchema`, ...) and `SCHEMA_VERSION`, stamped on every run so the stored shape stays in sync.
+- `contracts/kinora` - the stored / dashboard shapes (`runReportSchema`, `projectHistorySchema`, `runComparisonSchema`, ...) and `SCHEMA_VERSION`, stamped on every run so the stored shape stays in sync.
 - `contracts/playwright` - the raw Playwright JSON report shape (`playwrightReportSchema`).
 
 **Ingest client** - what the reporter and CLI build on:

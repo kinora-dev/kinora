@@ -62,7 +62,7 @@ export const incidentDecisionSchema = z.object({
 })
 export type IncidentDecision = z.infer<typeof incidentDecisionSchema>
 
-// One row per run, stored in the manifest. Kept small: powers the overview
+// One row per run. Kept small: powers the overview
 // grid and history charts without fetching full reports.
 export const runSummarySchema = z.object({
   runId: z.string(),
@@ -92,14 +92,6 @@ export const projectEntrySchema = z.object({
   runs: z.array(runSummarySchema),
 })
 export type ProjectEntry = z.infer<typeof projectEntrySchema>
-
-// Root document the front fetches first. Single static file.
-export const manifestSchema = z.object({
-  schemaVersion: z.literal(SCHEMA_VERSION),
-  generatedAt: z.string(),
-  projects: z.array(projectEntrySchema),
-})
-export type Manifest = z.infer<typeof manifestSchema>
 
 export const normAttachmentSchema = z.object({
   name: z.string(),

@@ -142,7 +142,7 @@ export function loadLatestRun(projectId: string): Promise<RunRow | undefined> {
   return db.query.run.findFirst({ where: eq(run.projectId, projectId), orderBy: desc(run.startedAt) })
 }
 
-export function loadRunSummaries(p: ProjectRow, limit = MAX_DASHBOARD_RUNS): Promise<RunSummary[]> {
+export function loadRunSummaries(p: ProjectRow, limit: number): Promise<RunSummary[]> {
   return db.query.run
     .findMany({ where: eq(run.projectId, p.id), orderBy: desc(run.startedAt), limit })
     .then(runs => runs.map(r => runSummary(p.slug, r)))

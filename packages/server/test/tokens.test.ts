@@ -32,7 +32,7 @@ describe('tokens router', () => {
 
     const res = await ingest(key)
     expect(res.status).toBe(201)
-    expect((await (await caller(a)).dashboard.manifest()).projects).toHaveLength(1)
+    expect((await (await caller(a)).dashboard.projects())).toHaveLength(1)
   })
 
   it('is not rate limited by the api-key plugin default (10 req/day)', async () => {

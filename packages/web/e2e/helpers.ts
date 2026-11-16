@@ -10,7 +10,8 @@ import { scanA11y } from '../../reporter/src/a11y'
 type Outputs = inferRouterOutputs<AppRouter>
 type Me = NonNullable<Outputs['user']['me']>
 type ServerConfig = Outputs['config']['get']
-type Manifest = Outputs['dashboard']['manifest']
+type ProjectListing = Outputs['dashboard']['projects'][number]
+type RunsPage = Outputs['dashboard']['projectRuns']
 type RunReport = Outputs['dashboard']['run']
 
 export const DEMO = { email: 'demo@kinora.dev', password: 'password123' }
@@ -146,15 +147,25 @@ export function runOf(slug: string, startedAt: Date, tests: NormTest[], git?: In
   return { project: { slug, name: slug }, run: { startedAt: startedAt.toISOString(), duration: 100, counts, ...(git && { git }) }, tests }
 }
 
+// A project's run ids, newest first, one page at a time.
+async function* runIds(page: Page, projectId: string): AsyncGenerator<string> {
+  let before: string | undefined
+  do {
+    const runs = await query<RunsPage>(page, 'dashboard.projectRuns', { projectId, before })
+    for (const r of runs?.runs ?? [])
+      yield r.runId
+    before = runs?.older
+  } while (before)
+}
+
 // Find a run whose report has a test matching `pred` (which seeded tests get
 // traces / annotations is randomised, so we probe rather than hardcode).
 async function findRun(page: Page, pred: (test: RunReport['tests'][number]) => boolean): Promise<{ slug: string, runId: string }> {
-  const manifest = await query<Manifest>(page, 'dashboard.manifest', {})
-  for (const project of manifest?.projects ?? []) {
-    for (const run of project.runs) {
-      const report = await query<RunReport>(page, 'dashboard.run', { projectId: project.id, runId: run.runId })
+  for (const project of await query<ProjectListing[]>(page, 'dashboard.projects', {}) ?? []) {
+    for await (const runId of runIds(page, project.id)) {
+      const report = await query<RunReport>(page, 'dashboard.run', { projectId: project.id, runId })
       if (report?.tests.some(pred))
-        return { slug: project.id, runId: run.runId }
+        return { slug: project.id, runId }
     }
   }
   throw new Error('no matching run found - reseed with `pnpm --filter @kinora/server db:seed`')
@@ -175,10 +186,10 @@ export function findFailingRun(page: Page): Promise<{ slug: string, runId: strin
 
 // A project with >= 2 runs; returns the latest as head and the one before as base.
 export async function findTwoRuns(page: Page): Promise<{ slug: string, base: string, head: string }> {
-  const manifest = await query<Manifest>(page, 'dashboard.manifest', {})
-  for (const p of manifest?.projects ?? []) {
-    if (p.runs.length >= 2)
-      return { slug: p.id, base: p.runs[1].runId, head: p.runs[0].runId }
+  for (const p of await query<ProjectListing[]>(page, 'dashboard.projects', {}) ?? []) {
+    const runs = (await query<RunsPage>(page, 'dashboard.projectRuns', { projectId: p.id }))?.runs ?? []
+    if (runs.length >= 2)
+      return { slug: p.id, base: runs[1].runId, head: runs[0].runId }
   }
   throw new Error('no project with >=2 runs - reseed with `pnpm --filter @kinora/server db:seed`')
 }

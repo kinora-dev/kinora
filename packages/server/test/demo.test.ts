@@ -38,7 +38,7 @@ describe('demo mode', () => {
 
   it('still allows tRPC queries', async () => {
     const u = await createUser()
-    await expect((await caller(u)).dashboard.manifest()).resolves.toBeTruthy()
+    await expect((await caller(u)).dashboard.projects()).resolves.toBeTruthy()
   })
 
   it('blocks the public ingest API', async () => {
