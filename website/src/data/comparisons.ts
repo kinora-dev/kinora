@@ -37,7 +37,7 @@ const FEATURES = {
   flaky: { label: 'Flaky detection', kinora: true },
   history: { label: 'Cross-run history & trends', kinora: true },
   alerts: { label: 'Alerts (Slack / email / webhook)', kinora: true },
-  prComment: { label: 'PR comment on CI runs (GitHub, GitLab)', kinora: true },
+  prComment: { label: 'PR comment & commit status (GitHub, GitLab)', kinora: true },
   mcp: { label: 'MCP server for coding agents', kinora: true },
   desktop: { label: 'Desktop trace-viewer app', kinora: true },
   selfHost: { label: 'Self-hosting', kinora: true },
@@ -95,6 +95,7 @@ const SOURCES: ComparisonSource[] = [
       { feature: 'components', them: false },
       { label: 'Multiple repos/suites over time', kinora: true, them: false },
       { label: 'Runs from all CI shards merged', kinora: 'Automatic on ingest', them: 'Via blob + merge-reports' },
+      { label: 'Shard balancing', kinora: 'By past test durations', them: 'By test count' },
       { feature: 'alerts', label: 'Alerts on new failures / regressions', kinora: 'Slack, email, webhook', them: false },
       { feature: 'prComment', them: false },
       { feature: 'mcp', them: false },
@@ -142,7 +143,7 @@ const SOURCES: ComparisonSource[] = [
     themIs:
       'Currents is a cloud-only dashboard and test orchestrator for Playwright that parallelizes runs across CI machines and reports the results.',
     intro:
-      'Both give you Playwright run history, flaky detection, and traces in the cloud. The differences: Currents is cloud-only with no free tier and adds test orchestration and parallelization; kinora is open source, self-hostable free forever, has a free cloud tier and a desktop app, and stays focused on reporting rather than running your tests.',
+      'Both give you Playwright run history, flaky detection, and traces in the cloud. The differences: Currents is cloud-only with no free tier and orchestrates your test runs, handing tests to CI machines as they run; kinora is open source, self-hostable free forever, has a free cloud tier and a desktop app, and stays focused on reporting, while still balancing Playwright\'s own shards by past test durations.',
     rows: [
       { feature: 'history', label: 'Run history & trends', them: true },
       { feature: 'flaky', them: true },
@@ -153,8 +154,8 @@ const SOURCES: ComparisonSource[] = [
       { label: 'Vitest & Storybook', kinora: 'Native reporter: traces, screenshots, stories', them: 'Via JUnit XML import' },
       { feature: 'alerts', them: true },
       { feature: 'prComment', them: true },
-      { label: 'Test orchestration / parallelization', kinora: false, them: true },
-      { label: 'Flaky quarantine', kinora: 'Mutes alerts, with expiry', them: true },
+      { label: 'Test orchestration / parallelization', kinora: 'Duration-balanced Playwright shards', them: 'Dynamic orchestration' },
+      { label: 'Flaky quarantine', kinora: 'Mutes alerts, skippable in CI, with expiry', them: true },
       { feature: 'license', them: false },
       { feature: 'selfHost', them: false },
       { label: 'Free tier', kinora: '2,500 results / mo', them: false },
@@ -171,8 +172,7 @@ const SOURCES: ComparisonSource[] = [
     ],
     chooseThemLabel: 'Choose Currents when',
     chooseThem: [
-      'You want managed test orchestration and parallelization in the same tool.',
-      'You want quarantined tests to stop failing the CI job.',
+      'You want dynamic test orchestration, with tests handed to CI machines as they run.',
       'Cloud-only with no self-host is fine for you.',
     ],
     faqs: [
@@ -182,7 +182,7 @@ const SOURCES: ComparisonSource[] = [
       },
       {
         q: 'Does kinora orchestrate or parallelize tests like Currents?',
-        a: 'No. kinora focuses on the reporting dashboard and trace viewer; you keep running tests with Playwright\'s own sharding in CI. Currents additionally orchestrates test execution.',
+        a: 'Not dynamically. You keep running tests with Playwright\'s own sharding in CI, and kinora shard splits them by past test durations so the shards finish together. Currents additionally orchestrates test execution, handing tests to machines as the run goes.',
       },
       {
         q: 'Can I self-host kinora instead of using a cloud?',
@@ -241,7 +241,7 @@ const SOURCES: ComparisonSource[] = [
       },
       {
         q: 'Does kinora support non-Playwright frameworks?',
-        a: 'No. kinora is Playwright-focused. If you need many languages or frameworks, Allure is the broader tool.',
+        a: 'Beyond Playwright, kinora supports Vitest browser mode and Storybook tests through @kinora/vitest-reporter. If you need many languages or frameworks, Allure is the broader tool.',
       },
     ],
   },
