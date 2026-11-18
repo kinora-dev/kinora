@@ -17,6 +17,8 @@ export const ingestRunSchema = z.object({
     duration: z.number(),
     counts: countsSchema,
     playwrightVersion: z.string().optional(),
+    // Workers the runner actually started: a flip that follows a change of parallelism is a hint.
+    workers: z.number().int().min(1).optional(),
     git: gitMetaSchema.optional(),
     ci: ciMetaSchema.optional(),
     shards: z.number().optional(),

@@ -105,7 +105,7 @@ describe('reporter onEnd', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const reporter = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' } })
-    reporter.onBegin({ version: '1.60.0' } as FullConfig, fakeSuite([fakeTest()]))
+    reporter.onBegin({ version: '1.60.0', workers: 4, metadata: { actualWorkers: 2 } } as unknown as FullConfig, fakeSuite([fakeTest()]))
     await reporter.onEnd(fakeResult())
 
     expect(fetchMock).toHaveBeenCalledOnce()
@@ -113,6 +113,7 @@ describe('reporter onEnd', () => {
     expect(payload.tests[0].testKey).toBe(makeTestKey('a.spec.ts', ['a.spec.ts', 'passes'], 'chromium'))
     expect(payload.run.counts).toMatchObject({ total: 1, expected: 1 })
     expect(payload.run.playwrightVersion).toBe('1.60.0')
+    expect(payload.run.workers).toBe(2)
     expect(payload.project).toEqual({ slug: 'web-app', name: 'web-app' })
   })
 

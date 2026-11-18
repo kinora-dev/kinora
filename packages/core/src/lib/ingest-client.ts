@@ -39,6 +39,7 @@ export function buildIngestRun(raw: unknown, opts: BuildIngestRunOptions): Inges
       duration: report.duration,
       counts: report.counts,
       playwrightVersion: report.meta.playwrightVersion,
+      workers: report.meta.workers,
       git: opts.git,
       ci: opts.ci,
       shards: opts.shards,

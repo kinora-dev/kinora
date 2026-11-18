@@ -71,6 +71,7 @@ export const runSummarySchema = z.object({
   duration: z.number(), // ms
   counts: countsSchema,
   playwrightVersion: z.string().optional(),
+  workers: z.number().optional(),
   git: gitMetaSchema.optional(),
   ci: ciMetaSchema.optional(),
   shards: z.number().optional(),
@@ -171,6 +172,7 @@ export const runReportSchema = z.object({
   counts: countsSchema,
   meta: z.object({
     playwrightVersion: z.string().optional(),
+    workers: z.number().optional(),
     git: gitMetaSchema.optional(),
     ci: ciMetaSchema.optional(),
     shards: z.number().optional(),

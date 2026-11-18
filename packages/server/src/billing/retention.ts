@@ -4,6 +4,7 @@ import { artifact, project, run, subscription, test } from '../db/schemas/index'
 import { cloud, retentionPolicy } from '../lib/env'
 import { logger } from '../lib/logger'
 import { storage } from '../lib/storage'
+import { pinnedKeys, releaseExpiredPins } from '../reports/quarantine'
 import { retentionDaysFor } from './entitlements'
 
 const BATCH = 500
@@ -26,7 +27,10 @@ export interface PurgeStats {
 }
 
 async function deleteBlobs(keys: string[], stats?: PurgeStats): Promise<void> {
+  const pinned = await pinnedKeys(keys)
   for (const key of keys) {
+    if (pinned.has(key))
+      continue
     try {
       await storage.delete(key)
     }
@@ -155,6 +159,7 @@ export interface PurgeResult extends PurgeStats {
 }
 
 async function purgeSelfHost(now: Date): Promise<PurgeResult> {
+  await releaseExpiredPins(now)
   if (!retentionPolicy)
     return { deleted: 0, artifacts: 0, blobFailures: 0 } // unconfigured self-host keeps everything
 
@@ -173,6 +178,7 @@ export async function purgeExpiredRuns(now: Date): Promise<PurgeResult> {
   if (!cloud)
     return purgeSelfHost(now)
 
+  await releaseExpiredPins(now)
   const subs = await db
     .select({ organizationId: subscription.organizationId, tier: subscription.tier })
     .from(subscription)

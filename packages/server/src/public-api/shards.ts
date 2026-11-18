@@ -95,6 +95,7 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     duration: Math.round(input.run.duration),
     counts: input.run.counts,
     playwrightVersion: input.run.playwrightVersion,
+    workers: input.run.workers,
     git: input.run.git,
     ci: input.run.ci,
     baseUrls: input.run.baseUrls,

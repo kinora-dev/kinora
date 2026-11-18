@@ -1,6 +1,6 @@
 import { and, count, eq, sql, sum } from 'drizzle-orm'
 import { db } from '../db'
-import { artifact, project, usagePeriod } from '../db/schemas/index'
+import { artifact, project, testQuarantine, usagePeriod } from '../db/schemas/index'
 
 export function periodKey(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
@@ -44,8 +44,18 @@ export async function storageBytes(organizationId: string): Promise<number> {
     .from(artifact)
     .innerJoin(project, eq(artifact.projectId, project.id))
     .where(eq(project.organizationId, organizationId))
+  // Traces a quarantine keeps after retention removed their artifact row still take space.
+  const [pinned] = await db
+    .select({ total: sql<string | null>`sum((${testQuarantine.pinnedTrace}->>'size')::bigint)` })
+    .from(testQuarantine)
+    .innerJoin(project, eq(testQuarantine.projectId, project.id))
+    .where(and(
+      eq(project.organizationId, organizationId),
+      sql`${testQuarantine.pinnedTraceKey} is not null`,
+      sql`not exists (select 1 from ${artifact} where ${artifact.storageKey} = ${testQuarantine.pinnedTraceKey})`,
+    ))
 
-  return Number(row?.total ?? 0)
+  return Number(row?.total ?? 0) + Number(pinned?.total ?? 0)
 }
 
 export async function projectCount(organizationId: string): Promise<number> {

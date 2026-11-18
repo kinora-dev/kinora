@@ -8,8 +8,9 @@ import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db'
 import { run, test, testQuarantine } from '../db/schemas/index'
+import { storage } from '../lib/storage'
 import { ANALYTICS_RANGES, isTimeZone, loadProjectAnalytics } from '../reports/analytics'
-import { activeQuarantineWhere } from '../reports/quarantine'
+import { activeQuarantineWhere, deleteUnpinnedOrphan, pinLatestFailureTrace } from '../reports/quarantine'
 import { findProject, incidentState, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectListings, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadTestAttachments, loadTestHistoryPage, searchRuns, searchTests, toNormTest } from '../reports/queries'
 import { orgProcedure, router } from '../trpc/index'
 
@@ -136,13 +137,14 @@ export const dashboardRouter = router({
         where: activeQuarantineWhere(p.id),
         orderBy: desc(testQuarantine.createdAt),
       })
-      return rows.map(q => ({
+      return Promise.all(rows.map(async q => ({
         testKey: q.testKey,
         reason: q.reason ?? undefined,
         expiresAt: q.expiresAt?.toISOString(),
         createdAt: q.createdAt.toISOString(),
         updatedAt: q.updatedAt.toISOString(),
-      }))
+        pinnedTrace: q.pinnedTraceKey && q.pinnedTrace ? { ...q.pinnedTrace, url: await storage.url(q.pinnedTraceKey) } : undefined,
+      })))
     }),
 
   quarantine: orgProcedure
@@ -172,6 +174,8 @@ export const dashboardRouter = router({
           updatedAt: now,
         },
       }).returning()
+      if (!row.pinnedTraceKey)
+        await pinLatestFailureTrace(p.id, row.testKey)
       return {
         testKey: row.testKey,
         reason: row.reason ?? undefined,
@@ -185,7 +189,11 @@ export const dashboardRouter = router({
     .input(quarantineInput)
     .mutation(async ({ ctx, input }) => {
       const p = await ownedProject(ctx.organizationId, input.projectId)
-      await db.delete(testQuarantine).where(and(eq(testQuarantine.projectId, p.id), eq(testQuarantine.testKey, input.testKey)))
+      const [removed] = await db.delete(testQuarantine)
+        .where(and(eq(testQuarantine.projectId, p.id), eq(testQuarantine.testKey, input.testKey)))
+        .returning({ pinnedTraceKey: testQuarantine.pinnedTraceKey })
+      if (removed?.pinnedTraceKey)
+        await deleteUnpinnedOrphan(removed.pinnedTraceKey)
       return { ok: true }
     }),
 

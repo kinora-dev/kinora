@@ -17,6 +17,14 @@ export interface ShardSlot {
   metered: boolean
 }
 
+export interface PinnedTrace {
+  runId: string
+  startedAt: string
+  status: NormTest['status']
+  sha?: string
+  size?: number
+}
+
 export const project = pgTable('project', {
   id: text('id').primaryKey(),
   organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
@@ -41,6 +49,8 @@ export const run = pgTable('run', {
   counts: jsonb('counts').$type<Counts>().notNull(),
   countsByTag: jsonb('counts_by_tag').$type<Record<string, Counts>>().notNull().default({}),
   playwrightVersion: text('playwright_version'),
+  // A grouped run keeps the first shard's value, like playwrightVersion.
+  workers: integer('workers'),
   git: jsonb('git').$type<GitMeta>(),
   ci: jsonb('ci').$type<CiMeta>(),
   shards: integer('shards'),
@@ -124,12 +134,17 @@ export const testQuarantine = pgTable('test_quarantine', {
   testKey: text('test_key').notNull(),
   reason: text('reason'),
   expiresAt: timestamp('expires_at'),
+  // Blob of a failing trace kept past retention while the quarantine lasts, so a later fix can be
+  // checked against the original failure. Its artifact row may already be gone.
+  pinnedTraceKey: text('pinned_trace_key'),
+  pinnedTrace: jsonb('pinned_trace').$type<PinnedTrace>(),
   createdByUserId: text('created_by_user_id').references(() => user.id, { onDelete: 'set null' }),
   updatedByUserId: text('updated_by_user_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, table => [
   index('test_quarantine_projectId_idx').on(table.projectId),
+  index('test_quarantine_pinned_trace_key_idx').on(table.pinnedTraceKey),
   unique('test_quarantine_project_key_uniq').on(table.projectId, table.testKey),
 ])
 

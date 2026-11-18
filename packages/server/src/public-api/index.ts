@@ -19,6 +19,7 @@ import { env } from '../lib/env'
 import { logger } from '../lib/logger'
 import { sendMail } from '../lib/mailer'
 import { isTransientStorageError, storage } from '../lib/storage'
+import { pinnedKeys, pinUploadedTrace } from '../reports/quarantine'
 import { computeRegression, testsOfRun } from '../reports/regression'
 import { registerReadRoutes } from './read'
 import { insertTests, isGrouped, landShard, refillsLandedSlot } from './shards'
@@ -131,6 +132,7 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
       counts: input.run.counts,
       countsByTag: countsByTagFrom(input.tests),
       playwrightVersion: input.run.playwrightVersion,
+      workers: input.run.workers,
       git: input.run.git,
       ci: input.run.ci,
       shards: input.run.shards,
@@ -157,7 +159,8 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
   if (shard) {
     if (billable && shard.results > 0)
       await meterShard(result.runId, orgId, shard.slot, shard.results)
-    for (const key of shard.orphanedKeys)
+    const pinned = await pinnedKeys(shard.orphanedKeys)
+    for (const key of shard.orphanedKeys.filter(k => !pinned.has(k)))
       await storage.delete(key).catch(error => logger.error({ error, key }, 'replaced shard artifact cleanup failed'))
   }
   else if (billable && !result.replayed) {
@@ -358,7 +361,7 @@ publicApi.post('/runs/:runId/artifacts', async (c) => {
 
   const r = await db.query.run.findFirst({
     where: eq(run.id, runId),
-    columns: { id: true, projectId: true },
+    columns: { id: true, projectId: true, startedAt: true, git: true, incident: true },
   })
   if (!r)
     return c.json({ error: 'Run not found' }, 404)
@@ -411,7 +414,7 @@ publicApi.post('/runs/:runId/artifacts', async (c) => {
   const t = uploaded.testKey
     ? await db.query.test.findFirst({
         where: and(eq(test.runId, runId), eq(test.testKey, uploaded.testKey)),
-        columns: { id: true },
+        columns: { id: true, testKey: true, status: true },
       })
     : undefined
 
@@ -435,6 +438,10 @@ publicApi.post('/runs/:runId/artifacts', async (c) => {
     return c.json({ url: await storage.url(winner.storageKey) }, 200)
   }
 
+  if (t) {
+    await pinUploadedTrace(r, t, uploaded)
+      .catch(error => logger.error({ error, runId, testKey: t.testKey }, 'quarantine trace pin failed'))
+  }
   return c.json({ url: await storage.url(uploaded.key) }, 201)
 })
 

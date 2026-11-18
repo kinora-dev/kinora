@@ -22,6 +22,7 @@ import { useDemo, useTestHistory } from '@/composables/queries'
 import { useQuarantine } from '@/composables/useQuarantine'
 import { formatDateTimeLong } from '@/lib/format'
 import { testLabel } from '@/lib/test-display'
+import { traceViewerUrl } from '@/lib/trace'
 import { commitUrl } from '@/lib/url'
 
 const props = defineProps<{ projectId: string }>()
@@ -175,6 +176,17 @@ function toggleQuarantine() {
         <div v-if="quarantine" class="flex flex-col gap-3 rounded-lg border border-flaky/30 bg-flaky/5 px-4 py-3">
           <div class="font-mono text-xs text-flaky">
             Quarantined since {{ formatDateTimeLong(quarantine.createdAt) }}
+          </div>
+          <!-- Kept past retention, to check a fix against the failure that got the test quarantined. -->
+          <div v-if="quarantine.pinnedTrace" class="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted-foreground" data-testid="quarantine-trace">
+            <span>Pinned {{ quarantine.pinnedTrace.status === 'flaky' ? 'flaky' : 'failing' }} run, {{ formatDateTimeLong(quarantine.pinnedTrace.startedAt) }}</span>
+            <span v-if="quarantine.pinnedTrace.sha">@ {{ quarantine.pinnedTrace.sha.slice(0, 7) }}</span>
+            <a
+              :href="traceViewerUrl(quarantine.pinnedTrace.url)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-signal hover:underline"
+            >Open trace</a>
           </div>
           <Textarea
             v-model="quarantineReason"

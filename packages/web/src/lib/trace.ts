@@ -14,9 +14,11 @@ export function isTraceAttachment(a: AttachmentLike): boolean {
 // test has no hosted trace. The server returns an absolute artifact URL.
 export function traceViewerHref(attachments: AttachmentLike[], tab?: 'attachments'): string | undefined {
   const trace = attachments.find(a => a.url && isTraceAttachment(a))
-  if (!trace?.url)
-    return undefined
+  return trace?.url ? traceViewerUrl(trace.url, tab) : undefined
+}
+
+export function traceViewerUrl(traceUrl: string, tab?: 'attachments'): string {
   const viewer = env.viewerBaseUrl.endsWith('/') ? env.viewerBaseUrl : `${env.viewerBaseUrl}/`
-  const href = `${viewer}?trace=${encodeURIComponent(trace.url)}`
+  const href = `${viewer}?trace=${encodeURIComponent(traceUrl)}`
   return tab ? `${href}&tab=${tab}` : href
 }

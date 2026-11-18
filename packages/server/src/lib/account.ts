@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../db'
 import { artifact, member, organization, project, subscription } from '../db/schemas/index'
+import { pinnedKeysOfProjects } from '../reports/quarantine'
 import { logger } from './logger'
 import { storage } from './storage'
 
@@ -33,12 +34,13 @@ export async function purgeUserOwnedData(userId: string): Promise<void> {
   const projectIds = projects.map(p => p.id)
   if (projectIds.length > 0) {
     const blobs = await db.select({ key: artifact.storageKey }).from(artifact).where(inArray(artifact.projectId, projectIds))
-    for (const blob of blobs) {
+    const keys = new Set([...blobs.map(b => b.key), ...await pinnedKeysOfProjects(projectIds)])
+    for (const key of keys) {
       try {
-        await storage.delete(blob.key)
+        await storage.delete(key)
       }
       catch (error) {
-        logger.error({ error, key: blob.key }, 'account purge: blob delete failed')
+        logger.error({ error, key }, 'account purge: blob delete failed')
       }
     }
   }

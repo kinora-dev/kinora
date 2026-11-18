@@ -93,10 +93,12 @@ export const pwStatsSchema = z.looseObject({
 
 export const pwConfigSchema = z.looseObject({
   version: z.string().optional(),
+  workers: z.number().optional().catch(undefined),
   rootDir: z.string().optional(),
   // `--shard`: which shard produced the report. A malformed value is dropped, not fatal.
   shard: z.object({ current: z.number().int().min(1), total: z.number().int().min(1) }).nullable().optional().catch(undefined),
-  metadata: z.looseObject({}).optional(),
+  // `actualWorkers`: what the runner started, capped by the number of test groups.
+  metadata: z.looseObject({ actualWorkers: z.number().optional().catch(undefined) }).optional(),
 })
 
 export const playwrightReportSchema = z.looseObject({

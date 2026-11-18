@@ -4,6 +4,7 @@ import { db } from '../db'
 import { artifact, project } from '../db/schemas/index'
 import { logger } from '../lib/logger'
 import { storage } from '../lib/storage'
+import { pinnedKeysOfProjects } from '../reports/quarantine'
 import { adminProcedure, router } from '../trpc/index'
 import { ownedProject } from './dashboard'
 
@@ -54,12 +55,13 @@ export const projectRouter = router({
 
       // Blobs first; the row delete cascades runs/tests/artifacts.
       const blobs = await db.select({ key: artifact.storageKey }).from(artifact).where(eq(artifact.projectId, p.id))
-      for (const blob of blobs) {
+      const keys = new Set([...blobs.map(b => b.key), ...await pinnedKeysOfProjects([p.id])])
+      for (const key of keys) {
         try {
-          await storage.delete(blob.key)
+          await storage.delete(key)
         }
         catch (error) {
-          logger.error({ error, key: blob.key }, 'project delete: blob delete failed')
+          logger.error({ error, key }, 'project delete: blob delete failed')
         }
       }
 

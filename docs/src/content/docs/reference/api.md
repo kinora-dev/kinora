@@ -43,6 +43,7 @@ its top-level shape:
     "duration": 42000,
     "counts": { "total": 126, "expected": 120, "unexpected": 2, "flaky": 1, "skipped": 3 },
     "playwrightVersion": "1.50.0",
+    "workers": 4,
     "git": { "sha": "…", "branch": "main", "baseBranch": "main", "repoUrl": "…" },
     "ci": { "provider": "github", "runUrl": "…", "runNumber": "42" },
     "shards": 4

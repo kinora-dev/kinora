@@ -150,6 +150,12 @@ export function playwrightReportTests(raw: unknown): NormTest[] {
   return flattenReport(playwrightReportSchema.parse(raw), { projectId: '', runId: '' })
 }
 
+// Workers a run actually used, read from a Playwright config the same way its own reporters do.
+export function runWorkers(config?: { workers?: number, metadata?: { actualWorkers?: unknown } }): number | undefined {
+  const n = typeof config?.metadata?.actualWorkers === 'number' ? config.metadata.actualWorkers : config?.workers
+  return n && n >= 1 ? n : undefined
+}
+
 // Parse + normalize a raw Playwright JSON report into the kinora contract.
 // Attachment bodies are dropped (only metadata kept) to keep payloads small.
 export function ingestPlaywrightReport(
@@ -163,6 +169,7 @@ export function ingestPlaywrightReport(
   const startedAt = parsed.stats.startTime
   const duration = parsed.stats.duration
   const playwrightVersion = parsed.config?.version
+  const workers = runWorkers(parsed.config)
 
   const reportPath = `reports/${meta.projectId}/${meta.runId}.json`
   const summary: RunSummary = {
@@ -172,6 +179,7 @@ export function ingestPlaywrightReport(
     duration,
     counts,
     playwrightVersion,
+    workers,
     git: meta.git,
     ci: meta.ci,
     reportPath,
@@ -184,7 +192,7 @@ export function ingestPlaywrightReport(
     startedAt,
     duration,
     counts,
-    meta: { playwrightVersion, git: meta.git, ci: meta.ci },
+    meta: { playwrightVersion, workers, git: meta.git, ci: meta.ci },
     tests,
   }
   return { summary, report }

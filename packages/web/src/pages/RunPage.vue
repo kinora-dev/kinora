@@ -270,6 +270,7 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
                 </template>
               </span>
               <span v-if="report.meta.playwrightVersion" class="whitespace-nowrap">playwright {{ report.meta.playwrightVersion }}</span>
+              <span v-if="report.meta.workers" class="whitespace-nowrap">{{ report.meta.workers }} {{ report.meta.workers === 1 ? 'worker' : 'workers' }}</span>
               <span v-if="incidentCleared" class="whitespace-nowrap">incident flag cleared by {{ incidentCleared.by }}</span>
             </div>
           </div>

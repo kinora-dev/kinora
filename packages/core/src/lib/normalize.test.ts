@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { ingestPlaywrightReport } from './normalize'
+import { ingestPlaywrightReport, runWorkers } from './normalize'
 
 const raw: unknown = JSON.parse(
   readFileSync(new URL('../__fixtures__/sample-report.json', import.meta.url), 'utf8'),
@@ -72,5 +72,19 @@ describe('ingestPlaywrightReport', () => {
 
   it('sets reportPath by convention', () => {
     expect(summary.reportPath).toBe('reports/web-app/r1.json')
+  })
+})
+
+describe('runWorkers', () => {
+  it('prefers the workers the runner started over the configured count', () => {
+    expect(runWorkers({ workers: 4, metadata: { actualWorkers: 2 } })).toBe(2)
+    expect(runWorkers({ workers: 4, metadata: {} })).toBe(4)
+    expect(runWorkers({ workers: 0 })).toBeUndefined()
+    expect(runWorkers(undefined)).toBeUndefined()
+  })
+
+  it('reads them from a JSON report config', () => {
+    const withWorkers = { ...(raw as object), config: { ...(raw as { config?: object }).config, workers: 3, metadata: { actualWorkers: 3 } } }
+    expect(ingestPlaywrightReport(withWorkers, { projectId: 'web-app', runId: 'r1' }).report.meta.workers).toBe(3)
   })
 })

@@ -4,7 +4,7 @@ import type { Buffer } from 'node:buffer'
 import { readFileSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
-import { a11yFromScans, artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, effectiveAttachments, flakyTestsOf, IngestError, makeTestKey, parseAxeScan, postToPr, prLegLabel, resolvePrContext, resolvePrReportOptions, resolveShardGroup, shardFromEnv, uploadArtifacts } from '@kinora/core'
+import { a11yFromScans, artifactsToUpload, createIngestClient, DEFAULT_KINORA_URL, DEFAULT_UPLOAD_ATTACHMENTS, describeRetry, detectCiEnv, effectiveAttachments, flakyTestsOf, IngestError, makeTestKey, parseAxeScan, postToPr, prLegLabel, resolvePrContext, resolvePrReportOptions, resolveShardGroup, runWorkers, shardFromEnv, uploadArtifacts } from '@kinora/core'
 
 export interface KinoraReporterOptions {
   /** kinora server base URL. Defaults to env KINORA_URL, then the hosted cloud. Set for self-host. */
@@ -157,6 +157,7 @@ export default class KinoraReporter implements Reporter {
         duration: result.duration,
         counts: countsOf(tests),
         playwrightVersion: this.config?.version,
+        workers: runWorkers(this.config),
         git: this.options.git ?? detected.git,
         ci: this.options.ci ?? detected.ci,
         ...(baseUrls.length && { baseUrls }),

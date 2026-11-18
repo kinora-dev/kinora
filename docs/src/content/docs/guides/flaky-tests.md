@@ -74,5 +74,13 @@ then skip those tests in the blocking job and run them in one that cannot fail t
 Keep running them: a quarantined test that passes again over its next runs shows up as stable,
 which tells you when to lift the quarantine. An expired quarantine is no longer listed.
 
+Quarantining a test also pins the trace of its latest failure, or of the first failure uploaded
+after, if it has no trace yet. The test's page links to it for as long as the quarantine lasts,
+even after retention removed the run, so you can check a fix against the original failure. The
+pinned trace counts toward your storage and is deleted when the quarantine is lifted or expires.
+
+A run also records how many workers Playwright used, shown on the run page: a test that flips
+after a change of parallelism in CI points at a race rather than at the code.
+
 With [balanced shards](/guides/cli/#balanced-shards), see the [sharded workflow](/guides/cli/#with-balanced-shards).
 
