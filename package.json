@@ -29,6 +29,6 @@
     "@antfu/eslint-config": "^9.5.1",
     "eslint": "^10.14.0",
     "eslint-plugin-astro": "^3.2.1",
-    "typescript": "~6.0.3"
+    "typescript": "~7.0.2"
   }
 }
