@@ -124,9 +124,16 @@ function didRun(test: Pick<TestCase, 'results' | 'expectedStatus'>): boolean {
   return test.results.some(r => r.status !== 'interrupted' && (r.status !== 'skipped' || test.expectedStatus === 'skipped'))
 }
 
-function interruptionOf(status: FullResult['status']): RunInterruption | undefined {
-  return status === 'interrupted' || status === 'timedout' ? status : undefined
+// maxFailures ends the run as plain `failed`: replay the runner's own count (a test failing after
+// its last retry) to tell it from a run that went to its end.
+function interruptionOf(status: FullResult['status'], tests: TestCase[], maxFailures: number): RunInterruption | undefined {
+  if (status === 'interrupted' || status === 'timedout')
+    return status
+  const failed = tests.filter(t => t.outcome() === 'unexpected' && t.results.length > t.retries).length
+  return maxFailures > 0 && failed >= maxFailures && tests.some(t => !didRun(t)) ? 'bailed' : undefined
 }
+
+const INTERRUPTION_LOG: Record<RunInterruption, string> = { interrupted: 'interrupted', timedout: 'timed out', bailed: 'stopped at maxFailures' }
 
 // A cancelled CI job gets SIGTERM a few seconds after SIGINT (~7.5s on GitHub Actions): retry
 // briefly so the run lands before that, rather than wait out a server restart.
@@ -158,8 +165,8 @@ export default class KinoraReporter implements Reporter {
       return
     }
 
-    const interruption = interruptionOf(result.status)
     const all = this.suite?.allTests() ?? []
+    const interruption = interruptionOf(result.status, all, this.config?.maxFailures ?? 0)
     const tests = (interruption ? all.filter(didRun) : all).map(toNormTest)
     const detected = detectCiEnv(process.env)
     const shard = this.shard()
@@ -204,7 +211,7 @@ export default class KinoraReporter implements Reporter {
       if (res.incident)
         console.warn(`[kinora] environment incident, not counted: ${res.incident.reason}`)
       if (interruption)
-        console.warn(`[kinora] run ${interruption === 'timedout' ? 'timed out' : 'interrupted'}: uploaded the tests that ran (${tests.length} of ${all.length})`)
+        console.warn(`[kinora] run ${INTERRUPTION_LOG[interruption]}: uploaded the tests that ran (${tests.length} of ${all.length})`)
 
       // A cancelled run is often superseded by a newer push: its PR report would overwrite that one's.
       if (!cancelled)

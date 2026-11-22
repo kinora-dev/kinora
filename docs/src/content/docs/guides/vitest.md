@@ -13,8 +13,8 @@ If the kinora server is unreachable or answers `502`, `503`, `504`, `408` or `42
 restart), the upload is retried for about a minute with growing waits, logging each one. Retries
 reuse the same `Idempotency-Key`, so a run is never stored twice.
 
-A run stopped by `bail` still uploads the tests that ran, marked **Interrupted** in kinora and
-never used as a regression baseline; the PR comment and status say it stopped early. A cancelled CI
+A run stopped by `bail` still uploads the tests that ran, marked **Stopped early** in kinora and
+never used as a regression baseline; the PR comment, status and alerts say it stopped early. A cancelled CI
 job is different: Vitest exits on the job's `SIGINT` before reporters finish, so nothing is uploaded.
 
 ## Install

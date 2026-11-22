@@ -1,4 +1,4 @@
-import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRun, IngestRunResult, NormTest, PrCommentOption, PrReportOptions, PrStatusOption } from '@kinora/core'
+import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRun, IngestRunResult, NormTest, PrCommentOption, PrReportOptions, PrStatusOption, RunInterruption } from '@kinora/core'
 import type { Reporter, TestModule, TestRunEndReason, Vitest } from 'vitest/node'
 import type { IncludeTests } from './convert'
 import { readFileSync } from 'node:fs'
@@ -55,6 +55,7 @@ function countsOf(tests: NormTest[]): Counts {
 export default class KinoraVitestReporter implements Reporter {
   private startedAt = new Date()
   private shard: { current: number, total: number } | undefined
+  private cancelReason: string | undefined
 
   constructor(private readonly options: KinoraVitestReporterOptions) {}
 
@@ -67,14 +68,19 @@ export default class KinoraVitestReporter implements Reporter {
     vitest.config.includeTaskLocation = true
     for (const project of vitest.projects)
       project.config.includeTaskLocation = true
+    // Tells a bail (`test-failure`) from a cancel, both of which end the run as `interrupted`.
+    vitest.onCancel((reason) => {
+      this.cancelReason = reason
+    })
   }
 
   onTestRunStart(): void {
     this.startedAt = new Date()
+    this.cancelReason = undefined
   }
 
-  // `interrupted` comes from a bail (or an interactive cancel): in CI, a SIGINT exits Vitest before
-  // this hook. Its pending tests are already left out.
+  // In CI, a SIGINT exits Vitest before this hook: `interrupted` is a bail, or an interactive cancel.
+  // Its pending tests are already left out.
   async onTestRunEnd(modules: ReadonlyArray<TestModule>, _errors?: unknown, reason?: TestRunEndReason): Promise<void> {
     const url = this.options.url ?? process.env.KINORA_URL ?? DEFAULT_KINORA_URL
     const token = this.options.token ?? process.env.KINORA_TOKEN
@@ -98,7 +104,7 @@ export default class KinoraVitestReporter implements Reporter {
       }
       console.warn('[kinora] no tests to upload in this shard: filling its slot so the run can complete')
     }
-    const interrupted = reason === 'interrupted'
+    const interruption: RunInterruption | undefined = reason !== 'interrupted' ? undefined : this.cancelReason === 'test-failure' ? 'bailed' : 'interrupted'
     const detected = detectCiEnv(process.env)
     const payload: IngestRun = {
       project: { slug: this.options.project.slug, name: this.options.project.name ?? this.options.project.slug },
@@ -108,7 +114,7 @@ export default class KinoraVitestReporter implements Reporter {
         counts: countsOf(tests),
         git: this.options.git ?? detected.git,
         ci: this.options.ci ?? detected.ci,
-        ...(interrupted && { interruption: 'interrupted' as const }),
+        ...(interruption && { interruption }),
         ...(this.shard && group && { ...group, shard: this.shard }),
       },
       tests,
@@ -126,9 +132,11 @@ export default class KinoraVitestReporter implements Reporter {
       console.log(`[kinora] uploaded ${res.tests} tests + ${artifacts} artifacts (run ${res.runId}${res.shardProgress ? `, ${res.shardProgress.landed} of ${res.shardProgress.total} shards` : ''})`)
       if (res.incident)
         console.warn(`[kinora] environment incident, not counted: ${res.incident.reason}`)
-      if (interrupted)
-        console.warn(`[kinora] run interrupted: uploaded the tests that ran (${tests.length})`)
-      await this.maybePostToPr(prOptions, payload, res)
+      if (interruption)
+        console.warn(`[kinora] run ${interruption === 'bailed' ? 'stopped by bail' : 'interrupted'}: uploaded the tests that ran (${tests.length})`)
+      // A cancelled run is often superseded by a newer one: its PR report would overwrite that one's.
+      if (interruption !== 'interrupted')
+        await this.maybePostToPr(prOptions, payload, res)
     }
     catch (err) {
       if (err instanceof IngestError && err.status === 402)

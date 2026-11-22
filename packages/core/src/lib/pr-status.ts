@@ -1,3 +1,4 @@
+import type { RunInterruption } from '../contracts/kinora'
 import type { GitHubPrContext, GitLabMrContext, PrCommentInput, PrContext } from './pr-comment'
 
 // A commit status with the run's verdict: in the GitHub PR checks, which branch protection can
@@ -17,6 +18,8 @@ export interface PrStatus {
   description: string
 }
 
+const INTERRUPTION_VERB: Record<RunInterruption, string> = { interrupted: 'interrupted', timedout: 'timed out', bailed: 'stopped at its failure limit' }
+
 const MAX_DESCRIPTION = 140 // GitHub rejects longer status descriptions
 
 export function prStatusContext(projectSlug: string, label?: string): string {
@@ -35,7 +38,7 @@ export function buildPrStatus(input: PrStatusInput): PrStatus {
     return status('failure', 'Environment incident, not counted: re-run once the app is back')
   // Red too: the tests that did not run were not checked.
   if (input.interruption)
-    return status('failure', `Run ${input.interruption === 'timedout' ? 'timed out' : 'interrupted'} after ${counts.total} tests: not every test ran`)
+    return status('failure', `Run ${INTERRUPTION_VERB[input.interruption]} after ${counts.total} tests: not every test ran`)
 
   const flaky = counts.flaky > 0 ? ` · ${counts.flaky} flaky` : ''
   const regression = input.regression?.base === 'none' ? undefined : input.regression

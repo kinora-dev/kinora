@@ -59,7 +59,12 @@ export interface PrCommentInput {
   interruption?: RunInterruption
 }
 
-const INTERRUPTION_LABEL: Record<RunInterruption, string> = { interrupted: 'interrupted', timedout: 'timed out' }
+const INTERRUPTION_LABEL: Record<RunInterruption, string> = { interrupted: 'interrupted', timedout: 'timed out', bailed: 'stopped at its failure limit' }
+const INTERRUPTION_LINE: Record<RunInterruption, string> = {
+  interrupted: 'Run interrupted before its end.',
+  timedout: 'Run timed out before its end.',
+  bailed: 'Run stopped early, at its failure limit.',
+}
 
 // The flaky tests of a run, as the comment lists them.
 export function flakyTestsOf(tests: (Pick<NormTest, 'testKey' | 'title' | 'file' | 'status'> & Partial<Pick<NormTest, 'annotations'>>)[]): FlakyTest[] {
@@ -225,7 +230,7 @@ export function buildPrCommentBody(input: PrCommentInput): string {
   if (incident)
     lines.push('', `**Environment incident, not counted.** ${incident.reason} Re-run once the environment is back, or clear the flag on the run page if it is wrong.`)
   if (interruption)
-    lines.push('', `**Run ${INTERRUPTION_LABEL[interruption]} before its end.** Only the ${counts.total} tests that ran are counted.`)
+    lines.push('', `**${INTERRUPTION_LINE[interruption]}** Only the ${counts.total} tests that ran are counted.`)
 
   const compared = regression && regression.base !== 'none' ? regression : undefined
   const vs = compared?.base === 'base-branch' ? 'base branch' : 'previous run'

@@ -1,4 +1,4 @@
-import type { Counts, ProjectEntry, RunSummary } from '../contracts/kinora'
+import type { Counts, ProjectEntry, RunInterruption, RunSummary } from '../contracts/kinora'
 
 export type RunHealth = 'passing' | 'flaky' | 'failing' | 'empty'
 
@@ -23,6 +23,8 @@ export function runHealth(c: Counts): RunHealth {
   return 'passing'
 }
 
+const INTERRUPTION_BADGE: Record<RunInterruption, string> = { interrupted: 'Interrupted', timedout: 'Timed out', bailed: 'Stopped early' }
+
 // A grouped run still missing shards, or a run the runner stopped early, holds part of the suite
 // only, so its counts must never read as the run's health. Returns what to show instead (undefined
 // for a complete run).
@@ -31,9 +33,7 @@ export function partialRunLabel(r: Pick<RunSummary, 'status' | 'shardProgress' |
     const shards = r.shardProgress ? `${r.shardProgress.landed} of ${r.shardProgress.total} shards` : 'shards missing'
     return r.status === 'incomplete' ? `Incomplete · ${shards}` : shards
   }
-  if (r.interruption)
-    return r.interruption === 'timedout' ? 'Timed out' : 'Interrupted'
-  return undefined
+  return r.interruption && INTERRUPTION_BADGE[r.interruption]
 }
 
 export function sortedRuns(p: ProjectEntry): RunSummary[] {

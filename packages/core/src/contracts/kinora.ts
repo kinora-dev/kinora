@@ -39,10 +39,11 @@ export type CiMeta = z.infer<typeof ciMetaSchema>
 export const runStatusSchema = z.enum(['open', 'complete', 'incomplete'])
 export type RunStatus = z.infer<typeof runStatusSchema>
 
-// The runner stopped before running every test: `interrupted` (SIGINT, as a CI cancel or job
-// timeout sends, or a bail) or `timedout` (Playwright's globalTimeout). Its tests are the ones that
-// ran, so it is no regression baseline. Absent: the run went to its end.
-export const runInterruptionSchema = z.enum(['interrupted', 'timedout'])
+// The runner stopped before running every test: `interrupted` (cancelled: SIGINT, as a CI cancel or
+// job timeout sends), `timedout` (Playwright's globalTimeout) or `bailed` (it reached its failure
+// limit: Playwright's maxFailures, Vitest's bail). Its tests are the ones that ran, so it is no
+// regression baseline. Absent: the run went to its end.
+export const runInterruptionSchema = z.enum(['interrupted', 'timedout', 'bailed'])
 export type RunInterruption = z.infer<typeof runInterruptionSchema>
 
 export const shardProgressSchema = z.object({ landed: z.number(), total: z.number() })

@@ -23,6 +23,7 @@ function fakeTest(over: { title?: string, outcome?: string, ok?: boolean, traceP
     location: { file: 'a.spec.ts', line: 3, column: 1 },
     results: (over.resultStatuses ?? ['passed']).map(status => ({ status, duration: 5, errors: [], attachments })),
     expectedStatus: over.expectedStatus ?? 'passed',
+    retries: 0,
     outcome: () => over.outcome ?? 'expected',
     ok: () => over.ok ?? true,
     tags: ['@smoke'],
@@ -166,6 +167,26 @@ describe('reporter onEnd', () => {
       expect(payload.tests.map((t: { title: string }) => t.title)).toEqual(['ran', 'skipped on purpose'])
       expect(payload.run.counts).toMatchObject({ total: 2, expected: 1, skipped: 1 })
       expect(warn).toHaveBeenCalledWith('[kinora] run interrupted: uploaded the tests that ran (2 of 4)')
+    })
+
+    it('tells a run stopped at maxFailures from one that failed at its end', async () => {
+      const calls = stubServer()
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+      const config = { version: '1.60.0', maxFailures: 1 } as FullConfig
+      const failing = () => fakeTest({ title: 'fails', outcome: 'unexpected', ok: false, resultStatuses: ['failed'] })
+
+      const bailed = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' } })
+      bailed.onBegin(config, fakeSuite([failing(), fakeTest({ title: 'never started', outcome: 'skipped', resultStatuses: [] })]))
+      await bailed.onEnd(fakeResult('failed'))
+      expect(JSON.parse(calls[0].body!).run.interruption).toBe('bailed')
+      expect(JSON.parse(calls[0].body!).tests.map((t: { title: string }) => t.title)).toEqual(['fails'])
+
+      // The limit reached on the last test: every test ran, nothing was cut.
+      const ended = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' } })
+      ended.onBegin(config, fakeSuite([fakeTest({ title: 'passes' }), failing()]))
+      await ended.onEnd(fakeResult('failed'))
+      expect(JSON.parse(calls[1].body!).run).not.toHaveProperty('interruption')
     })
 
     it('reports a timed-out run on the PR as such', async () => {

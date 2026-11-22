@@ -73,12 +73,13 @@ export async function refillsLandedSlot(projectId: string, r: GroupedRun): Promi
   return !!row && String(r.shard.current) in row.landed
 }
 
-// One cut-short shard leaves the whole run partial; a cancel says more than a timeout.
+// One cut-short shard leaves the whole run partial. A cancel wins (it silences alerts), then a
+// timeout, then a bail.
+const INTERRUPTION_ORDER: RunInterruption[] = ['interrupted', 'timedout', 'bailed']
+
 export function runInterruption(landed: Record<string, ShardSlot>): RunInterruption | null {
   const slots = Object.values(landed)
-  if (slots.some(s => s.interruption === 'interrupted'))
-    return 'interrupted'
-  return slots.some(s => s.interruption === 'timedout') ? 'timedout' : null
+  return INTERRUPTION_ORDER.find(i => slots.some(s => s.interruption === i)) ?? null
 }
 
 function progress(landed: Record<string, ShardSlot>, total: number): ShardProgress {

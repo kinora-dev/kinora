@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { IncidentRule, PwTestStatus, ScreenshotComparison } from '@kinora/core'
+import type { IncidentRule, PwTestStatus, RunInterruption, ScreenshotComparison } from '@kinora/core'
 import { formatDuration, formatPct, partialRunLabel, passRate, runHealth, splitScreenshotComparisons, storiesOf, STORY_ANNOTATION, stripAnsi } from '@kinora/core'
 import { Button } from '@kinora/ui/button'
 import { Separator } from '@kinora/ui/separator'
@@ -51,6 +51,12 @@ const HEALTH_TONE = { passing: 'pass', flaky: 'flaky', failing: 'fail', empty: '
 const runState = computed(() => report.value && { counts: report.value.counts, status: report.value.meta.status, shardProgress: report.value.meta.shardProgress, interruption: report.value.meta.interruption, incident: report.value.meta.incident })
 const partial = computed(() => runState.value && partialRunLabel(runState.value))
 const incident = computed(() => report.value?.meta.incident)
+const INTERRUPTIONS: Record<RunInterruption, { title: string, cause: string }> = {
+  interrupted: { title: 'Interrupted before its end', cause: 'The run was cancelled' },
+  timedout: { title: 'Timed out before its end', cause: 'The run hit its global timeout' },
+  bailed: { title: 'Stopped early, at its failure limit', cause: 'The run reached its maximum allowed failures (maxFailures, bail)' },
+}
+const interruption = computed(() => report.value?.meta.interruption && INTERRUPTIONS[report.value.meta.interruption])
 const passTone = computed(() => (!runState.value || partial.value || incident.value ? 'default' : HEALTH_TONE[runHealth(runState.value.counts)]))
 
 const INCIDENT_RULES: Record<IncidentRule, string> = {
@@ -348,17 +354,17 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
         </div>
 
         <div
-          v-else-if="report.meta.interruption"
+          v-else-if="interruption"
           role="status"
           class="flex items-start gap-3 rounded-lg border border-border/70 bg-card/80 px-6 py-4"
         >
           <OctagonPause class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <div class="flex flex-col gap-1">
             <p class="text-sm font-medium">
-              {{ report.meta.interruption === 'timedout' ? 'Timed out' : 'Interrupted' }} before its end
+              {{ interruption.title }}
             </p>
             <p class="text-sm text-muted-foreground">
-              {{ report.meta.interruption === 'timedout' ? 'The run hit its global timeout' : 'The run was cancelled or stopped' }}: only the {{ report.counts.total }} tests that ran are listed. It is not used as a regression baseline.
+              {{ interruption.cause }}: only the {{ report.counts.total }} tests that ran are listed. It is not used as a regression baseline.
             </p>
           </div>
         </div>

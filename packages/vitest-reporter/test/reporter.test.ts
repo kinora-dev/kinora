@@ -43,7 +43,7 @@ afterEach(() => {
 describe('onInit', () => {
   it('turns on test locations for the run and every project', () => {
     const projects = [{ config: {} }, { config: {} }]
-    const vitest = { config: {}, projects } as unknown as Vitest
+    const vitest = { config: {}, projects, onCancel: () => () => {} } as unknown as Vitest
     reporter().onInit(vitest)
     expect((vitest.config as { includeTaskLocation?: boolean }).includeTaskLocation).toBe(true)
     expect(projects.every(p => (p.config as { includeTaskLocation?: boolean }).includeTaskLocation)).toBe(true)
@@ -125,7 +125,7 @@ describe('onTestRunEnd', () => {
 describe('sharded runs', () => {
   function shardedReporter(options: Partial<ConstructorParameters<typeof KinoraVitestReporter>[0]> = {}, shard = { index: 2, count: 3 }) {
     const r = reporter(options)
-    r.onInit({ config: { shard }, projects: [] } as unknown as Vitest)
+    r.onInit({ config: { shard }, projects: [], onCancel: () => () => {} } as unknown as Vitest)
     return r
   }
 
@@ -230,20 +230,42 @@ describe('pull requests', () => {
     expect(warn.mock.calls.flat()).toEqual(expect.arrayContaining(['[kinora] PR comment created', '[kinora] PR status posted']))
   })
 
+  // Vitest ends a bail and a cancel alike as `interrupted`: the reason comes through onCancel.
+  async function endCancelled(r: ReturnType<typeof reporter>, cancelReason: string) {
+    let onCancel: (reason: string) => void = () => {}
+    r.onInit({ config: {}, projects: [], onCancel: (fn: typeof onCancel) => {
+      onCancel = fn
+      return () => {}
+    } } as unknown as Vitest)
+    r.onTestRunStart()
+    onCancel(cancelReason)
+    await r.onTestRunEnd([fakeModule([fakeTest({ name: 'fails', state: 'failed' }), fakeTest({ name: 'never ran', state: 'pending' })])], [], 'interrupted')
+  }
+
   it('flags a run stopped by a bail, uploads the tests that ran and reports it on the PR as such', async () => {
     const calls = stubPr()
     vi.spyOn(console, 'log').mockImplementation(() => {})
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    await reporter({ prComment: true, prStatus: true }).onTestRunEnd([fakeModule([fakeTest({ name: 'fails', state: 'failed' }), fakeTest({ name: 'never ran', state: 'pending' })])], [], 'interrupted')
+    await endCancelled(reporter({ prComment: true, prStatus: true }), 'test-failure')
 
     const payload = JSON.parse(calls[0].body!)
-    expect(payload.run.interruption).toBe('interrupted')
+    expect(payload.run.interruption).toBe('bailed')
     expect(payload.tests.map((t: { title: string }) => t.title)).toEqual(['fails'])
-    expect(warn).toHaveBeenCalledWith('[kinora] run interrupted: uploaded the tests that ran (1)')
+    expect(warn).toHaveBeenCalledWith('[kinora] run stopped by bail: uploaded the tests that ran (1)')
     const comment = calls.find(c => c.method === 'POST' && c.url.endsWith('/issues/9/comments'))
-    expect(JSON.parse(comment!.body!).body).toContain('· interrupted')
+    expect(JSON.parse(comment!.body!).body).toContain('· stopped at its failure limit')
     const status = calls.find(c => c.url.endsWith('/statuses/headsha'))
     expect(JSON.parse(status!.body!).state).toBe('failure')
+  })
+
+  it('flags a cancelled run and leaves the PR to the run that superseded it', async () => {
+    const calls = stubPr()
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await endCancelled(reporter({ prComment: true, prStatus: true }), 'keyboard-input')
+
+    expect(calls).toHaveLength(1)
+    expect(JSON.parse(calls[0].body!).run.interruption).toBe('interrupted')
   })
 
   it('posts nothing to the PR unless asked', async () => {
@@ -261,7 +283,7 @@ describe('pull requests', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     process.env.GITHUB_RUN_ID = '42'
     const r = reporter({ prStatus: { label: 'firefox' } })
-    r.onInit({ config: { shard: { index: 3, count: 3 } }, projects: [] } as unknown as Vitest)
+    r.onInit({ config: { shard: { index: 3, count: 3 } }, projects: [], onCancel: () => () => {} } as unknown as Vitest)
     await r.onTestRunEnd(run())
 
     expect(JSON.parse(calls[0].body!).run.groupKey).toBe('gh-42:firefox')
@@ -273,7 +295,7 @@ describe('pull requests', () => {
     const calls = stubPr()
     vi.spyOn(console, 'log').mockImplementation(() => {})
     const r = reporter({ prStatus: true, groupKey: false })
-    r.onInit({ config: { shard: { index: 1, count: 3 } }, projects: [] } as unknown as Vitest)
+    r.onInit({ config: { shard: { index: 1, count: 3 } }, projects: [], onCancel: () => () => {} } as unknown as Vitest)
     await r.onTestRunEnd(run())
 
     expect(calls.filter(c => new URL(c.url).host === 'api.github.com')).toEqual([])

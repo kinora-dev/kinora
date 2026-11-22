@@ -104,12 +104,13 @@ describe('interrupted runs', () => {
     const key = await createApiKey((await createUser()).id)
     const shard = (current: number, extra: Partial<IngestRun['run']> = {}) => suite(['expected'], { groupKey: 'ci-7', shard: { current, total: 2 }, ...extra })
 
-    const { runId } = await (await ingest(key, shard(1, { interruption: 'timedout' }))).json() as { runId: string }
+    const { runId } = await (await ingest(key, shard(1, { interruption: 'bailed' }))).json() as { runId: string }
+    expect(await storedInterruption(runId)).toBe('bailed')
     await ingest(key, shard(2, { interruption: 'interrupted' }))
     expect(await storedInterruption(runId)).toBe('interrupted')
 
     await ingest(key, shard(2, { attempt: 2 }))
-    expect(await storedInterruption(runId)).toBe('timedout')
+    expect(await storedInterruption(runId)).toBe('bailed')
     await ingest(key, shard(1, { attempt: 2 }))
     expect(await storedInterruption(runId)).toBeNull()
   })

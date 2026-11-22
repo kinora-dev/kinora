@@ -51,6 +51,7 @@ describe('partialRunLabel', () => {
     expect(partialRunLabel({ status: 'incomplete', shardProgress: { landed: 2, total: 3 } })).toBe('Incomplete · 2 of 3 shards')
     expect(partialRunLabel({ status: 'complete', interruption: 'interrupted' })).toBe('Interrupted')
     expect(partialRunLabel({ interruption: 'timedout' })).toBe('Timed out')
+    expect(partialRunLabel({ interruption: 'bailed' })).toBe('Stopped early')
     expect(partialRunLabel({ status: 'complete' })).toBeUndefined()
   })
 })

@@ -113,6 +113,8 @@ describe('buildPrCommentBody', () => {
     expect(body).toContain('⚠️ **kinora** · Web · timed out')
     expect(body).toContain('**Run timed out before its end.** Only the 4 tests that ran are counted.')
     expect(body).toContain('1 fixed vs base branch')
+    expect(buildPrCommentBody({ projectSlug: 'web', projectName: 'Web', counts, interruption: 'bailed' }))
+      .toContain('**Run stopped early, at its failure limit.** Only the 10 tests that ran are counted.')
   })
 
   it('truncates a long failing list', () => {
