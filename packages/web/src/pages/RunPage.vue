@@ -6,7 +6,7 @@ import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
 import { StatBlock } from '@kinora/ui/stat-block'
 import { Tabs, TabsList, TabsTrigger } from '@kinora/ui/tabs'
-import { ArrowLeft, Clock, ExternalLink, Film, GitBranch, GitCommitHorizontal, GitCompareArrows, Link2, Paperclip, ServerCrash } from '@lucide/vue'
+import { ArrowLeft, Clock, ExternalLink, Film, GitBranch, GitCommitHorizontal, GitCompareArrows, Link2, OctagonPause, Paperclip, ServerCrash } from '@lucide/vue'
 import { useRouteQuery } from '@vueuse/router'
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
@@ -48,7 +48,7 @@ const projectName = computed(() => report.value?.project.name ?? props.projectId
 // A run's pass rate is colored by the run's health, not its value: a run with real failures reads red.
 // A run missing shards stays neutral, its counts cover part of the suite only.
 const HEALTH_TONE = { passing: 'pass', flaky: 'flaky', failing: 'fail', empty: 'default' } as const
-const runState = computed(() => report.value && { counts: report.value.counts, status: report.value.meta.status, shardProgress: report.value.meta.shardProgress, incident: report.value.meta.incident })
+const runState = computed(() => report.value && { counts: report.value.counts, status: report.value.meta.status, shardProgress: report.value.meta.shardProgress, interruption: report.value.meta.interruption, incident: report.value.meta.incident })
 const partial = computed(() => runState.value && partialRunLabel(runState.value))
 const incident = computed(() => report.value?.meta.incident)
 const passTone = computed(() => (!runState.value || partial.value || incident.value ? 'default' : HEALTH_TONE[runHealth(runState.value.counts)]))
@@ -345,6 +345,22 @@ const BADGE_CLASS = 'inline-flex items-center gap-1 rounded border border-border
           >
             Clear the flag
           </Button>
+        </div>
+
+        <div
+          v-else-if="report.meta.interruption"
+          role="status"
+          class="flex items-start gap-3 rounded-lg border border-border/70 bg-card/80 px-6 py-4"
+        >
+          <OctagonPause class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div class="flex flex-col gap-1">
+            <p class="text-sm font-medium">
+              {{ report.meta.interruption === 'timedout' ? 'Timed out' : 'Interrupted' }} before its end
+            </p>
+            <p class="text-sm text-muted-foreground">
+              {{ report.meta.interruption === 'timedout' ? 'The run hit its global timeout' : 'The run was cancelled or stopped' }}: only the {{ report.counts.total }} tests that ran are listed. It is not used as a regression baseline.
+            </p>
+          </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-x-10 gap-y-4 rounded-lg border border-border/70 bg-card/80 px-6 py-5">

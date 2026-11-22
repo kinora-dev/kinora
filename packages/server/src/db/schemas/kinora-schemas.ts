@@ -1,4 +1,4 @@
-import type { Counts, IncidentDecision, NormTest, RunIncident, RunReport, RunStatus } from '@kinora/core'
+import type { Counts, IncidentDecision, NormTest, RunIncident, RunInterruption, RunReport, RunStatus } from '@kinora/core'
 import { relations, sql } from 'drizzle-orm'
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uniqueIndex } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth-schemas'
@@ -15,6 +15,7 @@ export interface ShardSlot {
   duration: number
   results: number
   metered: boolean
+  interruption?: RunInterruption
 }
 
 export interface PinnedTrace {
@@ -69,6 +70,8 @@ export const run = pgTable('run', {
   idempotencyKey: text('idempotency_key'),
   // The `baseURL`s the upload declared, kept for judging a grouped run once its last shard lands.
   baseUrls: jsonb('base_urls').$type<string[]>(),
+  // The runner stopped before its end (a grouped run: any of its shards did). Not a regression baseline.
+  interruption: text('interruption').$type<RunInterruption>(),
   // Set when the run is an environment incident (null: the run counts). See @kinora/core lib/incident.
   incident: jsonb('incident').$type<RunIncident>(),
   incidentDecision: jsonb('incident_decision').$type<IncidentDecision>(),

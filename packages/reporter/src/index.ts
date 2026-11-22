@@ -1,4 +1,4 @@
-import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRun, IngestRunResult, NormTest, PrCommentOption, PrReportOptions, PrStatusOption } from '@kinora/core'
+import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRun, IngestRunResult, NormTest, PrCommentOption, PrReportOptions, PrStatusOption, RunInterruption } from '@kinora/core'
 import type { FullConfig, FullResult, Reporter, Suite, TestCase } from '@playwright/test/reporter'
 import type { Buffer } from 'node:buffer'
 import { readFileSync, statSync } from 'node:fs'
@@ -117,6 +117,21 @@ function toNormTest(test: TestCase): NormTest {
   }
 }
 
+// A test the runner stopped before (no result) or during (an `interrupted` result) has the outcome
+// `skipped`: on a cut-short run, only the tests that ran are uploaded, or each of the others would
+// record a skipped run in its history.
+function didRun(test: Pick<TestCase, 'results' | 'expectedStatus'>): boolean {
+  return test.results.some(r => r.status !== 'interrupted' && (r.status !== 'skipped' || test.expectedStatus === 'skipped'))
+}
+
+function interruptionOf(status: FullResult['status']): RunInterruption | undefined {
+  return status === 'interrupted' || status === 'timedout' ? status : undefined
+}
+
+// A cancelled CI job gets SIGTERM a few seconds after SIGINT (~7.5s on GitHub Actions): retry
+// briefly so the run lands before that, rather than wait out a server restart.
+const INTERRUPTED_RETRY_DELAYS = [500, 1000]
+
 function countsOf(tests: NormTest[]): Counts {
   const counts: Counts = { total: tests.length, expected: 0, unexpected: 0, flaky: 0, skipped: 0 }
   for (const t of tests)
@@ -143,7 +158,9 @@ export default class KinoraReporter implements Reporter {
       return
     }
 
-    const tests = (this.suite?.allTests() ?? []).map(toNormTest)
+    const interruption = interruptionOf(result.status)
+    const all = this.suite?.allTests() ?? []
+    const tests = (interruption ? all.filter(didRun) : all).map(toNormTest)
     const detected = detectCiEnv(process.env)
     const shard = this.shard()
     const group = shard && this.options.groupKey !== false
@@ -161,13 +178,21 @@ export default class KinoraReporter implements Reporter {
         git: this.options.git ?? detected.git,
         ci: this.options.ci ?? detected.ci,
         ...(baseUrls.length && { baseUrls }),
+        ...(interruption && { interruption }),
         ...(shard && group && { ...group, shard: { current: shard.current, total: shard.total } }),
       },
       tests,
     }
 
     try {
-      const client = createIngestClient({ baseUrl: url, token, regression: !!(this.options.prComment || this.options.prStatus), onRetry: info => console.warn(`[kinora] ${describeRetry(info)}`) })
+      const cancelled = interruption === 'interrupted'
+      const client = createIngestClient({
+        baseUrl: url,
+        token,
+        regression: !cancelled && !!(this.options.prComment || this.options.prStatus),
+        ...(cancelled && { retryDelays: INTERRUPTED_RETRY_DELAYS }),
+        onRetry: info => console.warn(`[kinora] ${describeRetry(info)}`),
+      })
       const res = await client.uploadRun(payload)
 
       const artifacts = await uploadArtifacts(client, res.runId, artifactsToUpload(tests, this.options.uploadAttachments ?? DEFAULT_UPLOAD_ATTACHMENTS), {
@@ -178,8 +203,12 @@ export default class KinoraReporter implements Reporter {
       console.log(`[kinora] uploaded ${res.tests} tests + ${artifacts} artifacts (run ${res.runId}${res.shardProgress ? `, ${res.shardProgress.landed} of ${res.shardProgress.total} shards` : ''})`)
       if (res.incident)
         console.warn(`[kinora] environment incident, not counted: ${res.incident.reason}`)
+      if (interruption)
+        console.warn(`[kinora] run ${interruption === 'timedout' ? 'timed out' : 'interrupted'}: uploaded the tests that ran (${tests.length} of ${all.length})`)
 
-      await this.maybePostToPr(payload, res)
+      // A cancelled run is often superseded by a newer push: its PR report would overwrite that one's.
+      if (!cancelled)
+        await this.maybePostToPr(payload, res)
     }
     catch (err) {
       if (err instanceof IngestError && err.status === 402)
@@ -230,6 +259,7 @@ export default class KinoraReporter implements Reporter {
       baseBranch: payload.run.git?.baseBranch,
       ...(res.shardProgress && { shards: { runId: res.runId, ...res.shardProgress } }),
       ...(res.incident && { incident: res.incident }),
+      ...(payload.run.interruption && { interruption: payload.run.interruption }),
     }, { info: m => console.warn(`[kinora] ${m}`), warn: m => console.warn(`[kinora] ${m}`) })
   }
 }

@@ -230,6 +230,22 @@ describe('pull requests', () => {
     expect(warn.mock.calls.flat()).toEqual(expect.arrayContaining(['[kinora] PR comment created', '[kinora] PR status posted']))
   })
 
+  it('flags a run stopped by a bail, uploads the tests that ran and reports it on the PR as such', async () => {
+    const calls = stubPr()
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await reporter({ prComment: true, prStatus: true }).onTestRunEnd([fakeModule([fakeTest({ name: 'fails', state: 'failed' }), fakeTest({ name: 'never ran', state: 'pending' })])], [], 'interrupted')
+
+    const payload = JSON.parse(calls[0].body!)
+    expect(payload.run.interruption).toBe('interrupted')
+    expect(payload.tests.map((t: { title: string }) => t.title)).toEqual(['fails'])
+    expect(warn).toHaveBeenCalledWith('[kinora] run interrupted: uploaded the tests that ran (1)')
+    const comment = calls.find(c => c.method === 'POST' && c.url.endsWith('/issues/9/comments'))
+    expect(JSON.parse(comment!.body!).body).toContain('· interrupted')
+    const status = calls.find(c => c.url.endsWith('/statuses/headsha'))
+    expect(JSON.parse(status!.body!).state).toBe('failure')
+  })
+
   it('posts nothing to the PR unless asked', async () => {
     const calls = stubPr()
     vi.spyOn(console, 'log').mockImplementation(() => {})

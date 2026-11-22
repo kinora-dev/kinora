@@ -4,9 +4,10 @@ import { partialRunLabel, runHealth } from '@kinora/core'
 import { HealthBadge } from '@kinora/ui/health-badge'
 import { computed } from 'vue'
 
-// A run's health, or how many of its shards landed while it misses some (its counts are partial).
-// An environment incident reads as such: its failures say nothing about the tests.
-const props = defineProps<{ run: Pick<RunSummary, 'counts' | 'status' | 'shardProgress' | 'incident'> }>()
+// A run's health, or how many of its shards landed while it misses some, or that the runner stopped
+// it early (its counts are partial). An environment incident reads as such: its failures say
+// nothing about the tests.
+const props = defineProps<{ run: Pick<RunSummary, 'counts' | 'status' | 'shardProgress' | 'interruption' | 'incident'> }>()
 
 const partial = computed(() => partialRunLabel(props.run))
 </script>

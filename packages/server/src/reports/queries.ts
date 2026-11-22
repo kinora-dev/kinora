@@ -58,6 +58,7 @@ export function runSummary(slug: string, r: RunRow): RunSummary {
     reportPath: `reports/${slug}/${r.id}.json`,
     countsByTag: r.countsByTag,
     ...shardState(r),
+    ...(r.interruption && { interruption: r.interruption }),
     ...incidentState(r),
   }
 }
@@ -117,7 +118,7 @@ export function runReport(slug: string, r: RunRow, tests: TestRow[], urlsByTest?
     startedAt: r.startedAt.toISOString(),
     duration: r.duration,
     counts: r.counts,
-    meta: { playwrightVersion: r.playwrightVersion ?? undefined, workers: r.workers ?? undefined, git: r.git ?? undefined, ci: r.ci ?? undefined, shards: r.shards ?? r.shardsTotal ?? undefined, ...shardState(r), ...incidentState(r) },
+    meta: { playwrightVersion: r.playwrightVersion ?? undefined, workers: r.workers ?? undefined, git: r.git ?? undefined, ci: r.ci ?? undefined, shards: r.shards ?? r.shardsTotal ?? undefined, ...shardState(r), ...(r.interruption && { interruption: r.interruption }), ...incidentState(r) },
     tests: tests.map(t => toNormTest(t, urlsByTest?.get(t.id), codeowners)),
   }
 }

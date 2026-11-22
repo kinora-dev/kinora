@@ -1,5 +1,5 @@
 import type { RunRegression } from '../contracts/ingest'
-import type { Counts, NormTest, RunIncident, ShardProgress } from '../contracts/kinora'
+import type { Counts, NormTest, RunIncident, RunInterruption, ShardProgress } from '../contracts/kinora'
 import { rerunAttemptOf } from './shards'
 
 type ListedTest = RunRegression['newlyFlaky'][number]
@@ -55,7 +55,11 @@ export interface PrCommentInput {
   shards?: ShardProgress & { runId: string }
   // The run is an environment incident: no verdict on the change, so no regression lists.
   incident?: Pick<RunIncident, 'reason'>
+  // The runner stopped early: the counts and the comparison only cover the tests that ran.
+  interruption?: RunInterruption
 }
+
+const INTERRUPTION_LABEL: Record<RunInterruption, string> = { interrupted: 'interrupted', timedout: 'timed out' }
 
 // The flaky tests of a run, as the comment lists them.
 export function flakyTestsOf(tests: (Pick<NormTest, 'testKey' | 'title' | 'file' | 'status'> & Partial<Pick<NormTest, 'annotations'>>)[]): FlakyTest[] {
@@ -205,21 +209,23 @@ export function buildPrCommentBody(input: PrCommentInput): string {
   const { counts, shards } = input
   const partial = shards && shards.landed < shards.total ? shards : undefined
   // A run missing shards is never compared: its baseline diff would count the missing tests.
-  const { incident } = input
+  const { incident, interruption } = input
   const regression = partial || incident ? undefined : input.regression
   const failed = counts.unexpected
-  const icon = incident ? '⚠️' : failed > 0 ? '❌' : partial ? '⏳' : counts.flaky > 0 ? '⚠️' : '✅'
+  const icon = incident ? '⚠️' : failed > 0 ? '❌' : partial ? '⏳' : counts.flaky > 0 || interruption ? '⚠️' : '✅'
   const lines: string[] = []
   // Re-run marks apply to every list a flaky test shows up in, new flakes included.
   const reruns = new Map((input.flaky ?? []).flatMap(t => t.rerunAttempt ? [[t.testKey, t.rerunAttempt] as const] : []))
 
-  lines.push(`${icon} **kinora** · ${input.projectName}${partial ? ` · ${partial.landed} of ${partial.total} shards landed` : ''}${incident ? ' · environment incident' : ''}`)
+  lines.push(`${icon} **kinora** · ${input.projectName}${partial ? ` · ${partial.landed} of ${partial.total} shards landed` : ''}${incident ? ' · environment incident' : ''}${interruption ? ` · ${INTERRUPTION_LABEL[interruption]}` : ''}`)
   lines.push('')
   lines.push(`\`${counts.expected + counts.flaky}/${counts.total} passed\` · **${failed} failed** · ${counts.flaky} flaky · ${counts.skipped} skipped${partial ? ' so far' : ''}`)
   if (partial)
     lines.push('', 'The other shards have not uploaded yet: this comment updates as they land.')
   if (incident)
     lines.push('', `**Environment incident, not counted.** ${incident.reason} Re-run once the environment is back, or clear the flag on the run page if it is wrong.`)
+  if (interruption)
+    lines.push('', `**Run ${INTERRUPTION_LABEL[interruption]} before its end.** Only the ${counts.total} tests that ran are counted.`)
 
   const compared = regression && regression.base !== 'none' ? regression : undefined
   const vs = compared?.base === 'base-branch' ? 'base branch' : 'previous run'

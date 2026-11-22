@@ -12,6 +12,14 @@ If the kinora server is unreachable or answers `502`, `503`, `504`, `408` or `42
 restart), the upload is retried for about a minute with growing waits, logging each one. Retries
 reuse the same `Idempotency-Key`, so a run is never stored twice.
 
+A run that stops early still uploads what it has. When the CI job is cancelled or hits its timeout
+(Playwright gets `SIGINT`) or the run reaches `globalTimeout`, the reporter uploads the tests that
+ran, leaves out the ones that never started, and marks the run **Interrupted** or **Timed out** in
+kinora. Such a run is never used as a regression baseline. A cancelled run retries its upload only
+briefly, to land before the job is killed, and posts no PR comment or status (a newer push usually
+superseded it); a timed-out one does, and says so. A job killed outright (`SIGKILL`, out of memory)
+never reaches the end of the run, so nothing is uploaded.
+
 ## Install
 
 ```bash

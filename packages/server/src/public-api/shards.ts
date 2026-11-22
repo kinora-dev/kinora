@@ -1,4 +1,4 @@
-import type { IngestRun, NormTest, RunIncident, RunStatus, ShardProgress } from '@kinora/core'
+import type { IngestRun, NormTest, RunIncident, RunInterruption, RunStatus, ShardProgress } from '@kinora/core'
 import type { ShardSlot } from '../db/schemas/index'
 import { randomUUID } from 'node:crypto'
 import { countsByTagFrom, countsFromTests, detectIncident, mergeShardAttempt } from '@kinora/core'
@@ -69,6 +69,14 @@ export function isGrouped(r: IngestRun['run']): r is GroupedRun {
 export async function refillsLandedSlot(projectId: string, r: GroupedRun): Promise<boolean> {
   const [row] = await db.select({ landed: run.shardsLanded }).from(run).where(and(eq(run.projectId, projectId), eq(run.groupKey, r.groupKey)))
   return !!row && String(r.shard.current) in row.landed
+}
+
+// One cut-short shard leaves the whole run partial; a cancel says more than a timeout.
+export function runInterruption(landed: Record<string, ShardSlot>): RunInterruption | null {
+  const slots = Object.values(landed)
+  if (slots.some(s => s.interruption === 'interrupted'))
+    return 'interrupted'
+  return slots.some(s => s.interruption === 'timedout') ? 'timedout' : null
 }
 
 function progress(landed: Record<string, ShardSlot>, total: number): ShardProgress {
@@ -142,6 +150,7 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     duration: input.run.duration,
     results: prior?.results ?? input.tests.length,
     metered: prior?.metered ?? !billable,
+    ...(input.run.interruption && { interruption: input.run.interruption }),
   }
 
   // Shards run in parallel: the run spans from the first shard's start to the last one's end.
@@ -163,6 +172,7 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     shardsTotal: total,
     shardsLanded: landed,
     status,
+    interruption: runInterruption(landed),
     incident,
     ...(notify && { notifiedAt: now }),
     ...(!prior && billable ? { meterPending: true } : {}),

@@ -139,6 +139,7 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
       meterPending: billable,
       idempotencyKey,
       baseUrls: input.run.baseUrls,
+      interruption: input.run.interruption,
       incident,
     }).onConflictDoNothing().returning({ id: run.id })
     if (inserted.length === 0) {

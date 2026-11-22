@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import KinoraReporter from '../src/index'
 
 // Minimal fakes of the Playwright reporter objects the reporter reads.
-function fakeTest(over: { title?: string, outcome?: string, ok?: boolean, tracePath?: string, videoPath?: string, attachments?: { name: string, contentType: string, body?: Buffer, path?: string }[] } = {}): TestCase {
+function fakeTest(over: { title?: string, outcome?: string, ok?: boolean, tracePath?: string, videoPath?: string, attachments?: { name: string, contentType: string, body?: Buffer, path?: string }[], resultStatuses?: string[], expectedStatus?: string } = {}): TestCase {
   const projectSuite = { type: 'project', title: 'chromium', parent: undefined }
   const fileSuite = { type: 'file', title: 'a.spec.ts', parent: projectSuite }
   const attachments = [
@@ -21,7 +21,8 @@ function fakeTest(over: { title?: string, outcome?: string, ok?: boolean, traceP
     parent: fileSuite,
     title: over.title ?? 'passes',
     location: { file: 'a.spec.ts', line: 3, column: 1 },
-    results: [{ duration: 5, errors: [], attachments }],
+    results: (over.resultStatuses ?? ['passed']).map(status => ({ status, duration: 5, errors: [], attachments })),
+    expectedStatus: over.expectedStatus ?? 'passed',
     outcome: () => over.outcome ?? 'expected',
     ok: () => over.ok ?? true,
     tags: ['@smoke'],
@@ -39,8 +40,8 @@ function fakeSuite(tests: TestCase[]): Suite {
   return { allTests: () => tests } as unknown as Suite
 }
 
-function fakeResult(): FullResult {
-  return { startTime: new Date('2026-01-01T00:00:00.000Z'), duration: 1000, status: 'passed' } as FullResult
+function fakeResult(status: FullResult['status'] = 'passed'): FullResult {
+  return { startTime: new Date('2026-01-01T00:00:00.000Z'), duration: 1000, status } as FullResult
 }
 
 afterEach(() => {
@@ -115,6 +116,72 @@ describe('reporter onEnd', () => {
     expect(payload.run.playwrightVersion).toBe('1.60.0')
     expect(payload.run.workers).toBe(2)
     expect(payload.project).toEqual({ slug: 'web-app', name: 'web-app' })
+    expect(payload.run).not.toHaveProperty('interruption')
+  })
+
+  describe('a run cut short', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    const tests = () => [
+      fakeTest({ title: 'ran' }),
+      fakeTest({ title: 'cut mid-test', outcome: 'skipped', resultStatuses: ['interrupted'] }),
+      fakeTest({ title: 'never started', outcome: 'skipped', resultStatuses: [] }),
+      fakeTest({ title: 'skipped on purpose', outcome: 'skipped', resultStatuses: ['skipped'], expectedStatus: 'skipped' }),
+    ]
+
+    function onPullRequest() {
+      process.env.GITHUB_TOKEN = 'ghtok'
+      process.env.GITHUB_EVENT_NAME = 'pull_request'
+      process.env.GITHUB_REPOSITORY = 'acme/app'
+      process.env.GITHUB_REF = 'refs/pull/9/merge'
+    }
+
+    function stubServer() {
+      const calls: { url: string, body?: string }[] = []
+      vi.stubGlobal('fetch', vi.fn(async (url: unknown, init?: RequestInit) => {
+        calls.push({ url: String(url), body: init?.body as string | undefined })
+        if (String(url).includes('/api/v1/runs'))
+          return new Response(JSON.stringify({ projectId: 'p', runId: 'r', tests: 2 }), { status: 201 })
+        return new Response(JSON.stringify(init?.method === 'POST' ? {} : []), { status: init?.method === 'POST' ? 201 : 200 })
+      }))
+      return calls
+    }
+
+    it('uploads only the tests that ran on a cancelled run, and leaves the PR to the run that superseded it', async () => {
+      onPullRequest()
+      const calls = stubServer()
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      const reporter = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' }, prComment: true, prStatus: true })
+      reporter.onBegin({ version: '1.60.0' } as FullConfig, fakeSuite(tests()))
+      await reporter.onEnd(fakeResult('interrupted'))
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0].url).not.toContain('regression=1')
+      const payload = JSON.parse(calls[0].body!)
+      expect(payload.run.interruption).toBe('interrupted')
+      expect(payload.tests.map((t: { title: string }) => t.title)).toEqual(['ran', 'skipped on purpose'])
+      expect(payload.run.counts).toMatchObject({ total: 2, expected: 1, skipped: 1 })
+      expect(warn).toHaveBeenCalledWith('[kinora] run interrupted: uploaded the tests that ran (2 of 4)')
+    })
+
+    it('reports a timed-out run on the PR as such', async () => {
+      onPullRequest()
+      const calls = stubServer()
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      const reporter = new KinoraReporter({ url: 'https://api.example.com', token: 't', project: { slug: 'web-app' }, prComment: true })
+      reporter.onBegin({ version: '1.60.0' } as FullConfig, fakeSuite(tests()))
+      await reporter.onEnd(fakeResult('timedout'))
+
+      expect(JSON.parse(calls[0].body!).run.interruption).toBe('timedout')
+      const comment = calls.find(c => c.url.endsWith('/issues/9/comments') && c.body)
+      expect(JSON.parse(comment!.body!).body).toContain('**Run timed out before its end.** Only the 2 tests that ran are counted.')
+    })
   })
 
   it('sends each project baseURL once and warns when the server flags an environment incident', async () => {

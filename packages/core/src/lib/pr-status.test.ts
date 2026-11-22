@@ -40,6 +40,10 @@ describe('buildPrStatus', () => {
     expect(buildPrStatus({ ...input, counts: green, incident: { reason: 'app down' } }).state).toBe('failure')
   })
 
+  it('fails a run cut short, whose other tests were not checked', () => {
+    expect(buildPrStatus({ ...input, counts: green, interruption: 'timedout' })).toMatchObject({ state: 'failure', description: expect.stringContaining('timed out') })
+  })
+
   it('keys the context by label for matrix legs', () => {
     expect(buildPrStatus({ ...input, label: 'firefox' }).context).toBe('kinora / web (firefox)')
   })

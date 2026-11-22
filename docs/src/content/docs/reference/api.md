@@ -72,6 +72,11 @@ Response `201`:
 
 `runUrl` is always returned; `regression` only when `regression=1` was passed.
 
+A run the runner stopped early sets `run.interruption` to `interrupted` (cancelled) or `timedout`
+(a global timeout), and its `tests` are the ones that ran. Such a run is shown as such and never
+used as a regression baseline; for a grouped run, one cut-short shard marks the whole run. The read
+routes return `interruption` on the run summaries and under `meta` in a full report.
+
 Errors: `400` invalid body, including more than 50,000 tests in one run · `401` invalid API key · `402` plan limit reached (cloud free tier) · `413` body over 25 MB.
 
 #### Sharded runs

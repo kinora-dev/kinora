@@ -102,6 +102,19 @@ describe('buildPrCommentBody', () => {
     expect(body).not.toContain('newly failing')
   })
 
+  it('says a timed-out run only counts the tests that ran, and still compares them', () => {
+    const body = buildPrCommentBody({
+      projectSlug: 'web',
+      projectName: 'Web',
+      counts: { total: 4, expected: 4, unexpected: 0, flaky: 0, skipped: 0 },
+      regression: { base: 'base-branch', newlyFailing: [], newlyFlaky: [], fixed: 1 },
+      interruption: 'timedout',
+    })
+    expect(body).toContain('⚠️ **kinora** · Web · timed out')
+    expect(body).toContain('**Run timed out before its end.** Only the 4 tests that ran are counted.')
+    expect(body).toContain('1 fixed vs base branch')
+  })
+
   it('truncates a long failing list', () => {
     const many = Array.from({ length: 20 }, (_, i) => ({ testKey: `k${i}`, title: `t${i}`, file: 'f' }))
     const body = buildPrCommentBody({ projectSlug: 'web', projectName: 'Web', counts, regression: { base: 'previous-run', newlyFailing: many, newlyFlaky: [], fixed: 0 } })

@@ -1,6 +1,6 @@
 import type { Counts, ProjectEntry, RunSummary } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
-import { collectBranches, collectTags, denom, downsampleTrend, filterRuns, formatDuration, formatPct, incidentMarkers, latestRun, passRate, recentPassRate, runHealth, sortedRuns, sparklineFloor, trend, trendOf } from './aggregate'
+import { collectBranches, collectTags, denom, downsampleTrend, filterRuns, formatDuration, formatPct, incidentMarkers, latestRun, partialRunLabel, passRate, recentPassRate, runHealth, sortedRuns, sparklineFloor, trend, trendOf } from './aggregate'
 
 function counts(o: Partial<Counts>): Counts {
   return { total: 0, expected: 0, unexpected: 0, flaky: 0, skipped: 0, ...o }
@@ -42,6 +42,16 @@ describe('runHealth', () => {
   })
   it('is empty with no tests', () => {
     expect(runHealth(counts({}))).toBe('empty')
+  })
+})
+
+describe('partialRunLabel', () => {
+  it('names the missing shards first, then a run cut short, nothing for a complete run', () => {
+    expect(partialRunLabel({ status: 'open', shardProgress: { landed: 1, total: 3 }, interruption: 'interrupted' })).toBe('1 of 3 shards')
+    expect(partialRunLabel({ status: 'incomplete', shardProgress: { landed: 2, total: 3 } })).toBe('Incomplete · 2 of 3 shards')
+    expect(partialRunLabel({ status: 'complete', interruption: 'interrupted' })).toBe('Interrupted')
+    expect(partialRunLabel({ interruption: 'timedout' })).toBe('Timed out')
+    expect(partialRunLabel({ status: 'complete' })).toBeUndefined()
   })
 })
 

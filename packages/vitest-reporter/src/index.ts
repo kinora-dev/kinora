@@ -1,5 +1,5 @@
 import type { AttachmentKind, CiMeta, Counts, GitMeta, IngestRun, IngestRunResult, NormTest, PrCommentOption, PrReportOptions, PrStatusOption } from '@kinora/core'
-import type { Reporter, TestModule, Vitest } from 'vitest/node'
+import type { Reporter, TestModule, TestRunEndReason, Vitest } from 'vitest/node'
 import type { IncludeTests } from './convert'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -73,7 +73,9 @@ export default class KinoraVitestReporter implements Reporter {
     this.startedAt = new Date()
   }
 
-  async onTestRunEnd(modules: ReadonlyArray<TestModule>): Promise<void> {
+  // `interrupted` comes from a bail (or an interactive cancel): in CI, a SIGINT exits Vitest before
+  // this hook. Its pending tests are already left out.
+  async onTestRunEnd(modules: ReadonlyArray<TestModule>, _errors?: unknown, reason?: TestRunEndReason): Promise<void> {
     const url = this.options.url ?? process.env.KINORA_URL ?? DEFAULT_KINORA_URL
     const token = this.options.token ?? process.env.KINORA_TOKEN
     if (!token) {
@@ -96,6 +98,7 @@ export default class KinoraVitestReporter implements Reporter {
       }
       console.warn('[kinora] no tests to upload in this shard: filling its slot so the run can complete')
     }
+    const interrupted = reason === 'interrupted'
     const detected = detectCiEnv(process.env)
     const payload: IngestRun = {
       project: { slug: this.options.project.slug, name: this.options.project.name ?? this.options.project.slug },
@@ -105,6 +108,7 @@ export default class KinoraVitestReporter implements Reporter {
         counts: countsOf(tests),
         git: this.options.git ?? detected.git,
         ci: this.options.ci ?? detected.ci,
+        ...(interrupted && { interruption: 'interrupted' as const }),
         ...(this.shard && group && { ...group, shard: this.shard }),
       },
       tests,
@@ -122,6 +126,8 @@ export default class KinoraVitestReporter implements Reporter {
       console.log(`[kinora] uploaded ${res.tests} tests + ${artifacts} artifacts (run ${res.runId}${res.shardProgress ? `, ${res.shardProgress.landed} of ${res.shardProgress.total} shards` : ''})`)
       if (res.incident)
         console.warn(`[kinora] environment incident, not counted: ${res.incident.reason}`)
+      if (interrupted)
+        console.warn(`[kinora] run interrupted: uploaded the tests that ran (${tests.length})`)
       await this.maybePostToPr(prOptions, payload, res)
     }
     catch (err) {
@@ -160,6 +166,7 @@ export default class KinoraVitestReporter implements Reporter {
       baseBranch: payload.run.git?.baseBranch,
       ...(res.shardProgress && { shards: { runId: res.runId, ...res.shardProgress } }),
       ...(res.incident && { incident: res.incident }),
+      ...(payload.run.interruption && { interruption: payload.run.interruption }),
     }, { info: m => console.warn(`[kinora] ${m}`), warn: m => console.warn(`[kinora] ${m}`) })
   }
 }

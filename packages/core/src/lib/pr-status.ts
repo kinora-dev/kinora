@@ -4,7 +4,7 @@ import type { GitHubPrContext, GitLabMrContext, PrCommentInput, PrContext } from
 // require, or as an external job of the GitLab MR pipeline, which "Pipelines must succeed" gates. Red only for what the PR broke (newly failing vs its baseline), so a
 // test already failing on the base branch, or a flaky one, does not block the merge.
 
-export type PrStatusInput = Pick<PrCommentInput, 'projectSlug' | 'label' | 'runUrl' | 'counts' | 'regression' | 'shards' | 'incident'> & {
+export type PrStatusInput = Pick<PrCommentInput, 'projectSlug' | 'label' | 'runUrl' | 'counts' | 'regression' | 'shards' | 'incident' | 'interruption'> & {
   // Named in the description ("vs main"); falls back to "base branch".
   baseBranch?: string
 }
@@ -33,6 +33,9 @@ export function buildPrStatus(input: PrStatusInput): PrStatus {
   // Red, not green: nothing was tested, so the change must not merge on it.
   if (incident)
     return status('failure', 'Environment incident, not counted: re-run once the app is back')
+  // Red too: the tests that did not run were not checked.
+  if (input.interruption)
+    return status('failure', `Run ${input.interruption === 'timedout' ? 'timed out' : 'interrupted'} after ${counts.total} tests: not every test ran`)
 
   const flaky = counts.flaky > 0 ? ` · ${counts.flaky} flaky` : ''
   const regression = input.regression?.base === 'none' ? undefined : input.regression

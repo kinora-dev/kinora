@@ -1,5 +1,5 @@
 import type { RunRegression } from '../contracts/ingest'
-import type { Counts, RunIncident, ShardProgress } from '../contracts/kinora'
+import type { Counts, RunIncident, RunInterruption, ShardProgress } from '../contracts/kinora'
 import type { FlakyTest, PrCommentPolicy, PrContext } from './pr-comment'
 import { postPrComment } from './pr-comment'
 import { postPrStatus } from './pr-status'
@@ -39,6 +39,7 @@ export interface PrReportRun {
   flaky?: FlakyTest[]
   shards?: ShardProgress & { runId: string }
   incident?: Pick<RunIncident, 'reason'>
+  interruption?: RunInterruption
   baseBranch?: string
 }
 
@@ -61,6 +62,7 @@ export async function postToPr(
     regression: run.regression,
     ...(run.shards && { shards: run.shards }),
     ...(run.incident && { incident: run.incident }),
+    ...(run.interruption && { interruption: run.interruption }),
   }
   if (opts.comment) {
     try {
