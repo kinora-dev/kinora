@@ -53,6 +53,8 @@ export interface LandedShard {
   notify: boolean
   // Judged once every shard landed, unless someone decided by hand.
   incident: RunIncident | null
+  // Any shard cut short leaves the run partial (see runInterruption).
+  interruption: RunInterruption | null
   // Blobs of the artifacts of replaced tests, deleted once the transaction committed.
   orphanedKeys: string[]
 }
@@ -123,6 +125,7 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     notify: false,
     orphanedKeys: [],
     incident: current.incident,
+    interruption: current.interruption,
   })
   // A late upload of an attempt a re-run already superseded.
   if (prior && attempt < prior.attempt)
@@ -162,6 +165,7 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
   // A shard landing after the timeout closed the run still completes it.
   const status: RunStatus = complete ? 'complete' : current.status
   const notify = complete && !current.notifiedAt
+  const interruption = runInterruption(landed)
   const incident = complete && !current.incidentDecision ? detectIncident(all, current.baseUrls ?? input.run.baseUrls) : current.incident
 
   await tx.update(run).set({
@@ -172,7 +176,7 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     shardsTotal: total,
     shardsLanded: landed,
     status,
-    interruption: runInterruption(landed),
+    interruption,
     incident,
     ...(notify && { notifiedAt: now }),
     ...(!prior && billable ? { meterPending: true } : {}),
@@ -188,5 +192,6 @@ export async function landShard(tx: Tx, projectId: string, input: IngestRun & { 
     notify,
     orphanedKeys,
     incident,
+    interruption,
   }
 }

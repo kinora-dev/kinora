@@ -1,6 +1,6 @@
 import type { NormTest, RunRegression, TestDelta } from '@kinora/core'
 import { compareRuns } from '@kinora/core'
-import { and, desc, eq, isNull, lt, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { run, test } from '../db/schemas/index'
 
@@ -34,9 +34,9 @@ export async function testsOfRun(runId: string): Promise<NormTest[]> {
 // Id of the most recent run before `before`, optionally on a given branch. Returns null when there
 // is no such run (distinct from a run that legitimately recorded zero tests).
 async function latestRunId(projectId: string, before: Date, branch?: string): Promise<string | null> {
-  // A grouped run still waiting for shards and a run cut short hold only part of the suite, and an
-  // environment incident says nothing about the tests: none is a baseline.
-  const conds = [eq(run.projectId, projectId), lt(run.startedAt, before), ne(run.status, 'open'), isNull(run.interruption), isNull(run.incident)]
+  // A grouped run missing shards (still open, or closed incomplete) and a run cut short hold only
+  // part of the suite, and an environment incident says nothing about the tests: none is a baseline.
+  const conds = [eq(run.projectId, projectId), lt(run.startedAt, before), eq(run.status, 'complete'), isNull(run.interruption), isNull(run.incident)]
   if (branch)
     conds.push(sql`(${run.git} ->> 'branch') = ${branch}`)
   const [prev] = await db.select({ id: run.id }).from(run).where(and(...conds)).orderBy(desc(run.startedAt)).limit(1)

@@ -47,9 +47,12 @@ and only pings you when something actually breaks or starts flaking.
 
 A sharded run alerts once, when its last shard lands, or when it is closed as incomplete.
 
-Regressions are computed by comparing the run against the previous run on the same branch
-(skipping environment incidents), so an alert distinguishes a fresh break from a test that was
-already red.
+A run [cancelled before its end](/guides/reporter/) (marked **Interrupted**) never alerts: a newer
+push usually superseded it. A run that hit its global timeout still does.
+
+Regressions are computed by comparing the run against the previous complete run on the same branch
+(skipping environment incidents, runs cut short and sharded runs closed with shards missing), so an
+alert distinguishes a fresh break from a test that was already red.
 
 ## Bulk-imported runs
 

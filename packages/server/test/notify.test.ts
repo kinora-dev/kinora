@@ -124,6 +124,20 @@ describe('notifyRun', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('stays quiet on a cancelled run but still alerts on a timed-out one', async () => {
+    const user = await createUser()
+    const projectId = await seedProject(user.id)
+    await setChannel(projectId, 'always')
+    const organizationId = await ownedOrgId(user.id)
+
+    const fetchMock = stubFetchOk()
+    await notifyRun({ organizationId, projectId, runId: 'r1', startedAt: new Date(), counts: FAIL, tests: [normTest('t1', 'unexpected')], interruption: 'interrupted' })
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await notifyRun({ organizationId, projectId, runId: 'r2', startedAt: new Date(), counts: FAIL, tests: [normTest('t1', 'unexpected')], interruption: 'timedout' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('does not fire when the channel is disabled', async () => {
     const user = await createUser()
     const projectId = await seedProject(user.id)

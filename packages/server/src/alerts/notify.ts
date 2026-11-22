@@ -1,4 +1,4 @@
-import type { Counts, NormTest, RunIncident, ShardProgress } from '@kinora/core'
+import type { Counts, NormTest, RunIncident, RunInterruption, ShardProgress } from '@kinora/core'
 import type { AlertPayload, AlertPolicy } from './core'
 import { compareRuns, countsFromTests } from '@kinora/core'
 import { and, eq, gt, isNull, or } from 'drizzle-orm'
@@ -25,9 +25,14 @@ export interface NotifyRunInput {
   tests: NormTest[]
   incomplete?: ShardProgress
   incident?: RunIncident
+  interruption?: RunInterruption | null
 }
 
 export async function notifyRun(input: NotifyRunInput): Promise<void> {
+  // A cancelled run was usually superseded by a newer push: alerting on it is noise. A timed-out
+  // one still alerts, its failures are as real as the timeout.
+  if (input.interruption === 'interrupted')
+    return
   // Alerts are a paid feature (self-host is unlimited).
   const entitlements = await getEntitlements(input.organizationId)
   if (!entitlements.alerts)

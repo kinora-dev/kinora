@@ -182,6 +182,7 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
       counts: shard ? countsFromTests(runTests) : input.run.counts,
       tests: runTests,
       incident,
+      interruption: shard ? shard.interruption : input.run.interruption,
     }).catch(error => logger.error({ error, runId: result.runId }, 'alert notify failed'))
   }
 

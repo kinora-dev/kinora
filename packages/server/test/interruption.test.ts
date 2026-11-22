@@ -84,6 +84,22 @@ describe('interrupted runs', () => {
     expect(body.regression).toMatchObject({ base: 'previous-run', fixed: 0 })
   })
 
+  it('keeps a grouped run closed incomplete out of the regression baseline', async () => {
+    const key = await createApiKey((await createUser()).id)
+    await ingest(key, suite(['expected', 'expected', 'expected'], { startedAt: later(0) }))
+    const { runId } = await (await ingest(key, suite(['unexpected'], { startedAt: later(1), groupKey: 'ci-3', shard: { current: 1, total: 2 } }))).json() as { runId: string }
+    // What the shard sweep does once the missing shard timed out.
+    await db.update(run).set({ status: 'incomplete' }).where(eq(run.id, runId))
+
+    const res = await app.request('/api/v1/runs?regression=1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify(suite(['expected', 'expected', 'expected'], { startedAt: later(2) })),
+    })
+    const body = await res.json() as { regression?: { base: string, fixed: number } }
+    expect(body.regression).toMatchObject({ base: 'previous-run', fixed: 0 })
+  })
+
   it('marks a grouped run cut short when one of its shards was, until a re-run of that shard', async () => {
     const key = await createApiKey((await createUser()).id)
     const shard = (current: number, extra: Partial<IngestRun['run']> = {}) => suite(['expected'], { groupKey: 'ci-7', shard: { current, total: 2 }, ...extra })

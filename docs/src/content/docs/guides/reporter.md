@@ -16,8 +16,8 @@ A run that stops early still uploads what it has. When the CI job is cancelled o
 (Playwright gets `SIGINT`) or the run reaches `globalTimeout`, the reporter uploads the tests that
 ran, leaves out the ones that never started, and marks the run **Interrupted** or **Timed out** in
 kinora. Such a run is never used as a regression baseline. A cancelled run retries its upload only
-briefly, to land before the job is killed, and posts no PR comment or status (a newer push usually
-superseded it); a timed-out one does, and says so. A job killed outright (`SIGKILL`, out of memory)
+briefly, to land before the job is killed, and posts no PR comment, status or alert (a newer push
+usually superseded it); a timed-out one does all three, and says so. A job killed outright (`SIGKILL`, out of memory)
 never reaches the end of the run, so nothing is uploaded.
 
 ## Install
@@ -229,7 +229,8 @@ To split by duration instead of test count, plan the shards with
   never uploads leaves it saying so.
 - **A shard that never uploads** (its job died) leaves the run incomplete: after two hours it is
   closed as "Incomplete · 3 of 4 shards", and alerts fire then (self-host: set the delay with
-  `KINORA_SHARD_TIMEOUT_MINUTES`). A late shard still completes it.
+  `KINORA_SHARD_TIMEOUT_MINUTES`). A late shard still completes it. Until then, the run is never
+  used as a regression baseline.
 - **Re-running a failed shard** (GitHub's "Re-run failed jobs", a GitLab job retry) fills that
   shard's slot again instead of adding a run. A test that failed on the first attempt and passes
   on the re-run is kept as flaky, so the re-run does not hide it, and the PR comment marks it
