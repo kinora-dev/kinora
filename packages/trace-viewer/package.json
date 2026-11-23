@@ -36,7 +36,7 @@
     "@zip.js/zip.js": "2.7.29",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
-    "tailwind-merge": "^3.7.0",
+    "tailwind-merge": "^3.7.1",
     "vue": "^3.5.45",
     "yaml": "^2.9.1"
   },
