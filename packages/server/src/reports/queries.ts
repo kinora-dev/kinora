@@ -2,12 +2,13 @@ import type { Counts, DashboardOverview, FailureCluster, NormError, NormTest, Ov
 import type { SQL } from 'drizzle-orm'
 import type { PgSelect } from 'drizzle-orm/pg-core'
 import type { CodeownersRule } from '../lib/codeowners'
-import { applyTotals, buildFailureClusters, buildTestHistories, downsampleTrend, HEALTH_WINDOW, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
+import { applyTotals, buildFailureClusters, buildTestHistories, byInboxPriority, downsampleTrend, HEALTH_WINDOW, isOpenCluster, SCHEMA_VERSION, storiesOf, trendOf, trimPoints } from '@kinora/core'
 import { and, asc, count, desc, eq, getTableColumns, ilike, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { artifact, project, run, test } from '../db/schemas/index'
 import { matchCodeowners, parseCodeowners } from '../lib/codeowners'
 import { storage } from '../lib/storage'
+import { annotateClusters } from './clusters'
 
 type ProjectRow = typeof project.$inferSelect
 type RunRow = typeof run.$inferSelect
@@ -373,7 +374,9 @@ function pointReports(slug: string, runs: RunRow[], rows: PointRow[], codeowners
 }
 
 // Failure clusters read the failing occurrences only, with their first error.
-async function windowClusters(slug: string, runs: RunRow[]) {
+type WindowRun = Pick<RunRow, 'id' | 'startedAt'>
+
+async function windowClusters(runs: WindowRun[]) {
   const ids = runs.map(r => r.id)
   const rows = await db.execute<{ runId: string, testKey: string, file: string, status: NormTest['status'], error: NormError }>(sql`
     select t.run_id as "runId", t.test_key as "testKey", t.file, t.status, t.errors->0 as error
@@ -386,7 +389,7 @@ async function windowClusters(slug: string, runs: RunRow[]) {
     tests.push({ testKey: r.testKey, file: r.file, status: r.status, errors: [r.error] } as NormTest)
     byRun.set(r.runId, tests)
   }
-  return buildFailureClusters(runs.filter(r => byRun.has(r.id)).map(r => ({ ...runReport(slug, r, []), tests: byRun.get(r.id)! })))
+  return buildFailureClusters(runs.filter(r => byRun.has(r.id)).map(r => ({ runId: r.id, startedAt: r.startedAt.toISOString(), tests: byRun.get(r.id)! })))
 }
 
 function projectEntry(p: ProjectRow, runs: RunRow[]): ProjectEntry {
@@ -455,7 +458,7 @@ export async function loadProjectHistory(p: ProjectRow, opts: { componentsOnly?:
     if (s?.length)
       h.stories = s
   }
-  const clusters = opts.componentsOnly ? [] : await windowClusters(p.slug, runs)
+  const clusters = opts.componentsOnly ? [] : await annotateClusters(p, runs, await windowClusters(runs))
   return { project: entry, histories, clusters }
 }
 
@@ -515,7 +518,7 @@ export async function loadTestHistoryPage(p: ProjectRow, testKey: string): Promi
   const runs = countedRuns(window)
   const history = (await testHistoryOver(p, runs, testKey)) ?? null
   const clusters = history && (history.failed || history.flaky)
-    ? (await windowClusters(p.slug, runs)).filter(c => c.testKeys.includes(testKey))
+    ? await annotateClusters(p, runs, (await windowClusters(runs)).filter(c => c.testKeys.includes(testKey)))
     : []
   const keys = [...new Set(clusters.flatMap(c => c.testKeys))]
   const titleRows = keys.length
@@ -531,6 +534,36 @@ export async function loadTestHistoryPage(p: ProjectRow, testKey: string): Promi
     clusters,
     titles: Object.fromEntries(titleRows.rows.map(r => [r.testKey, { title: r.title, titlePath: r.titlePath }])),
   }
+}
+
+// A cluster as the failure inbox lists it: without its sample and test keys, which only the
+// project's own pages show.
+export interface InboxCluster extends Omit<FailureCluster, 'sample' | 'testKeys' | 'files'> {
+  project: { id: string, name: string }
+}
+
+// The open clusters of every project of a workspace, over the same run window as each project's
+// Tests page. Snoozed ones are included: the inbox counts them in their own queue.
+export async function loadFailureInbox(organizationId: string): Promise<InboxCluster[]> {
+  const projects = await listProjects(organizationId)
+  const perProject = await Promise.all(projects.map(async (p) => {
+    // windowRuns + countedRuns, with only the columns clusters read: a project's full run rows
+    // carry heavy jsonb, and the inbox loads every project at once.
+    const window = await db.query.run.findMany({
+      columns: { id: true, startedAt: true, incident: true },
+      where: eq(run.projectId, p.id),
+      orderBy: desc(run.startedAt),
+      limit: MAX_DASHBOARD_RUNS,
+    })
+    const runs = window.filter(r => !r.incident)
+    if (!runs.length)
+      return []
+    const clusters = await annotateClusters(p, runs, await windowClusters(runs))
+    return clusters
+      .filter(isOpenCluster)
+      .map(({ sample: _sample, testKeys: _testKeys, files: _files, ...c }) => ({ ...c, project: { id: p.slug, name: p.name } }))
+  }))
+  return perProject.flat().sort(byInboxPriority)
 }
 
 function containing(term: string): string {

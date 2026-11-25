@@ -8,7 +8,7 @@ import { apikey, member } from '../src/db/schemas/index'
 import { auth } from '../src/lib/auth'
 import { appRouter } from '../src/router/index'
 
-const TABLES = ['artifact', 'test_quarantine', 'test', 'run', 'project', 'subscription', 'usage_period', 'slack_integration', 'invitation', 'member', 'organization', 'apikey', 'device_code', 'verification', 'account', 'session', 'user']
+const TABLES = ['artifact', 'cluster_triage', 'test_quarantine', 'test', 'run', 'project', 'subscription', 'usage_period', 'slack_integration', 'invitation', 'member', 'organization', 'apikey', 'device_code', 'verification', 'account', 'session', 'user']
 
 export async function resetDb(): Promise<void> {
   await db.execute(sql.raw(`TRUNCATE ${TABLES.map(t => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE`))

@@ -15,6 +15,7 @@ import { computed } from 'vue'
 import ErrorState from '@/components/app/ErrorState.vue'
 import StatStripSkeleton from '@/components/app/StatStripSkeleton.vue'
 import FilterCombobox from '@/components/FilterCombobox.vue'
+import FailureInbox from '@/components/project/FailureInbox.vue'
 import OverviewEmpty from '@/components/project/OverviewEmpty.vue'
 import ProjectCard from '@/components/project/ProjectCard.vue'
 import { useOverview } from '@/composables/queries'
@@ -126,6 +127,8 @@ const stats = computed(() => {
         <StatBlock label="Failing now" :value="stats.failing" :tone="stats.failing > 0 ? 'fail' : 'pass'" />
       </div>
     </div>
+
+    <FailureInbox v-if="!loading && !error && displayProjects.length" />
 
     <!-- Error -->
     <ErrorState v-if="error" :error="error" @retry="retry()" />

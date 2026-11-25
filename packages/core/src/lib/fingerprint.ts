@@ -49,7 +49,7 @@ export function fingerprintError(err: Pick<NormError, 'message' | 'stack'>): Err
 
 // Group failing occurrences across a project's run reports by error signature.
 // Reads only data already on the reports (errors jsonb), so it costs nothing at ingest.
-export function buildFailureClusters(reports: RunReport[]): FailureCluster[] {
+export function buildFailureClusters(reports: Pick<RunReport, 'runId' | 'startedAt' | 'tests'>[]): FailureCluster[] {
   interface Acc {
     fingerprint: string
     title: string
@@ -57,7 +57,9 @@ export function buildFailureClusters(reports: RunReport[]): FailureCluster[] {
     count: number
     testKeys: Set<string>
     files: Set<string>
+    firstSeen: number
     lastSeen: number
+    lastRunId: string
   }
   const byFp = new Map<string, Acc>()
 
@@ -72,15 +74,17 @@ export function buildFailureClusters(reports: RunReport[]): FailureCluster[] {
       const { fingerprint, title, sample } = fingerprintError(err)
       let c = byFp.get(fingerprint)
       if (!c) {
-        c = { fingerprint, title, sample, count: 0, testKeys: new Set(), files: new Set(), lastSeen: 0 }
+        c = { fingerprint, title, sample, count: 0, testKeys: new Set(), files: new Set(), firstSeen: ts, lastSeen: 0, lastRunId: report.runId }
         byFp.set(fingerprint, c)
       }
       c.count++
       c.testKeys.add(t.testKey)
       c.files.add(t.file)
+      c.firstSeen = Math.min(c.firstSeen, ts)
       // Freshest occurrence is the representative shown in the UI.
       if (ts >= c.lastSeen) {
         c.lastSeen = ts
+        c.lastRunId = report.runId
         c.title = title
         c.sample = sample
       }
@@ -96,7 +100,9 @@ export function buildFailureClusters(reports: RunReport[]): FailureCluster[] {
       tests: c.testKeys.size,
       testKeys: [...c.testKeys],
       files: [...c.files],
+      firstSeen: new Date(c.firstSeen).toISOString(),
       lastSeen: new Date(c.lastSeen).toISOString(),
+      lastRunId: c.lastRunId,
     }))
     .sort(byClusterImpact)
 }

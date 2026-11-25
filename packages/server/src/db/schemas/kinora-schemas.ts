@@ -1,4 +1,4 @@
-import type { Counts, IncidentDecision, NormTest, RunIncident, RunInterruption, RunReport, RunStatus } from '@kinora/core'
+import type { ClusterStatus, Counts, IncidentDecision, NormTest, RunIncident, RunInterruption, RunReport, RunStatus } from '@kinora/core'
 import { relations, sql } from 'drizzle-orm'
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uniqueIndex } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth-schemas'
@@ -109,6 +109,8 @@ export const test = pgTable('test', {
 }, table => [
   index('test_runId_idx').on(table.runId),
   index('test_project_key_idx').on(table.projectId, table.testKey),
+  // Failure clusters read only the failing tests of a run window.
+  index('test_failing_run_idx').on(table.runId).where(sql`status in ('unexpected', 'flaky')`),
 ])
 
 export const artifact = pgTable('artifact', {
@@ -149,6 +151,28 @@ export const testQuarantine = pgTable('test_quarantine', {
   index('test_quarantine_projectId_idx').on(table.projectId),
   index('test_quarantine_pinned_trace_key_idx').on(table.pinnedTraceKey),
   unique('test_quarantine_project_key_uniq').on(table.projectId, table.testKey),
+])
+
+// Triage of a failure cluster, keyed by its error fingerprint. Clusters themselves are computed
+// from the runs at read time; only what people decided about one is stored.
+export const clusterTriage = pgTable('cluster_triage', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  fingerprint: text('fingerprint').notNull(),
+  status: text('status').$type<ClusterStatus>().notNull().default('open'),
+  assigneeUserId: text('assignee_user_id').references(() => user.id, { onDelete: 'set null' }),
+  issueUrl: text('issue_url'),
+  note: text('note'),
+  snoozedAt: timestamp('snoozed_at'),
+  snoozedUntil: timestamp('snoozed_until'),
+  resolvedAt: timestamp('resolved_at'),
+  resolvedByUserId: text('resolved_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  updatedByUserId: text('updated_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, table => [
+  unique('cluster_triage_project_fingerprint_uniq').on(table.projectId, table.fingerprint),
+  index('cluster_triage_assignee_idx').on(table.assigneeUserId),
 ])
 
 // Cached Polar billing state, synced from the customer.state_changed webhook.

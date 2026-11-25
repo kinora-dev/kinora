@@ -1,8 +1,8 @@
-import type { DashboardOverview, OverviewProject, ProjectHistory, ProjectListing, ProjectRunsPage, RunComparison, RunIncident, RunReport, RunSummary } from '@kinora/core'
+import type { ClusterTriage, DashboardOverview, OverviewProject, ProjectHistory, ProjectListing, ProjectRunsPage, RunComparison, RunIncident, RunReport, RunSummary } from '@kinora/core'
 import type { ProjectAnalytics } from '../reports/analytics'
-import type { TestHistoryPage } from '../reports/queries'
+import type { InboxCluster, TestHistoryPage } from '../reports/queries'
 import { randomUUID } from 'node:crypto'
-import { compareRuns } from '@kinora/core'
+import { clusterStatusSchema, compareRuns } from '@kinora/core'
 import { TRPCError } from '@trpc/server'
 import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
@@ -10,8 +10,9 @@ import { db } from '../db'
 import { run, test, testQuarantine } from '../db/schemas/index'
 import { storage } from '../lib/storage'
 import { ANALYTICS_RANGES, isTimeZone, loadProjectAnalytics } from '../reports/analytics'
+import { saveTriage } from '../reports/clusters'
 import { activeQuarantineWhere, deleteUnpinnedOrphan, pinLatestFailureTrace } from '../reports/quarantine'
-import { findProject, incidentState, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectListings, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadTestAttachments, loadTestHistoryPage, searchRuns, searchTests, toNormTest } from '../reports/queries'
+import { findProject, incidentState, loadFailureInbox, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectListings, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadTestAttachments, loadTestHistoryPage, searchRuns, searchTests, toNormTest } from '../reports/queries'
 import { orgProcedure, router } from '../trpc/index'
 
 // What a page needs to name the project it shows, without loading the project's runs.
@@ -220,6 +221,26 @@ export const dashboardRouter = router({
         incidentDecision: { flagged: input.flagged, by: ctx.user.name || ctx.user.email, at: new Date().toISOString() },
       }).where(eq(run.id, r.id)).returning()
       return incidentState(row)
+    }),
+
+  // Open failure clusters across the workspace, for the overview's inbox.
+  failureInbox: orgProcedure.query(({ ctx }): Promise<InboxCluster[]> => loadFailureInbox(ctx.organizationId)),
+
+  // Any field left out is kept; null clears it. Resolving or ignoring lifts a snooze.
+  triageCluster: orgProcedure
+    .input(z.object({
+      projectId: z.string().min(1),
+      fingerprint: z.string().min(1).max(64),
+      status: clusterStatusSchema.optional(),
+      assigneeId: z.string().min(1).nullable().optional(),
+      issueUrl: z.url({ protocol: /^https?$/ }).max(2000).nullable().optional(),
+      note: z.string().trim().max(2000).nullable().optional(),
+      snooze: z.union([z.object({ until: z.iso.datetime() }), z.literal('recur'), z.null()]).optional(),
+    }))
+    .mutation(async ({ ctx, input }): Promise<ClusterTriage> => {
+      const { projectId, fingerprint, ...change } = input
+      const p = await ownedProject(ctx.organizationId, projectId)
+      return saveTriage(p, fingerprint, change, ctx.user.id)
     }),
 
   compareRuns: orgProcedure

@@ -25,6 +25,7 @@ export const NAV: NavGroup[] = [
       { label: 'PR comments', slug: 'guides/pr-comments' },
       { label: 'Component testing', slug: 'guides/component-testing' },
       { label: 'Flaky and broken tests', slug: 'guides/flaky-tests' },
+      { label: 'Failure triage', slug: 'guides/failure-triage' },
       { label: 'Environment incidents', slug: 'guides/environment-incidents' },
       { label: 'Alerts', slug: 'guides/alerts' },
       { label: 'MCP for coding agents', slug: 'guides/mcp' },

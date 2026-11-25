@@ -241,6 +241,25 @@ export const testHistorySchema = z.object({
 })
 export type TestHistory = z.infer<typeof testHistorySchema>
 
+// What people decided about a failure cluster (see lib/cluster-triage). Absent: never triaged.
+export const clusterStatusSchema = z.enum(['open', 'resolved', 'ignored'])
+export type ClusterStatus = z.infer<typeof clusterStatusSchema>
+
+export const clusterTriageSchema = z.object({
+  status: clusterStatusSchema,
+  assignee: z.object({ id: z.string(), name: z.string() }).optional(),
+  issueUrl: z.string().optional(),
+  note: z.string().optional(),
+  snoozedAt: z.string().optional(),
+  // Absent while snoozedAt is set: snoozed until the cluster fails again.
+  snoozedUntil: z.string().optional(),
+  resolvedAt: z.string().optional(),
+  resolvedBy: z.string().optional(),
+  updatedAt: z.string(),
+  updatedBy: z.string().optional(),
+})
+export type ClusterTriage = z.infer<typeof clusterTriageSchema>
+
 // Failing occurrences grouped by error signature (see lib/fingerprint), for "top failure causes".
 export const failureClusterSchema = z.object({
   fingerprint: z.string(),
@@ -250,7 +269,13 @@ export const failureClusterSchema = z.object({
   tests: z.number(),
   testKeys: z.array(z.string()),
   files: z.array(z.string()),
+  firstSeen: z.string(),
   lastSeen: z.string(),
+  lastRunId: z.string(),
+  // Counted runs since the last failure that ran one of its tests (set by the server).
+  quietRuns: z.number().optional(),
+  codeOwners: z.array(z.string()).optional(),
+  triage: clusterTriageSchema.optional(),
 })
 export type FailureCluster = z.infer<typeof failureClusterSchema>
 

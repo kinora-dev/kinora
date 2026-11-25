@@ -108,6 +108,8 @@ describe('buildFailureClusters', () => {
     expect(timeout.testKeys.sort()).toEqual(['t1', 't2'])
     expect(timeout.files.sort()).toEqual(['a.spec.ts', 'b.spec.ts'])
     expect(timeout.lastSeen).toBe('2026-01-02T00:00:00.000Z')
+    expect(timeout.firstSeen).toBe('2026-01-01T00:00:00.000Z')
+    expect(timeout.lastRunId).toBe('r2')
   })
 
   it('ignores passing tests and errorless failures', () => {

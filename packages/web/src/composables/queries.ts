@@ -97,6 +97,10 @@ export function useProjectAnalytics(projectId: string, days: MaybeRefOrGetter<30
   return query
 }
 
+export function useFailureInbox() {
+  return useAsyncState(() => trpc.dashboard.failureInbox.query(), null, QUERY_OPTIONS)
+}
+
 export function useQuarantines(projectId: string) {
   return useAsyncState(() => trpc.dashboard.quarantines.query({ projectId }), [], QUERY_OPTIONS)
 }
