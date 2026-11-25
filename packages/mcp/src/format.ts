@@ -3,7 +3,9 @@ import { byImpact, describeHealth, diagnose, windowStats } from '@kinora/core'
 
 const MAX_ERROR_CHARS = 4000
 const MAX_HISTORY_POINTS = 20
-const MAX_CAUSE_TESTS = 20
+// A cause lists many at once: its error and a few tests point the way, list_failures has the rest.
+const MAX_CAUSE_TESTS = 5
+const MAX_CAUSE_ERROR_CHARS = 1000
 
 function truncate(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max)}\n… (truncated)` : s
@@ -60,7 +62,7 @@ export function formatCause(c: FailureCause) {
     lastRunId: c.lastRunId,
     ...(c.quietRuns && { quietRuns: c.quietRuns }),
     ...(c.codeOwners?.length && { codeOwners: c.codeOwners }),
-    error: truncate(c.sample, MAX_ERROR_CHARS),
+    error: truncate(c.sample, MAX_CAUSE_ERROR_CHARS),
     testKeys: c.testKeys.slice(0, MAX_CAUSE_TESTS),
     ...(c.testKeys.length > MAX_CAUSE_TESTS && { testKeysTruncated: `showing ${MAX_CAUSE_TESTS} of ${c.testKeys.length}` }),
   }

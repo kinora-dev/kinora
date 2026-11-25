@@ -11,7 +11,7 @@ const MAX_COMPONENTS = 50
 const MAX_RUN_TESTS = 1000
 // Each formatted failure carries up to ~8KB of error + stack; cap so a broken run can't flood the agent's context.
 const MAX_FAILURES = 50
-const MAX_CAUSES = 50
+const MAX_CAUSES = 25
 
 function ok(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
@@ -72,7 +72,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
 
   server.registerTool('list_open_failures', {
     title: 'List open failure causes',
-    description: 'Open failure causes across projects (or one project), as the dashboard\'s failure inbox: failing tests grouped by error, each with its state, affected tests, error, and what the team decided (assignee, known issue URL, note, snooze). `state` is failing, regressed (marked resolved, failing again: the fix didn\'t hold) or stopped (its tests pass again, likely fixed but not marked resolved). Regressions come first, then the latest failures. Use it to see what is broken and already tracked before investigating; follow up with test_history on its testKeys.',
+    description: 'Open failure causes across projects (or one project), as the dashboard\'s failure inbox: failing tests grouped by error, each with its state, affected tests, error, and what the team decided (assignee, known issue URL, note, snooze). `state` is failing, regressed (marked resolved, failing again: the fix didn\'t hold) or stopped (its tests pass again, likely fixed but not marked resolved). Regressions come first, then the latest failures. Use it to see what is broken and already tracked before investigating; list_failures on its lastRunId gives every failing test of the cause, test_history the history of one.',
     inputSchema: z.object({
       project: z.string().optional().describe('Project slug; omit for every project.'),
       state: z.enum(['failing', 'regressed', 'stopped']).optional().describe('Only causes in this state.'),
@@ -84,7 +84,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
       const out = causes.filter(c => (!state || c.state === state) && (includeSnoozed || !c.snoozed))
       return ok({
         causes: out.slice(0, MAX_CAUSES).map(formatCause),
-        ...(out.length > MAX_CAUSES && { truncated: `showing ${MAX_CAUSES} of ${out.length} causes` }),
+        ...(out.length > MAX_CAUSES && { truncated: `showing ${MAX_CAUSES} of ${out.length} causes; pass project or state to narrow` }),
       })
     },
   ))
