@@ -89,3 +89,22 @@ describe('formatHistory', () => {
     expect(h.newlyBroken).toBe(true)
   })
 })
+
+describe('formatFailure screenshots', () => {
+  const image = (name: string, url?: string, expired?: boolean) => ({ name, contentType: 'image/png', hasBody: true, ...(url && { url }), ...(expired && { expired }) })
+
+  it('groups a failed screenshot assertion into its expected, actual and diff images', () => {
+    const t = normTest({ attachments: [
+      image('button-primary-expected.png', 'https://x/e.png'),
+      image('button-primary-actual.png', 'https://x/a.png'),
+      image('button-primary-diff.png', 'https://x/d.png'),
+      image('screenshot', 'https://x/s.png'),
+    ] })
+    expect(formatFailure(t).screenshots).toEqual([{ name: 'button-primary.png', expected: 'https://x/e.png', actual: 'https://x/a.png', diff: 'https://x/d.png' }])
+  })
+
+  it('leaves out images with no hosted file', () => {
+    const t = normTest({ attachments: [image('login-actual.png'), image('home-actual.png', 'https://x/h.png', true)] })
+    expect(formatFailure(t)).not.toHaveProperty('screenshots')
+  })
+})

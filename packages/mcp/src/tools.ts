@@ -1,4 +1,4 @@
-import type { createReadClient, FailureCause, NormTest } from '@kinora/core'
+import type { createReadClient, FailureCause, NormTest, QuarantinedTest } from '@kinora/core'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { buildComponents, byInstability, diagnose, fingerprintError, IngestError } from '@kinora/core'
 import { z } from 'zod'
@@ -34,11 +34,32 @@ async function guard<T>(fn: () => Promise<T>, wrap: (v: T) => ReturnType<typeof 
   }
 }
 
-// A failure with the cause it shares with other tests, when the server knows it.
-function withCause(t: NormTest, causes: FailureCause[] = []) {
+interface FailureContext {
+  causes?: FailureCause[]
+  quarantines?: QuarantinedTest[]
+}
+
+// What the server knows around a run's failures. It only enriches them, so failing to read it
+// (an older server, a hiccup) never fails the tool.
+async function failureContext(client: ReadClient, project: string, runId: string, causes?: FailureCause[]): Promise<FailureContext> {
+  const optional = <T>(read: () => Promise<T>) => Promise.resolve().then(read).catch(() => undefined)
+  const [fetched, quarantines] = await Promise.all([
+    causes ?? optional(async () => (await client.getFailures(project, runId)).causes),
+    optional(() => client.getQuarantines(project)),
+  ])
+  return { causes: fetched, quarantines }
+}
+
+// A failure with the cause it shares with other tests and its quarantine, when the server knows them.
+function withContext(t: NormTest, ctx: FailureContext) {
   const fingerprint = t.errors[0] && fingerprintError(t.errors[0]).fingerprint
-  const cause = causes.find(c => c.fingerprint === fingerprint)
-  return { ...formatFailure(t), ...(cause && { cause: formatCauseRef(cause) }) }
+  const cause = ctx.causes?.find(c => c.fingerprint === fingerprint)
+  const q = ctx.quarantines?.find(q => q.testKey === t.testKey)
+  return {
+    ...formatFailure(t),
+    ...(cause && { cause: formatCauseRef(cause) }),
+    ...(q && { quarantined: { ...(q.reason && { reason: q.reason }), ...(q.expiresAt && { expiresAt: q.expiresAt }) } }),
+  }
 }
 
 // `health` picks flaky or broken stories; the older `unstableOnly` means either of them.
@@ -57,19 +78,22 @@ export function registerTools(server: McpServer, client: ReadClient): void {
 
   server.registerTool('list_failures', {
     title: 'List failing tests of a run',
-    description: 'Failing and flaky tests of a run (defaults to the latest run): error message, file:line, and a trace.zip URL to open in the Playwright viewer. Start here to debug the last CI failures. When the result has an `incident`, the run is an environment incident: its failures come from the app under test or the browser being down, not from the code, so re-run rather than fix the tests. A failure\'s `cause` is the error it shares with other tests, and what the team decided about it: read its `assignee`, `issueUrl` and `note` before digging, someone may already be on it. `state` is failing, regressed (marked resolved, failing again: the fix didn\'t hold), stopped (its tests pass again), resolved or ignored.',
+    description: 'Failing and flaky tests of a run (defaults to the latest run): error message, file:line, and a trace.zip URL to open in the Playwright viewer. Start here to debug the last CI failures. When the result has an `incident`, the run is an environment incident: its failures come from the app under test or the browser being down, not from the code, so re-run rather than fix the tests. A failure\'s `cause` is the error it shares with other tests, and what the team decided about it: read its `assignee`, `issueUrl` and `note` before digging, someone may already be on it. `state` is failing, regressed (marked resolved, failing again: the fix didn\'t hold), stopped (its tests pass again), resolved or ignored. A `quarantined` failure is a known flaky test the team set aside, with their reason. A failed screenshot assertion lists its `screenshots`: the expected, actual and diff image URLs.',
     inputSchema: z.object({
       project: z.string().describe('Project slug (from list_projects).'),
       runId: z.string().optional().describe('Run id; omit for the latest run.'),
     }),
   }, ({ project, runId }) => guard(
-    () => client.getFailures(project, runId),
+    async () => {
+      const r = await client.getFailures(project, runId)
+      return { ...r, ctx: await failureContext(client, project, r.runId, r.causes ?? []) }
+    },
     r => ok({
       runId: r.runId,
       startedAt: r.startedAt,
       counts: r.counts,
       ...(r.incident && { incident: r.incident }),
-      failures: r.failures.slice(0, MAX_FAILURES).map(t => withCause(t, r.causes)),
+      failures: r.failures.slice(0, MAX_FAILURES).map(t => withContext(t, r.ctx)),
       ...(r.failures.length > MAX_FAILURES && { truncated: `showing ${MAX_FAILURES} of ${r.failures.length} failures` }),
     }),
   ))
@@ -95,7 +119,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
 
   server.registerTool('get_run', {
     title: 'Get a run report',
-    description: 'Full report for one run (defaults to latest): counts, git/CI metadata, every test status, and formatted failures with errors, trace URLs and their `cause` (see list_failures).',
+    description: 'Full report for one run (defaults to latest): counts, git/CI metadata, every test status, and formatted failures with errors, trace URLs, screenshot images, their `cause` and quarantine (see list_failures).',
     inputSchema: z.object({
       project: z.string().describe('Project slug.'),
       runId: z.string().optional().describe('Run id; omit for the latest run.'),
@@ -104,9 +128,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
     async () => {
       const report = await client.getRun(project, runId)
       // By the resolved id: a run landing in between would make a second `latest` another run.
-      // The causes only enrich the report, so failing to read them never fails it.
-      const causes = await client.getFailures(project, report.runId).then(f => f.causes, () => undefined)
-      return { ...report, causes }
+      return { ...report, ctx: await failureContext(client, project, report.runId) }
     },
     (r) => {
       const failures = r.tests.filter(t => t.status === 'unexpected' || t.status === 'flaky')
@@ -116,7 +138,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
         duration: r.duration,
         counts: r.counts,
         meta: r.meta,
-        failures: failures.slice(0, MAX_FAILURES).map(t => withCause(t, r.causes)),
+        failures: failures.slice(0, MAX_FAILURES).map(t => withContext(t, r.ctx)),
         tests: r.tests.slice(0, MAX_RUN_TESTS).map(t => ({ testKey: t.testKey, title: t.title, status: t.status, location: `${t.file}:${t.line}` })),
         ...((failures.length > MAX_FAILURES || r.tests.length > MAX_RUN_TESTS) && {
           truncated: `showing ${Math.min(failures.length, MAX_FAILURES)}/${failures.length} failures, ${Math.min(r.tests.length, MAX_RUN_TESTS)}/${r.tests.length} tests`,

@@ -1,5 +1,5 @@
 import type { A11yReport, ComponentHealth, FailureCause, NormTest, ProjectOverview, RunSummary, StoryHealth, TestHistory, TestPoint } from '@kinora/core'
-import { byImpact, describeHealth, diagnose, windowStats } from '@kinora/core'
+import { byImpact, describeHealth, diagnose, splitScreenshotComparisons, windowStats } from '@kinora/core'
 
 const MAX_ERROR_CHARS = 4000
 const MAX_HISTORY_POINTS = 20
@@ -20,6 +20,20 @@ export function traceUrlOf(t: NormTest): string | null {
   return trace?.url ?? null
 }
 
+// The images of each failed screenshot assertion, as the dashboard's comparison view shows them.
+// Only hosted ones: retention may have deleted the files, or the upload left images out.
+function screenshots(t: NormTest) {
+  const hosted = t.attachments.filter(a => a.url && !a.expired)
+  const out = splitScreenshotComparisons(hosted).comparisons.map(c => ({
+    name: c.name,
+    ...(c.expected && { expected: c.expected.url }),
+    actual: c.actual!.url,
+    ...(c.diff && { diff: c.diff.url }),
+    ...(c.previous && { previous: c.previous.url }),
+  }))
+  return out.length ? { screenshots: out } : {}
+}
+
 export function formatFailure(t: NormTest) {
   const err = t.errors[0]
   return {
@@ -34,6 +48,7 @@ export function formatFailure(t: NormTest) {
       ? { message: truncate(err.message, MAX_ERROR_CHARS), location: err.location, stack: err.stack ? truncate(err.stack, MAX_ERROR_CHARS) : undefined }
       : null,
     traceUrl: traceUrlOf(t),
+    ...screenshots(t),
   }
 }
 

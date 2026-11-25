@@ -37,9 +37,9 @@ be passed as `--token` / `--url` flags.
 | Tool | What it returns |
 | --- | --- |
 | `list_projects` | Every project with its latest run summary. |
-| `list_failures` | Failing/flaky tests of a run (defaults to latest): error, `file:line`, trace URL, and the [failure cause](/guides/failure-triage/) each one belongs to, with its state, assignee, known issue and note. |
+| `list_failures` | Failing/flaky tests of a run (defaults to latest): error, `file:line`, trace URL, the expected/actual/diff images of a failed screenshot assertion, whether the test is [quarantined](/guides/flaky-tests/) and why, and the [failure cause](/guides/failure-triage/) each one belongs to, with its state, assignee, known issue and note. |
 | `list_open_failures` | The open failure causes of every project (or one), as the dashboard's [failure inbox](/guides/failure-triage/#the-failure-inbox): state (`failing`, `regressed`, `stopped`), what the team decided, the error and the affected tests. Filter by `state`; snoozed causes are left out unless `includeSnoozed`. |
-| `get_run` | Full report for one run: counts, git/CI metadata, all test statuses, failures. |
+| `get_run` | Full report for one run: counts, git/CI metadata, all test statuses, and its failures as `list_failures` gives them. |
 | `test_history` | Per-test history: `health` (`stable`, `flaky` or `broken`, see [Flaky and broken tests](/guides/flaky-tests/)) with its reason, pass/fail/flaky rates, and `newlyBroken`/`newlyFlaky` flags to tell a fresh regression from a chronic/flaky test. |
 | `get_trace` | The Playwright `trace.zip` URL for one test, to open in the viewer or download. |
 | `component_health` | Per-component and per-story health from [component tests](/guides/component-testing/) and [Storybook stories](/guides/vitest/#storybook): latest status, `health` over the last 20 runs with its reason, accessibility violations from [Storybook's a11y addon](/guides/vitest/#accessibility), and the tests mounting each story. Filter by component, or by `health` (`flaky` or `broken`). |

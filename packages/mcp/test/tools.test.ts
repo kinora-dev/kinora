@@ -52,6 +52,15 @@ describe('list_failures', () => {
     expect(data.failures[0].traceUrl).toBe('https://x/t.zip')
   })
 
+  it('flags a quarantined test with the reason the team gave', async () => {
+    const getQuarantines = vi.fn().mockResolvedValue([{ testKey: 'k1', reason: 'flaky on webkit', expiresAt: '2026-08-01T00:00:00.000Z' }])
+    const call = harness({ getFailures: vi.fn().mockResolvedValue({ runId: 'r1', startedAt: 's', counts: {}, failures: [failing(), failing({ testKey: 'k2' })] }), getQuarantines })
+    const { data } = await call('list_failures', { project: 'p' })
+    expect(getQuarantines).toHaveBeenCalledWith('p')
+    expect(data.failures[0].quarantined).toEqual({ reason: 'flaky on webkit', expiresAt: '2026-08-01T00:00:00.000Z' })
+    expect(data.failures[1]).not.toHaveProperty('quarantined')
+  })
+
   it('surfaces the server error message', async () => {
     const call = harness({ getFailures: vi.fn().mockRejectedValue(new IngestError(404, 'Project not found')) })
     const { isError, data } = await call('list_failures', { project: 'nope' })
