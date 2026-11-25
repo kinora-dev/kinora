@@ -14,7 +14,7 @@ import { SNOOZE_OPTIONS } from '@/lib/cluster-triage'
 import { session } from '@/lib/session'
 
 const props = defineProps<{
-  cluster: Pick<FailureCluster, 'fingerprint' | 'lastSeen' | 'quietRuns' | 'triage'>
+  cluster: Pick<FailureCluster, 'fingerprint' | 'lastSeen' | 'lastSeenMainline' | 'quietRuns' | 'triage'>
   saving?: boolean
   disabled?: boolean
   // The inbox row: no issue and note editor, which needs the room of the cluster's own page.

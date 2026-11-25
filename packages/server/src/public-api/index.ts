@@ -179,6 +179,7 @@ publicApi.post('/runs', ingestJsonLimit, zValidator('json', ingestRunSchema), as
       runId: result.runId,
       startedAt: result.startedAt,
       branch: input.run.git?.branch,
+      baseBranch: input.run.git?.baseBranch,
       counts: shard ? countsFromTests(runTests) : input.run.counts,
       tests: runTests,
       incident,

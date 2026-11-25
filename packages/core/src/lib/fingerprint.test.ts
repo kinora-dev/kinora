@@ -112,6 +112,14 @@ describe('buildFailureClusters', () => {
     expect(timeout.lastRunId).toBe('r2')
   })
 
+  it('keeps the latest failure outside pull request runs apart', () => {
+    const pr = { ...report('r2', '2026-01-02T00:00:00Z', [failing('t1', 'a.ts', 'boom')]), meta: { git: { baseBranch: 'main' } } }
+    const [c] = buildFailureClusters([report('r1', '2026-01-01T00:00:00Z', [failing('t1', 'a.ts', 'boom')]), pr])
+    expect(c.lastSeen).toBe('2026-01-02T00:00:00.000Z')
+    expect(c.lastSeenMainline).toBe('2026-01-01T00:00:00.000Z')
+    expect(buildFailureClusters([pr])[0].lastSeenMainline).toBeUndefined()
+  })
+
   it('ignores passing tests and errorless failures', () => {
     const pass = { ...failing('t1', 'a.ts', 'x'), status: 'expected' as const, ok: true, errors: [] }
     const noErr = { ...failing('t2', 'b.ts', 'x'), errors: [] }

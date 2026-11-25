@@ -22,6 +22,8 @@ export interface NotifyRunInput {
   runId: string
   startedAt: Date
   branch?: string
+  // Set on a pull request's run, which never means a resolved cause came back.
+  baseBranch?: string
   counts: Counts
   tests: NormTest[]
   incomplete?: ShardProgress
@@ -76,8 +78,9 @@ export async function notifyRun(input: NotifyRunInput): Promise<void> {
       .map(d => [d.title, matchCodeowners(codeowners, d.file)] as const)
       .filter(([, owners]) => owners.length > 0),
   )
-  // An incident's failures don't count, so they never mean a fix didn't hold.
-  const regressed = input.incident ? [] : await claimRegressions(input.projectId, input.startedAt, activeTests)
+  // An incident's failures don't count, and a pull request's branch may not have the fix yet:
+  // neither means a fix didn't hold (same rule as the dashboard's Regressed, see clusterState).
+  const regressed = input.incident || input.baseBranch ? [] : await claimRegressions(input.projectId, input.startedAt, activeTests)
   const payload: AlertPayload = {
     projectName: projectRow?.name ?? 'project',
     runUrl: `${env.WEB_ORIGIN}/projects/${slug}/runs/${input.runId}`,

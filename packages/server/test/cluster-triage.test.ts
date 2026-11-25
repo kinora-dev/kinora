@@ -5,9 +5,11 @@ import { caller, createApiKey, createUser, ingest, runPayload } from './helpers'
 
 const MINUTE = 60 * 1000
 
-async function ingestRun(apiKey: string, status: NormTest['status'], minutesFromNow: number, slug = 'web-app'): Promise<void> {
+async function ingestRun(apiKey: string, status: NormTest['status'], minutesFromNow: number, slug = 'web-app', baseBranch?: string): Promise<void> {
   const payload = runPayload(slug, '@smoke', status)
   payload.run.startedAt = new Date(Date.now() + minutesFromNow * MINUTE).toISOString()
+  if (baseBranch)
+    payload.run.git = { branch: 'feature', baseBranch }
   if (status === 'unexpected')
     payload.tests[0].errors = [{ message: 'Error: expect(locator).toBeVisible() failed\nLocator: getByRole(\'button\', { name: \'Pay\' })' }]
   const res = await ingest(apiKey, payload)
@@ -65,10 +67,13 @@ describe('failure cluster triage', () => {
     expect(clusterState(await onlyCluster(api))).toBe('resolved')
     expect(await api.dashboard.failureInbox()).toHaveLength(0)
 
-    // Passing after the resolution keeps it resolved; a failure started after it reopens it.
+    // Passing after the resolution keeps it resolved, and so does a pull request without the fix;
+    // a failure started after it elsewhere reopens it.
     await ingestRun(apiKey, 'expected', 1)
     expect(clusterState(await onlyCluster(api))).toBe('resolved')
-    await ingestRun(apiKey, 'unexpected', 2)
+    await ingestRun(apiKey, 'unexpected', 2, 'web-app', 'main')
+    expect(clusterState(await onlyCluster(api))).toBe('resolved')
+    await ingestRun(apiKey, 'unexpected', 3)
     expect(clusterState(await onlyCluster(api))).toBe('regressed')
     expect((await api.dashboard.failureInbox()).map(c => clusterState(c))).toEqual(['regressed'])
   })

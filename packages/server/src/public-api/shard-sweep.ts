@@ -37,6 +37,7 @@ export async function closeStaleOpenRuns(now: Date): Promise<{ closed: number }>
         runId: r.id,
         startedAt: r.startedAt,
         branch: r.git?.branch,
+        baseBranch: r.git?.baseBranch,
         counts: countsFromTests(tests),
         tests,
         incomplete: shardState(r).shardProgress,

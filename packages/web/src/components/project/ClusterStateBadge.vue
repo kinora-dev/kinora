@@ -7,7 +7,7 @@ import { initialOf, STATE_TONE, stateLabel } from '@/lib/cluster-triage'
 
 // Where a cluster stands, plus its snooze and assignee. A plain untriaged failure shows nothing
 // unless `always`, since every cluster of a failure list fails.
-const props = defineProps<{ cluster: Pick<FailureCluster, 'lastSeen' | 'quietRuns' | 'triage'>, always?: boolean }>()
+const props = defineProps<{ cluster: Pick<FailureCluster, 'lastSeen' | 'lastSeenMainline' | 'quietRuns' | 'triage'>, always?: boolean }>()
 
 const state = computed(() => clusterState(props.cluster))
 const snoozed = computed(() => isSnoozed(props.cluster))

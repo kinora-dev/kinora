@@ -6,17 +6,18 @@ export const STOPPED_AFTER_RUNS = 3
 // Where a cluster stands, reconciling what people decided with what the runs show since.
 // - failing: open (or never triaged) and still failing
 // - stopped: open, but its tests ran STOPPED_AFTER_RUNS times without the failure
-// - regressed: resolved, then failed again in a run started after the resolution
+// - regressed: resolved, then failed again in a run started after the resolution, outside a pull
+//   request (whose branch may not have the fix yet)
 export type ClusterState = 'failing' | 'stopped' | 'regressed' | 'resolved' | 'ignored'
 
-type ClusterLike = Pick<FailureCluster, 'lastSeen' | 'quietRuns' | 'triage'>
+type ClusterLike = Pick<FailureCluster, 'lastSeen' | 'lastSeenMainline' | 'quietRuns' | 'triage'>
 
 export function clusterState(c: ClusterLike): ClusterState {
   const t = c.triage
   if (t?.status === 'ignored')
     return 'ignored'
   if (t?.status === 'resolved')
-    return t.resolvedAt && Date.parse(c.lastSeen) > Date.parse(t.resolvedAt) ? 'regressed' : 'resolved'
+    return t.resolvedAt && c.lastSeenMainline && Date.parse(c.lastSeenMainline) > Date.parse(t.resolvedAt) ? 'regressed' : 'resolved'
   return (c.quietRuns ?? 0) >= STOPPED_AFTER_RUNS ? 'stopped' : 'failing'
 }
 

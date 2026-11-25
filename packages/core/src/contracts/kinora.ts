@@ -271,6 +271,8 @@ export const failureClusterSchema = z.object({
   files: z.array(z.string()),
   firstSeen: z.string(),
   lastSeen: z.string(),
+  // Latest failure outside pull request runs; absent when only pull requests failed with it.
+  lastSeenMainline: z.string().optional(),
   lastRunId: z.string(),
   // Counted runs since the last failure that ran one of its tests (set by the server).
   quietRuns: z.number().optional(),

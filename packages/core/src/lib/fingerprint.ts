@@ -47,9 +47,15 @@ export function fingerprintError(err: Pick<NormError, 'message' | 'stack'>): Err
   return { fingerprint: hash(normalizeErrorMessage(source)), title, sample }
 }
 
+// A pull request's run: it tests a branch that may not have a fix yet, so it never means a
+// resolved cause came back.
+export function isPullRequestRun(report: { meta?: Pick<RunReport['meta'], 'git'> }): boolean {
+  return !!report.meta?.git?.baseBranch
+}
+
 // Group failing occurrences across a project's run reports by error signature.
 // Reads only data already on the reports (errors jsonb), so it costs nothing at ingest.
-export function buildFailureClusters(reports: Pick<RunReport, 'runId' | 'startedAt' | 'tests'>[]): FailureCluster[] {
+export function buildFailureClusters(reports: (Pick<RunReport, 'runId' | 'startedAt' | 'tests'> & { meta?: Pick<RunReport['meta'], 'git'> })[]): FailureCluster[] {
   interface Acc {
     fingerprint: string
     title: string
@@ -59,12 +65,14 @@ export function buildFailureClusters(reports: Pick<RunReport, 'runId' | 'started
     files: Set<string>
     firstSeen: number
     lastSeen: number
+    lastSeenMainline?: number
     lastRunId: string
   }
   const byFp = new Map<string, Acc>()
 
   for (const report of reports) {
     const ts = Date.parse(report.startedAt)
+    const mainline = !isPullRequestRun(report)
     for (const t of report.tests) {
       if (t.status !== 'unexpected' && t.status !== 'flaky')
         continue
@@ -81,6 +89,8 @@ export function buildFailureClusters(reports: Pick<RunReport, 'runId' | 'started
       c.testKeys.add(t.testKey)
       c.files.add(t.file)
       c.firstSeen = Math.min(c.firstSeen, ts)
+      if (mainline)
+        c.lastSeenMainline = Math.max(c.lastSeenMainline ?? ts, ts)
       // Freshest occurrence is the representative shown in the UI.
       if (ts >= c.lastSeen) {
         c.lastSeen = ts
@@ -102,6 +112,7 @@ export function buildFailureClusters(reports: Pick<RunReport, 'runId' | 'started
       files: [...c.files],
       firstSeen: new Date(c.firstSeen).toISOString(),
       lastSeen: new Date(c.lastSeen).toISOString(),
+      ...(c.lastSeenMainline !== undefined && { lastSeenMainline: new Date(c.lastSeenMainline).toISOString() }),
       lastRunId: c.lastRunId,
     }))
     .sort(byClusterImpact)

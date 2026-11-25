@@ -242,6 +242,17 @@ describe('notifyRun when a fix did not hold', () => {
     expect((await notify(new Date(Date.now() + 1000)))[0].regressedCauses).toHaveLength(1)
   })
 
+  it('leaves out a pull request run, whose branch may not have the fix yet', async () => {
+    const { projectId, resolve } = await setup('on-failure')
+    await resolve(new Date(Date.now() - HOUR))
+    const owner = await db.query.project.findFirst({ where: eq(project.id, projectId) })
+    const fetchMock = stubFetchOk()
+    await notifyRun({ organizationId: owner!.organizationId, projectId, runId: randomUUID(), startedAt: new Date(), baseBranch: 'main', counts: FAIL, tests: [failing('t1')] })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).regressedCauses).toBeUndefined()
+    const row = await db.query.clusterTriage.findFirst({ where: eq(clusterTriage.projectId, projectId) })
+    expect(row?.regressionNotifiedAt).toBeNull()
+  })
+
   it('leaves out a run started before the resolution, and an environment incident', async () => {
     const { projectId, resolve, notify } = await setup('on-regression')
     await resolve(new Date())

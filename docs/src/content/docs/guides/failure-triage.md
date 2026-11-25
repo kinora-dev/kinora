@@ -34,7 +34,9 @@ kinora reads the runs that come after a decision:
 
 - A resolved cause that fails again, in a run started after it was resolved, shows as
   **Regressed** and goes back to the inbox. The project's [alert channels](/guides/alerts/) say
-  so once, whatever their policy.
+  so once, whatever their policy. A pull request's run doesn't count: its branch may not have the
+  fix yet. kinora knows a run belongs to a pull request on GitHub Actions and GitLab CI (the
+  reporter reads the target branch from the CI environment).
 - An open cause whose tests then ran 3 times without that failure shows as **Not seen in N runs**:
   the fix probably landed, so resolve it.
 

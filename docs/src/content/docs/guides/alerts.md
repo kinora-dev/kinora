@@ -35,7 +35,8 @@ Each channel fires on one of three policies:
 and only pings you when something actually breaks or starts flaking.
 
 Whatever the policy, a channel also fires when a run fails again a
-[failure cause](/guides/failure-triage/) someone marked resolved: the fix didn't hold.
+[failure cause](/guides/failure-triage/) someone marked resolved: the fix didn't hold. A pull
+request's run never does, since its branch may not have the fix yet.
 
 ## What's in an alert
 

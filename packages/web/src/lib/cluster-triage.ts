@@ -1,7 +1,7 @@
 import type { ClusterState, FailureCluster, InboxQueue } from '@kinora/core'
 import { clusterState } from '@kinora/core'
 
-type ClusterLike = Pick<FailureCluster, 'lastSeen' | 'quietRuns' | 'triage'>
+type ClusterLike = Pick<FailureCluster, 'lastSeen' | 'lastSeenMainline' | 'quietRuns' | 'triage'>
 
 export function stateLabel(c: ClusterLike): string {
   const labels: Record<ClusterState, string> = {

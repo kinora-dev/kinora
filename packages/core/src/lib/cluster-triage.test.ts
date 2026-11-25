@@ -4,8 +4,8 @@ import { byInboxPriority, clusterState, inInboxQueue, isOpenCluster, isSnoozed, 
 
 const NOW = Date.parse('2026-03-10T12:00:00Z')
 
-function cluster(lastSeen: string, triage?: Partial<ClusterTriage>, quietRuns = 0): Pick<FailureCluster, 'lastSeen' | 'quietRuns' | 'triage'> {
-  return { lastSeen, quietRuns, triage: triage && { status: 'open', updatedAt: '2026-03-01T00:00:00Z', ...triage } }
+function cluster(lastSeen: string, triage?: Partial<ClusterTriage>, quietRuns = 0): Pick<FailureCluster, 'lastSeen' | 'lastSeenMainline' | 'quietRuns' | 'triage'> {
+  return { lastSeen, lastSeenMainline: lastSeen, quietRuns, triage: triage && { status: 'open', updatedAt: '2026-03-01T00:00:00Z', ...triage } }
 }
 
 describe('clusterState', () => {
@@ -20,6 +20,13 @@ describe('clusterState', () => {
     expect(clusterState(cluster('2026-03-04T00:00:00Z', resolved))).toBe('resolved')
     expect(clusterState(cluster('2026-03-05T00:00:00Z', resolved))).toBe('resolved')
     expect(clusterState(cluster('2026-03-06T00:00:00Z', resolved))).toBe('regressed')
+  })
+
+  it('reads a failure only a pull request saw since the resolution as no regression', () => {
+    const resolved = { status: 'resolved' as const, resolvedAt: '2026-03-05T00:00:00Z' }
+    const c = cluster('2026-03-06T00:00:00Z', resolved)
+    expect(clusterState({ ...c, lastSeenMainline: '2026-03-04T00:00:00Z' })).toBe('resolved')
+    expect(clusterState({ ...c, lastSeenMainline: undefined })).toBe('resolved')
   })
 
   it('never reopens an ignored cluster', () => {

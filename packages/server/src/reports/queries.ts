@@ -374,7 +374,7 @@ function pointReports(slug: string, runs: RunRow[], rows: PointRow[], codeowners
 }
 
 // Failure clusters read the failing occurrences only, with their first error.
-type WindowRun = Pick<RunRow, 'id' | 'startedAt'>
+type WindowRun = Pick<RunRow, 'id' | 'startedAt' | 'git'>
 
 async function windowClusters(runs: WindowRun[]) {
   const ids = runs.map(r => r.id)
@@ -389,7 +389,7 @@ async function windowClusters(runs: WindowRun[]) {
     tests.push({ testKey: r.testKey, file: r.file, status: r.status, errors: [r.error] } as NormTest)
     byRun.set(r.runId, tests)
   }
-  return buildFailureClusters(runs.filter(r => byRun.has(r.id)).map(r => ({ runId: r.id, startedAt: r.startedAt.toISOString(), tests: byRun.get(r.id)! })))
+  return buildFailureClusters(runs.filter(r => byRun.has(r.id)).map(r => ({ runId: r.id, startedAt: r.startedAt.toISOString(), meta: { git: r.git ?? undefined }, tests: byRun.get(r.id)! })))
 }
 
 function projectEntry(p: ProjectRow, runs: RunRow[]): ProjectEntry {
@@ -550,7 +550,7 @@ export async function loadFailureInbox(organizationId: string): Promise<InboxClu
     // windowRuns + countedRuns, with only the columns clusters read: a project's full run rows
     // carry heavy jsonb, and the inbox loads every project at once.
     const window = await db.query.run.findMany({
-      columns: { id: true, startedAt: true, incident: true },
+      columns: { id: true, startedAt: true, git: true, incident: true },
       where: eq(run.projectId, p.id),
       orderBy: desc(run.startedAt),
       limit: MAX_DASHBOARD_RUNS,
