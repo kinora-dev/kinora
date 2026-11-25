@@ -1,8 +1,10 @@
-import type { A11yReport, ComponentHealth, FailureCause, NormTest, StoryHealth, TestHistory, TestPoint } from '@kinora/core'
+import type { A11yReport, ComponentHealth, FailureCause, NormTest, ProjectOverview, RunSummary, StoryHealth, TestHistory, TestPoint } from '@kinora/core'
 import { byImpact, describeHealth, diagnose, windowStats } from '@kinora/core'
 
 const MAX_ERROR_CHARS = 4000
 const MAX_HISTORY_POINTS = 20
+// A list of tests shows the latest few runs of each; one test asked by key gets MAX_HISTORY_POINTS.
+const MAX_LIST_HISTORY_POINTS = 5
 // A cause lists many at once: its error and a few tests point the way, list_failures has the rest.
 const MAX_CAUSE_TESTS = 5
 const MAX_CAUSE_ERROR_CHARS = 1000
@@ -32,6 +34,31 @@ export function formatFailure(t: NormTest) {
       ? { message: truncate(err.message, MAX_ERROR_CHARS), location: err.location, stack: err.stack ? truncate(err.stack, MAX_ERROR_CHARS) : undefined }
       : null,
     traceUrl: traceUrlOf(t),
+  }
+}
+
+// What an agent picks a project by: per-tag counts and file paths would make a workspace of
+// many projects outgrow its context.
+export function formatRunSummary(r: RunSummary) {
+  return {
+    runId: r.runId,
+    startedAt: r.startedAt,
+    duration: r.duration,
+    counts: r.counts,
+    ...(r.git?.branch && { branch: r.git.branch }),
+    ...(r.git?.sha && { sha: r.git.sha }),
+    ...(r.status && r.status !== 'complete' && { status: r.status, shardProgress: r.shardProgress }),
+    ...(r.interruption && { interruption: r.interruption }),
+    ...(r.incident && { incident: r.incident.reason }),
+  }
+}
+
+export function formatProject(p: ProjectOverview) {
+  return {
+    id: p.id,
+    name: p.name,
+    ...(p.description && { description: p.description }),
+    latestRun: p.latestRun && formatRunSummary(p.latestRun),
   }
 }
 
@@ -86,7 +113,7 @@ function health(points: TestPoint[]) {
   return { health: h.kind, ...(h.kind !== 'stable' && { healthReason: describeHealth(h) }) }
 }
 
-export function formatHistory(h: TestHistory) {
+export function formatHistory(h: TestHistory, points = MAX_HISTORY_POINTS) {
   return {
     testKey: h.testKey,
     title: h.title,
@@ -104,12 +131,16 @@ export function formatHistory(h: TestHistory) {
     ...health(h.points),
     ...a11y(h.a11y),
     ...(h.stories?.length && { stories: h.stories }),
-    recentPoints: h.points.slice(-MAX_HISTORY_POINTS).map(point),
+    recentPoints: h.points.slice(-points).map(point),
   }
 }
 
 // Same window and flaky / broken rules as the dashboard's Components page. `unstable` (failed or
 // flaked at least once) predates `health` and stays for existing clients.
+export function formatHistoryInList(h: TestHistory) {
+  return formatHistory(h, MAX_LIST_HISTORY_POINTS)
+}
+
 export function formatStory(s: StoryHealth) {
   const recent = windowStats(s.points)
   return {

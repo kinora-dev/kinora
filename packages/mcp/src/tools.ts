@@ -1,8 +1,8 @@
-import type { createReadClient } from '@kinora/core'
+import type { createReadClient, FailureCause, NormTest } from '@kinora/core'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { buildComponents, byInstability, diagnose, fingerprintError, IngestError } from '@kinora/core'
 import { z } from 'zod'
-import { formatCause, formatCauseRef, formatComponent, formatFailure, formatHistory, traceUrlOf } from './format'
+import { formatCause, formatCauseRef, formatComponent, formatFailure, formatHistory, formatHistoryInList, formatProject, traceUrlOf } from './format'
 
 type ReadClient = ReturnType<typeof createReadClient>
 
@@ -13,8 +13,9 @@ const MAX_RUN_TESTS = 1000
 const MAX_FAILURES = 50
 const MAX_CAUSES = 25
 
+// Compact: indentation alone made a third of a workspace's project list.
 function ok(data: unknown) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] }
 }
 
 function fail(message: string) {
@@ -33,6 +34,13 @@ async function guard<T>(fn: () => Promise<T>, wrap: (v: T) => ReturnType<typeof 
   }
 }
 
+// A failure with the cause it shares with other tests, when the server knows it.
+function withCause(t: NormTest, causes: FailureCause[] = []) {
+  const fingerprint = t.errors[0] && fingerprintError(t.errors[0]).fingerprint
+  const cause = causes.find(c => c.fingerprint === fingerprint)
+  return { ...formatFailure(t), ...(cause && { cause: formatCauseRef(cause) }) }
+}
+
 // `health` picks flaky or broken stories; the older `unstableOnly` means either of them.
 function matchesHealth(kind: 'stable' | 'flaky' | 'broken', health?: 'flaky' | 'broken', unstableOnly?: boolean): boolean {
   if (health)
@@ -43,9 +51,9 @@ function matchesHealth(kind: 'stable' | 'flaky' | 'broken', health?: 'flaky' | '
 export function registerTools(server: McpServer, client: ReadClient): void {
   server.registerTool('list_projects', {
     title: 'List kinora projects',
-    description: 'List every project on the kinora server with its latest run summary (pass/fail counts, git branch, started time).',
+    description: 'List every project on the kinora server with its latest run summary (pass/fail counts, git branch and commit, started time, and whether it was an environment incident).',
     inputSchema: z.object({}),
-  }, () => guard(() => client.listProjects(), ps => ok({ projects: ps })))
+  }, () => guard(() => client.listProjects(), ps => ok({ projects: ps.map(formatProject) })))
 
   server.registerTool('list_failures', {
     title: 'List failing tests of a run',
@@ -61,11 +69,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
       startedAt: r.startedAt,
       counts: r.counts,
       ...(r.incident && { incident: r.incident }),
-      failures: r.failures.slice(0, MAX_FAILURES).map((t) => {
-        const fingerprint = t.errors[0] && fingerprintError(t.errors[0]).fingerprint
-        const cause = r.causes?.find(c => c.fingerprint === fingerprint)
-        return { ...formatFailure(t), ...(cause && { cause: formatCauseRef(cause) }) }
-      }),
+      failures: r.failures.slice(0, MAX_FAILURES).map(t => withCause(t, r.causes)),
       ...(r.failures.length > MAX_FAILURES && { truncated: `showing ${MAX_FAILURES} of ${r.failures.length} failures` }),
     }),
   ))
@@ -91,13 +95,19 @@ export function registerTools(server: McpServer, client: ReadClient): void {
 
   server.registerTool('get_run', {
     title: 'Get a run report',
-    description: 'Full report for one run (defaults to latest): counts, git/CI metadata, every test status, and formatted failures with errors + trace URLs.',
+    description: 'Full report for one run (defaults to latest): counts, git/CI metadata, every test status, and formatted failures with errors, trace URLs and their `cause` (see list_failures).',
     inputSchema: z.object({
       project: z.string().describe('Project slug.'),
       runId: z.string().optional().describe('Run id; omit for the latest run.'),
     }),
   }, ({ project, runId }) => guard(
-    () => client.getRun(project, runId),
+    async () => {
+      const report = await client.getRun(project, runId)
+      // By the resolved id: a run landing in between would make a second `latest` another run.
+      // The causes only enrich the report, so failing to read them never fails it.
+      const causes = await client.getFailures(project, report.runId).then(f => f.causes, () => undefined)
+      return { ...report, causes }
+    },
     (r) => {
       const failures = r.tests.filter(t => t.status === 'unexpected' || t.status === 'flaky')
       return ok({
@@ -106,7 +116,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
         duration: r.duration,
         counts: r.counts,
         meta: r.meta,
-        failures: failures.slice(0, MAX_FAILURES).map(formatFailure),
+        failures: failures.slice(0, MAX_FAILURES).map(t => withCause(t, r.causes)),
         tests: r.tests.slice(0, MAX_RUN_TESTS).map(t => ({ testKey: t.testKey, title: t.title, status: t.status, location: `${t.file}:${t.line}` })),
         ...((failures.length > MAX_FAILURES || r.tests.length > MAX_RUN_TESTS) && {
           truncated: `showing ${Math.min(failures.length, MAX_FAILURES)}/${failures.length} failures, ${Math.min(r.tests.length, MAX_RUN_TESTS)}/${r.tests.length} tests`,
@@ -117,7 +127,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
 
   server.registerTool('test_history', {
     title: 'Per-test history',
-    description: 'History of a test across recent runs to tell a fresh regression from a chronic/flaky test: health over the last 20 runs (flaky: passed and failed on the same commit, needed a retry, or keeps flipping between pass and fail; broken: fails and keeps failing) with its reason, pass/fail/flaky rates, recent-window rates, newlyBroken/newlyFlaky flags, and recent per-run points with their commit. Pass testKey for one test, query to search by title, or neither to get the flaky and broken tests.',
+    description: 'History of a test across recent runs to tell a fresh regression from a chronic/flaky test: health over the last 20 runs (flaky: passed and failed on the same commit, needed a retry, or keeps flipping between pass and fail; broken: fails and keeps failing) with its reason, pass/fail/flaky rates, recent-window rates, newlyBroken/newlyFlaky flags, and recent per-run points with their commit (the last 20 for one test, the last 5 when listing several). Pass testKey for one test, query to search by title, or neither to get the flaky and broken tests.',
     inputSchema: z.object({
       project: z.string().describe('Project slug.'),
       testKey: z.string().optional().describe('Exact test key (from list_failures) for a single test.'),
@@ -134,7 +144,9 @@ export function registerTools(server: McpServer, client: ReadClient): void {
       else if (!testKey) {
         out = histories.filter(h => diagnose(h.points).kind !== 'stable').sort(byInstability)
       }
-      return ok({ histories: out.slice(0, MAX_HISTORY_RESULTS).map(formatHistory) })
+      if (testKey && !out.length)
+        return ok({ histories: [], note: `No test with key ${testKey} in the project's recent runs. Test keys come from list_failures or get_run; query searches by title.` })
+      return ok({ histories: out.slice(0, MAX_HISTORY_RESULTS).map(testKey ? h => formatHistory(h) : formatHistoryInList) })
     },
   ))
 

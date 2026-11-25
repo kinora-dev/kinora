@@ -64,10 +64,30 @@ describe('get_run', () => {
   it('counts flaky tests (ok=true) as failures', async () => {
     const flaky = failing({ testKey: 'fk', status: 'flaky', ok: true })
     const passed = failing({ testKey: 'ok', status: 'expected', ok: true, errors: [], attachments: [] })
-    const call = harness({ getRun: vi.fn().mockResolvedValue(report([flaky, passed])) })
+    const call = harness({ getRun: vi.fn().mockResolvedValue(report([flaky, passed])), getFailures: vi.fn().mockRejectedValue(new IngestError(500, 'down')) })
     const { data } = await call('get_run', { project: 'p' })
     expect(data.failures.map((f: any) => f.testKey)).toEqual(['fk'])
     expect(data.tests).toHaveLength(2)
+  })
+
+  it('gives failures their cause, read for the run it resolved', async () => {
+    const getFailures = vi.fn().mockResolvedValue({ runId: 'r1', startedAt: 's', counts: {}, failures: [], causes: [cause({ triage: { status: 'open', issueUrl: 'https://github.com/acme/web/issues/9', updatedAt: 's' } })] })
+    const call = harness({ getRun: vi.fn().mockResolvedValue(report([failing()])), getFailures })
+    const { data } = await call('get_run', { project: 'p' })
+    expect(getFailures).toHaveBeenCalledWith('p', 'r1')
+    expect(data.failures[0].cause).toMatchObject({ state: 'failing', issueUrl: 'https://github.com/acme/web/issues/9' })
+  })
+})
+
+describe('list_projects', () => {
+  it('keeps what picks a project, not per-tag counts or report paths', async () => {
+    const latestRun = { runId: 'r1', projectId: 'p', startedAt: 's', duration: 5, counts: { total: 1, expected: 1, unexpected: 0, flaky: 0, skipped: 0 }, git: { branch: 'main', sha: 'abc' }, reportPath: 'reports/p/r1.json', countsByTag: { '@smoke': { total: 1, expected: 1, unexpected: 0, flaky: 0, skipped: 0 } }, incident: { rule: 'host-unreachable' as const, reason: 'app down' } }
+    const call = harness({ listProjects: vi.fn().mockResolvedValue([{ id: 'p', name: 'P', latestRun }, { id: 'q', name: 'Q', latestRun: null }]) })
+    const { data } = await call('list_projects')
+    expect(data.projects).toEqual([
+      { id: 'p', name: 'P', latestRun: { runId: 'r1', startedAt: 's', duration: 5, counts: latestRun.counts, branch: 'main', sha: 'abc', incident: 'app down' } },
+      { id: 'q', name: 'Q', latestRun: null },
+    ])
   })
 })
 
@@ -97,6 +117,16 @@ describe('test_history', () => {
     const call = harness({ getHistory })
     await call('test_history', { project: 'p', testKey: 'k1' })
     expect(getHistory).toHaveBeenCalledWith('p', 'k1')
+  })
+
+  it('keeps 20 points for one test and 5 per test in a list, and says when a key matches nothing', async () => {
+    const points = Array.from({ length: 30 }, (_, i): TestPoint => ({ runId: `r${i}`, startedAt: 's', status: i % 2 ? 'unexpected' : 'expected', duration: 1, retries: 0 }))
+    const call = harness({ getHistory: vi.fn().mockResolvedValue([hist({ testKey: 'k1', title: 'login', points })]) })
+    expect((await call('test_history', { project: 'p', testKey: 'k1' })).data.histories[0].recentPoints).toHaveLength(20)
+    expect((await call('test_history', { project: 'p', query: 'login' })).data.histories[0].recentPoints).toHaveLength(5)
+
+    const empty = harness({ getHistory: vi.fn().mockResolvedValue([]) })
+    expect((await empty('test_history', { project: 'p', testKey: 'nope' })).data.note).toContain('No test with key nope')
   })
 })
 
