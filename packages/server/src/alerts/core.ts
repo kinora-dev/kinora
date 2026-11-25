@@ -14,12 +14,21 @@ export interface AlertPayload {
   incomplete?: ShardProgress
   // An environment incident: one message naming the outage, no regression lists.
   incident?: RunIncident
+  // Failure causes marked resolved that this run fails again: the fix didn't hold.
+  regressedCauses?: AlertCause[]
+}
+
+export interface AlertCause {
+  title: string
+  tests: number
+  url: string
+  issueUrl?: string
 }
 
 // A run missing shards is a failure of the run itself, whatever the landed tests say. An
-// environment incident is worth hearing about under any policy, regressions included.
-export function shouldFire(policy: AlertPolicy, counts: Counts, newlyFailing: number, newlyFlaky: number, incomplete = false, incident = false): boolean {
-  return policy === 'always' || incident
+// environment incident and a fix that didn't hold are worth hearing about under any policy.
+export function shouldFire(policy: AlertPolicy, counts: Counts, newlyFailing: number, newlyFlaky: number, incomplete = false, incident = false, regressedCauses = 0): boolean {
+  return policy === 'always' || incident || regressedCauses > 0
     || (policy === 'on-failure' && (counts.unexpected > 0 || incomplete))
     || (policy === 'on-regression' && (newlyFailing > 0 || newlyFlaky > 0))
 }
@@ -33,6 +42,10 @@ export function listTests(titles: string[], codeOwners: Record<string, string[]>
     return owners?.length ? `${title} (${owners.join(', ')})` : title
   })
   return listed.join(', ') + (rest > 0 ? ` and ${rest} more` : '')
+}
+
+export function causeLine(c: AlertCause): string {
+  return `${c.title} (${c.tests} ${c.tests === 1 ? 'test' : 'tests'})${c.issueUrl ? `, known issue ${c.issueUrl}` : ''}`
 }
 
 export function incompleteLine(p: ShardProgress): string {

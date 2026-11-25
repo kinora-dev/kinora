@@ -33,7 +33,8 @@ every later run that fails the same way.
 kinora reads the runs that come after a decision:
 
 - A resolved cause that fails again, in a run started after it was resolved, shows as
-  **Regressed** and goes back to the inbox.
+  **Regressed** and goes back to the inbox. The project's [alert channels](/guides/alerts/) say
+  so once, whatever their policy.
 - An open cause whose tests then ran 3 times without that failure shows as **Not seen in N runs**:
   the fix probably landed, so resolve it.
 

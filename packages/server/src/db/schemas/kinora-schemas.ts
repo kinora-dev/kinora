@@ -167,6 +167,8 @@ export const clusterTriage = pgTable('cluster_triage', {
   snoozedUntil: timestamp('snoozed_until'),
   resolvedAt: timestamp('resolved_at'),
   resolvedByUserId: text('resolved_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  // Alerted that the fix didn't hold: once per resolution, so a cluster failing run after run alerts once.
+  regressionNotifiedAt: timestamp('regression_notified_at'),
   updatedByUserId: text('updated_by_user_id').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),

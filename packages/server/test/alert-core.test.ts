@@ -71,3 +71,33 @@ describe('incomplete run alerts', () => {
     expect(slack).not.toContain('✅')
   })
 })
+
+describe('fix did not hold alerts', () => {
+  const payload: AlertPayload = {
+    projectName: 'web-app',
+    runUrl: 'https://app.kinora.dev/projects/web-app/runs/r1',
+    counts: FAIL,
+    newlyFailing: [],
+    newlyFlaky: [],
+    regressedCauses: [{
+      title: 'expect(locator).toHaveText(expected) failed · getByRole(\'row\') >> nth=0 & more',
+      tests: 2,
+      url: 'https://app.kinora.dev/projects/web-app/tests?cluster=abc',
+      issueUrl: 'https://github.com/acme/web/issues/7',
+    }],
+  }
+
+  it('fires under every policy', () => {
+    expect(shouldFire('on-regression', FAIL, 0, 0, false, false, 1)).toBe(true)
+    expect(shouldFire('on-failure', PASS, 0, 0, false, false, 1)).toBe(true)
+  })
+
+  it('links the cause on Slack, its title escaped, and names it in the email', () => {
+    const { text } = buildSlackMessage(payload)
+    expect(text).toContain('*Fix didn\'t hold:* <https://app.kinora.dev/projects/web-app/tests?cluster=abc|expect(locator).toHaveText(expected) failed · getByRole(\'row\') &gt;&gt; nth=0 &amp; more> (2 tests), known issue <https://github.com/acme/web/issues/7>')
+
+    const email = buildAlertEmail(payload).text
+    expect(email).toContain('Fix didn\'t hold: expect(locator).toHaveText(expected) failed · getByRole(\'row\') >> nth=0 & more (2 tests), known issue https://github.com/acme/web/issues/7')
+    expect(email).toContain(payload.regressedCauses![0].url)
+  })
+})

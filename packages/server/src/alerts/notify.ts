@@ -9,6 +9,7 @@ import { matchCodeowners, parseCodeowners } from '../lib/codeowners'
 import { env } from '../lib/env'
 import { logger } from '../lib/logger'
 import { sendMail } from '../lib/mailer'
+import { claimRegressions } from '../reports/clusters'
 import { previousRunTests } from '../reports/regression'
 import { shouldFire } from './core'
 import { buildAlertEmail } from './email'
@@ -75,6 +76,8 @@ export async function notifyRun(input: NotifyRunInput): Promise<void> {
       .map(d => [d.title, matchCodeowners(codeowners, d.file)] as const)
       .filter(([, owners]) => owners.length > 0),
   )
+  // An incident's failures don't count, so they never mean a fix didn't hold.
+  const regressed = input.incident ? [] : await claimRegressions(input.projectId, input.startedAt, activeTests)
   const payload: AlertPayload = {
     projectName: projectRow?.name ?? 'project',
     runUrl: `${env.WEB_ORIGIN}/projects/${slug}/runs/${input.runId}`,
@@ -84,9 +87,17 @@ export async function notifyRun(input: NotifyRunInput): Promise<void> {
     codeOwners,
     ...(input.incomplete && { incomplete: input.incomplete }),
     ...(input.incident && { incident: input.incident }),
+    ...(regressed.length && {
+      regressedCauses: regressed.map(c => ({
+        title: c.title,
+        tests: c.tests,
+        url: `${env.WEB_ORIGIN}/projects/${slug}/tests?cluster=${c.fingerprint}`,
+        ...(c.issueUrl && { issueUrl: c.issueUrl }),
+      })),
+    }),
   }
   const fires = (policy: AlertPolicy): boolean =>
-    shouldFire(policy, payload.counts, payload.newlyFailing.length, payload.newlyFlaky.length, !!payload.incomplete, !!payload.incident)
+    shouldFire(policy, payload.counts, payload.newlyFailing.length, payload.newlyFlaky.length, !!payload.incomplete, !!payload.incident, regressed.length)
 
   if (activeSlack && fires(activeSlack.policy)) {
     try {

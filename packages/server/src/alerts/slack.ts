@@ -7,6 +7,11 @@ export interface SlackPayload {
   text: string
 }
 
+// Slack's control characters: an error title (`expect(...) failed · getByRole(...)`) often holds them.
+function escapeSlack(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 export function buildSlackMessage(input: AlertPayload): SlackPayload {
   const { counts } = input
   const ok = counts.unexpected === 0
@@ -22,6 +27,10 @@ export function buildSlackMessage(input: AlertPayload): SlackPayload {
     lines.push(`*${incompleteLine(input.incomplete)}*`)
   if (input.incident)
     lines.push(incidentLine(input.incident))
+  for (const c of input.regressedCauses ?? []) {
+    const issue = c.issueUrl ? `, known issue <${c.issueUrl}>` : ''
+    lines.push(`*Fix didn't hold:* <${c.url}|${escapeSlack(c.title)}> (${c.tests} ${c.tests === 1 ? 'test' : 'tests'})${issue}`)
+  }
   if (input.newlyFailing.length)
     lines.push(`*Newly failing (${input.newlyFailing.length}):* ${listTests(input.newlyFailing, input.codeOwners)}`)
   if (input.newlyFlaky.length)

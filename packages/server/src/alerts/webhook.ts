@@ -1,6 +1,6 @@
 import type { Counts, RunIncident, ShardProgress } from '@kinora/core'
 import type { Fetcher } from '../lib/ssrf'
-import type { AlertPayload } from './core'
+import type { AlertCause, AlertPayload } from './core'
 import { safeFetch } from '../lib/ssrf'
 
 // Stable JSON contract for consumers - keep field names stable across versions.
@@ -15,6 +15,8 @@ export interface WebhookBody {
   incomplete?: ShardProgress
   // Set when the run is an environment incident; newlyFailing / newlyFlaky are then empty.
   incident?: RunIncident
+  // Set when the run fails again failure causes someone marked resolved.
+  regressedCauses?: AlertCause[]
 }
 
 export async function postWebhook(
@@ -31,6 +33,7 @@ export async function postWebhook(
     codeOwners: p.codeOwners,
     ...(p.incomplete && { incomplete: p.incomplete }),
     ...(p.incident && { incident: p.incident }),
+    ...(p.regressedCauses && { regressedCauses: p.regressedCauses }),
   }
   const res = await fetchImpl(url, {
     method: 'POST',

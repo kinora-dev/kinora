@@ -1,8 +1,9 @@
-import type { ClusterStatus, ClusterTriage, FailureCluster } from '@kinora/core'
+import type { ClusterStatus, ClusterTriage, FailureCluster, NormTest } from '@kinora/core'
 import type { project, run } from '../db/schemas/index'
 import { randomUUID } from 'node:crypto'
+import { fingerprintError } from '@kinora/core'
 import { TRPCError } from '@trpc/server'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '../db'
 import { clusterTriage, member, user } from '../db/schemas/index'
@@ -158,4 +159,43 @@ export async function saveTriage(p: ProjectRow, fingerprint: string, change: Tri
     .values({ id: randomUUID(), projectId: p.id, fingerprint, status: 'open', createdAt: now, ...set })
     .onConflictDoUpdate({ target: [clusterTriage.projectId, clusterTriage.fingerprint], set })
   return (await loadTriage([p.id], fingerprint)).get(p.id)!.get(fingerprint)!
+}
+
+export interface RegressedCause {
+  fingerprint: string
+  title: string
+  tests: number
+  issueUrl?: string
+}
+
+// The resolved clusters this run fails again, each claimed once per resolution: concurrent
+// uploads (shards, retries) never alert the same regression twice. Claiming marks it notified.
+export async function claimRegressions(projectId: string, startedAt: Date, tests: NormTest[]): Promise<RegressedCause[]> {
+  const byFp = new Map<string, { title: string, testKeys: Set<string> }>()
+  for (const t of tests) {
+    if ((t.status !== 'unexpected' && t.status !== 'flaky') || !t.errors[0])
+      continue
+    const { fingerprint, title } = fingerprintError(t.errors[0])
+    const c = byFp.get(fingerprint) ?? { title, testKeys: new Set<string>() }
+    byFp.set(fingerprint, c)
+    c.testKeys.add(t.testKey)
+  }
+  if (!byFp.size)
+    return []
+  const claimed = await db.update(clusterTriage)
+    // Not a triage change: keep updatedAt, which the dashboard shows as the last decision.
+    .set({ regressionNotifiedAt: new Date(), updatedAt: sql`${clusterTriage.updatedAt}` })
+    .where(and(
+      eq(clusterTriage.projectId, projectId),
+      inArray(clusterTriage.fingerprint, [...byFp.keys()]),
+      eq(clusterTriage.status, 'resolved'),
+      // Same rule as clusterState: a failure in a run started after the resolution.
+      lt(clusterTriage.resolvedAt, startedAt),
+      or(isNull(clusterTriage.regressionNotifiedAt), lt(clusterTriage.regressionNotifiedAt, clusterTriage.resolvedAt)),
+    ))
+    .returning({ fingerprint: clusterTriage.fingerprint, issueUrl: clusterTriage.issueUrl })
+  return claimed.map((r) => {
+    const c = byFp.get(r.fingerprint)!
+    return { fingerprint: r.fingerprint, title: c.title, tests: c.testKeys.size, ...(r.issueUrl && { issueUrl: r.issueUrl }) }
+  })
 }

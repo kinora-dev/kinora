@@ -1,10 +1,11 @@
 import type { NormTest } from '@kinora/core'
 import { randomUUID } from 'node:crypto'
+import { fingerprintError } from '@kinora/core'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { notifyRun } from '../src/alerts/notify'
 import { db } from '../src/db'
-import { alertChannel, project, run, slackIntegration, testQuarantine, test as testRow } from '../src/db/schemas/index'
+import { alertChannel, clusterTriage, project, run, slackIntegration, testQuarantine, test as testRow } from '../src/db/schemas/index'
 import { createUser, ownedOrgId, resetDb } from './helpers'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -192,5 +193,73 @@ describe('notifyRun webhook channel', () => {
     await notifyRun({ organizationId: await ownedOrgId(user.id), projectId, runId: 'r2', startedAt: new Date(), counts: PASS, tests: [normTest('t1', 'expected')] })
 
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('notifyRun when a fix did not hold', () => {
+  const ERROR = 'Error: expect(locator).toBeVisible() failed\nLocator: getByRole(\'button\', { name: \'Pay\' })'
+  const fingerprint = fingerprintError({ message: ERROR }).fingerprint
+  const HOUR = 60 * 60 * 1000
+
+  function failing(testKey: string): NormTest {
+    return { ...normTest(testKey, 'unexpected'), errors: [{ message: ERROR }] }
+  }
+
+  // Still failing in the previous run too, so the regression is the cause's, not the test's.
+  async function setup(policy: 'always' | 'on-failure' | 'on-regression' = 'on-regression') {
+    const user = await createUser()
+    const projectId = await seedProject(user.id)
+    await setWebhookChannel(projectId, policy)
+    await seedPrevRun(projectId, [failing('t1')], new Date(Date.now() - DAY))
+    const resolve = (resolvedAt: Date) => db.insert(clusterTriage)
+      .values({ id: randomUUID(), projectId, fingerprint, status: 'resolved', resolvedAt, issueUrl: 'https://github.com/acme/web/issues/7' })
+      .onConflictDoUpdate({ target: [clusterTriage.projectId, clusterTriage.fingerprint], set: { status: 'resolved', resolvedAt } })
+    const notify = async (startedAt = new Date()) => {
+      const fetchMock = stubFetchOk()
+      await notifyRun({ organizationId: await ownedOrgId(user.id), projectId, runId: randomUUID(), startedAt, counts: FAIL, tests: [failing('t1')] })
+      vi.unstubAllGlobals()
+      return fetchMock.mock.calls.map(c => JSON.parse(String(c[1]?.body)))
+    }
+    return { projectId, resolve, notify }
+  }
+
+  it('alerts once per resolution, even on a quiet policy', async () => {
+    const { resolve, notify } = await setup('on-regression')
+    await resolve(new Date(Date.now() - HOUR))
+
+    const [body] = await notify()
+    expect(body.newlyFailing).toEqual([])
+    expect(body.regressedCauses).toEqual([{
+      title: expect.stringContaining('toBeVisible'),
+      tests: 1,
+      url: expect.stringContaining(`/tests?cluster=${fingerprint}`),
+      issueUrl: 'https://github.com/acme/web/issues/7',
+    }])
+
+    // Failing again is not news; resolving it again and failing is.
+    expect(await notify()).toEqual([])
+    await resolve(new Date())
+    expect((await notify(new Date(Date.now() + 1000)))[0].regressedCauses).toHaveLength(1)
+  })
+
+  it('leaves out a run started before the resolution, and an environment incident', async () => {
+    const { projectId, resolve, notify } = await setup('on-regression')
+    await resolve(new Date())
+    expect(await notify(new Date(Date.now() - HOUR))).toEqual([])
+
+    const owner = await db.query.project.findFirst({ where: eq(project.id, projectId) })
+    const fetchMock = stubFetchOk()
+    await notifyRun({
+      organizationId: owner!.organizationId,
+      projectId,
+      runId: randomUUID(),
+      startedAt: new Date(Date.now() + 1000),
+      counts: FAIL,
+      tests: [failing('t1')],
+      incident: { rule: 'host-unreachable', reason: 'app down' },
+    })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).regressedCauses).toBeUndefined()
+    const row = await db.query.clusterTriage.findFirst({ where: eq(clusterTriage.projectId, projectId) })
+    expect(row?.regressionNotifiedAt).toBeNull()
   })
 })

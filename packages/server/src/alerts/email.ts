@@ -1,5 +1,5 @@
 import type { AlertPayload } from './core'
-import { incidentLine, incompleteLine, listTests } from './core'
+import { causeLine, incidentLine, incompleteLine, listTests } from './core'
 
 export function buildAlertEmail(p: AlertPayload): { subject: string, text: string } {
   const { counts } = p
@@ -17,6 +17,8 @@ export function buildAlertEmail(p: AlertPayload): { subject: string, text: strin
     lines.push('', `${incompleteLine(p.incomplete)}.`)
   if (p.incident)
     lines.push('', incidentLine(p.incident))
+  for (const c of p.regressedCauses ?? [])
+    lines.push('', `Fix didn't hold: ${causeLine(c)}`, c.url)
   if (p.newlyFailing.length)
     lines.push('', `Newly failing (${p.newlyFailing.length}): ${listTests(p.newlyFailing, p.codeOwners)}`)
   if (p.newlyFlaky.length)

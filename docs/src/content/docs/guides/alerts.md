@@ -34,6 +34,9 @@ Each channel fires on one of three policies:
 `on-regression` is the quiet default for a healthy suite: it stays silent while things are green
 and only pings you when something actually breaks or starts flaking.
 
+Whatever the policy, a channel also fires when a run fails again a
+[failure cause](/guides/failure-triage/) someone marked resolved: the fix didn't hold.
+
 ## What's in an alert
 
 - The project name and a link to the run in the dashboard.
@@ -41,6 +44,9 @@ and only pings you when something actually breaks or starts flaking.
 - The lists of newly failing and newly flaky tests (capped, with an "and N more" overflow).
 - For a sharded run closed with shards missing, how many landed ("3 of 4 shards"). Webhooks get
   it as `incomplete: { landed, total }`.
+- The failure causes marked resolved that the run fails again, each linked to its page with its
+  known issue, once per resolution: a cause that keeps failing alerts once, until someone resolves
+  it again. Webhooks get them as `regressedCauses: [{ title, tests, url, issueUrl }]`.
 - For an [environment incident](/guides/environment-incidents/) (the app under test was down), one
   message naming the outage instead of the test lists, whatever the policy. Webhooks get it as
   `incident: { rule, reason, host }`.
