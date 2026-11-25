@@ -80,6 +80,10 @@ test('signs out back to login', async ({ page }) => {
 
 test('a session that ends mid-use sends the user back to login', async ({ page }) => {
   await login(page)
+  // The overview loads the failure inbox once it renders: a request sent after the cookies go
+  // would end the session on its own, before the click this test makes.
+  await expect(page.getByRole('link', { name: 'Web App' })).toBeVisible()
+  await page.waitForLoadState('networkidle')
 
   // Same as the session expiring or being revoked: the next API call comes back 401.
   await page.context().clearCookies()
