@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import type { InboxQueue } from '@kinora/core'
+import type { TriageChange } from '@/composables/useClusterTriage'
 import { INBOX_QUEUES, inInboxQueue } from '@kinora/core'
 import { Badge } from '@kinora/ui/badge'
 import { Button } from '@kinora/ui/button'
 import { SegmentedControl } from '@kinora/ui/segmented-control'
 import { Skeleton } from '@kinora/ui/skeleton'
 import { useRouteQuery } from '@vueuse/router'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import ClusterStateBadge from '@/components/project/ClusterStateBadge.vue'
 import ClusterTriageActions from '@/components/project/ClusterTriageActions.vue'
 import { useDemo, useFailureInbox } from '@/composables/queries'
 import { useClusterTriage } from '@/composables/useClusterTriage'
+import { useNewFeature } from '@/composables/useNewFeature'
 import { ago, QUEUE_LABEL } from '@/lib/cluster-triage'
 import { session } from '@/lib/session'
 
@@ -21,6 +23,8 @@ const { state, isLoading, error } = useFailureInbox()
 const isDemo = useDemo()
 const { withTriage, isSaving, save } = useClusterTriage()
 const me = computed(() => session.user.value?.id)
+// The inbox has no page of its own to open: the badge goes once the user acts in it.
+const { isNew, markSeen } = useNewFeature('failureInbox')
 
 const items = computed(() => (state.value ?? []).map(c => withTriage(c.project.id, c)))
 
@@ -31,6 +35,13 @@ const counts = computed(() => Object.fromEntries(INBOX_QUEUES.map(q => [q, items
 const options = computed(() => INBOX_QUEUES
   .filter(q => q === 'all' || q === 'untriaged' || counts.value[q] > 0 || q === current.value)
   .map(q => ({ value: q, label: `${QUEUE_LABEL[q]} ${counts.value[q]}` })))
+
+watch(queue, markSeen)
+
+function triage(projectId: string, fingerprint: string, change: TriageChange, message: string): void {
+  markSeen()
+  void save(projectId, fingerprint, change, message)
+}
 
 const showAll = ref(false)
 const rows = computed(() => items.value.filter(c => inInboxQueue(c, current.value, me.value)))
@@ -46,8 +57,11 @@ const visible = computed(() => (showAll.value ? rows.value : rows.value.slice(0,
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 id="failure-inbox-title" class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <h2 id="failure-inbox-title" class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           Failure inbox
+          <Badge v-if="isNew" class="border-signal/30 bg-signal px-1.5 py-0.5 text-[9px] leading-none tracking-wider text-white">
+            New
+          </Badge>
         </h2>
         <p class="mt-1 text-sm text-muted-foreground">
           Open failure causes across your projects, each grouped by error.
@@ -71,6 +85,7 @@ const visible = computed(() => (showAll.value ? rows.value : rows.value.slice(0,
           <RouterLink
             :to="{ name: 'tests', params: { projectId: c.project.id }, query: { cluster: c.fingerprint } }"
             class="truncate font-mono text-xs text-fail hover:underline"
+            @click="markSeen"
           >
             {{ c.title }}
           </RouterLink>
@@ -89,7 +104,7 @@ const visible = computed(() => (showAll.value ? rows.value : rows.value.slice(0,
           :cluster="c"
           :saving="isSaving(c.project.id, c.fingerprint)"
           :disabled="isDemo"
-          @save="(change, message) => save(c.project.id, c.fingerprint, change, message)"
+          @save="(change, message) => triage(c.project.id, c.fingerprint, change, message)"
         />
       </li>
     </ul>
