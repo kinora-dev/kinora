@@ -542,27 +542,27 @@ export interface InboxCluster extends Omit<FailureCluster, 'sample' | 'testKeys'
   project: { id: string, name: string }
 }
 
-// The open clusters of every project of a workspace, over the same run window as each project's
-// Tests page. Snoozed ones are included: the inbox counts them in their own queue.
+// A project's failure clusters with their triage, over the same run window as its Tests page.
+// windowRuns + countedRuns, with only the columns clusters read: full run rows carry heavy jsonb,
+// and the inbox loads every project at once.
+export async function loadProjectClusters(p: ProjectRow): Promise<FailureCluster[]> {
+  const window = await db.query.run.findMany({
+    columns: { id: true, startedAt: true, git: true, incident: true },
+    where: eq(run.projectId, p.id),
+    orderBy: desc(run.startedAt),
+    limit: MAX_DASHBOARD_RUNS,
+  })
+  const runs = window.filter(r => !r.incident)
+  return runs.length ? annotateClusters(p, runs, await windowClusters(runs)) : []
+}
+
+// The open clusters of every project of a workspace. Snoozed ones are included: the inbox counts
+// them in their own queue.
 export async function loadFailureInbox(organizationId: string): Promise<InboxCluster[]> {
   const projects = await listProjects(organizationId)
-  const perProject = await Promise.all(projects.map(async (p) => {
-    // windowRuns + countedRuns, with only the columns clusters read: a project's full run rows
-    // carry heavy jsonb, and the inbox loads every project at once.
-    const window = await db.query.run.findMany({
-      columns: { id: true, startedAt: true, git: true, incident: true },
-      where: eq(run.projectId, p.id),
-      orderBy: desc(run.startedAt),
-      limit: MAX_DASHBOARD_RUNS,
-    })
-    const runs = window.filter(r => !r.incident)
-    if (!runs.length)
-      return []
-    const clusters = await annotateClusters(p, runs, await windowClusters(runs))
-    return clusters
-      .filter(isOpenCluster)
-      .map(({ sample: _sample, testKeys: _testKeys, files: _files, ...c }) => ({ ...c, project: { id: p.slug, name: p.name } }))
-  }))
+  const perProject = await Promise.all(projects.map(async p => (await loadProjectClusters(p))
+    .filter(isOpenCluster)
+    .map(({ sample: _sample, testKeys: _testKeys, files: _files, ...c }) => ({ ...c, project: { id: p.slug, name: p.name } }))))
   return perProject.flat().sort(byInboxPriority)
 }
 

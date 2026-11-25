@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import { createReadClient } from '@kinora/core'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { app } from '../src/app'
 import { db } from '../src/db'
 import { artifact, project, run, test, testQuarantine } from '../src/db/schemas/index'
-import { createApiKey, createUser, ingest, runPayload } from './helpers'
+import { caller, createApiKey, createUser, ingest, runPayload } from './helpers'
 
 function get(path: string, key: string | null) {
   const headers: Record<string, string> = {}
@@ -175,5 +176,59 @@ describe('read api quarantines', () => {
       { testKey: stored!.testKey, reason: 'races the toast', test: { file: 'tests/checkout.spec.ts', titlePath: ['tests/checkout.spec.ts', 'completes a purchase'], projectName: 'chromium' } },
     ])
     expect((await get('/projects/nope/quarantines', key)).status).toBe(404)
+  })
+})
+
+describe('read api failure causes', () => {
+  async function failingRun(key: string, slug = 'web-app') {
+    const payload = runPayload(slug, '@smoke', 'unexpected')
+    payload.tests[0].errors = [{ message: 'Error: checkout total is wrong' }]
+    expect((await ingest(key, payload)).status).toBe(201)
+  }
+
+  it('gives each run failure its cause, with what the team decided', async () => {
+    const u = await createUser('a@test.dev')
+    const key = await createApiKey(u.id)
+    await failingRun(key)
+    const api = await caller(u)
+    const { clusters: [cluster] } = await api.dashboard.projectHistory({ projectId: 'web-app' })
+    await api.dashboard.triageCluster({ projectId: 'web-app', fingerprint: cluster.fingerprint, assigneeId: u.id, issueUrl: 'https://github.com/acme/web/issues/9' })
+
+    const body = await (await get('/projects/web-app/failures', key)).json() as { failures: unknown[], causes: { fingerprint: string, state: string, snoozed: boolean, url: string, triage: { issueUrl: string } }[] }
+    expect(body.failures).toHaveLength(1)
+    expect(body.causes).toEqual([expect.objectContaining({
+      fingerprint: cluster.fingerprint,
+      state: 'failing',
+      snoozed: false,
+      url: expect.stringContaining(`/projects/web-app/tests?cluster=${cluster.fingerprint}`),
+      triage: expect.objectContaining({ issueUrl: 'https://github.com/acme/web/issues/9', assignee: { id: u.id, name: u.name } }),
+    })])
+  })
+
+  it('lists the open causes of every project or one, leaving out the resolved', async () => {
+    const u = await createUser('a@test.dev')
+    const key = await createApiKey(u.id)
+    await failingRun(key, 'web-app')
+    await failingRun(key, 'api')
+    const api = await caller(u)
+    const { clusters: [resolved] } = await api.dashboard.projectHistory({ projectId: 'api' })
+    await api.dashboard.triageCluster({ projectId: 'api', fingerprint: resolved.fingerprint, status: 'resolved' })
+
+    const all = await (await get('/causes', key)).json() as { causes: { project: { id: string } }[] }
+    expect(all.causes.map(c => c.project.id)).toEqual(['web-app'])
+    const one = await (await get('/causes?project=api', key)).json() as { causes: unknown[] }
+    expect(one.causes).toEqual([])
+    expect((await get('/causes?project=nope', key)).status).toBe(404)
+  })
+
+  it('parses with the read client the MCP server uses', async () => {
+    const u = await createUser('a@test.dev')
+    const key = await createApiKey(u.id)
+    await failingRun(key)
+    const client = createReadClient({ baseUrl: 'http://kinora.test', token: key, fetch: async (input, init) => app.request(String(input).replace('http://kinora.test', ''), init) })
+
+    const failures = await client.getFailures('web-app')
+    expect(failures.causes?.[0]).toMatchObject({ state: 'failing', tests: 1, project: { id: 'web-app' } })
+    expect(await client.getOpenCauses()).toHaveLength(1)
   })
 })

@@ -1,8 +1,9 @@
-import type { A11yReport, ComponentHealth, NormTest, StoryHealth, TestHistory, TestPoint } from '@kinora/core'
+import type { A11yReport, ComponentHealth, FailureCause, NormTest, StoryHealth, TestHistory, TestPoint } from '@kinora/core'
 import { byImpact, describeHealth, diagnose, windowStats } from '@kinora/core'
 
 const MAX_ERROR_CHARS = 4000
 const MAX_HISTORY_POINTS = 20
+const MAX_CAUSE_TESTS = 20
 
 function truncate(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max)}\n… (truncated)` : s
@@ -29,6 +30,39 @@ export function formatFailure(t: NormTest) {
       ? { message: truncate(err.message, MAX_ERROR_CHARS), location: err.location, stack: err.stack ? truncate(err.stack, MAX_ERROR_CHARS) : undefined }
       : null,
     traceUrl: traceUrlOf(t),
+  }
+}
+
+// What the team decided about a cause, without the parts of its error or tests a failure already shows.
+export function formatCauseRef(c: FailureCause) {
+  const t = c.triage
+  return {
+    fingerprint: c.fingerprint,
+    state: c.state,
+    ...(c.snoozed && { snoozed: true }),
+    tests: c.tests,
+    ...(t?.assignee && { assignee: t.assignee.name }),
+    ...(t?.issueUrl && { issueUrl: t.issueUrl }),
+    ...(t?.note && { note: t.note }),
+    ...(t?.resolvedAt && { resolvedAt: t.resolvedAt, ...(t.resolvedBy && { resolvedBy: t.resolvedBy }) }),
+    url: c.url,
+  }
+}
+
+export function formatCause(c: FailureCause) {
+  return {
+    project: c.project.id,
+    title: c.title,
+    ...formatCauseRef(c),
+    occurrences: c.count,
+    firstSeen: c.firstSeen,
+    lastSeen: c.lastSeen,
+    lastRunId: c.lastRunId,
+    ...(c.quietRuns && { quietRuns: c.quietRuns }),
+    ...(c.codeOwners?.length && { codeOwners: c.codeOwners }),
+    error: truncate(c.sample, MAX_ERROR_CHARS),
+    testKeys: c.testKeys.slice(0, MAX_CAUSE_TESTS),
+    ...(c.testKeys.length > MAX_CAUSE_TESTS && { testKeysTruncated: `showing ${MAX_CAUSE_TESTS} of ${c.testKeys.length}` }),
   }
 }
 

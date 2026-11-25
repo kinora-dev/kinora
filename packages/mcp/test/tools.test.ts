@@ -1,5 +1,5 @@
-import type { NormTest, RunReport, TestHistory, TestPoint } from '@kinora/core'
-import { IngestError, SCHEMA_VERSION } from '@kinora/core'
+import type { FailureCause, NormTest, RunReport, TestHistory, TestPoint } from '@kinora/core'
+import { fingerprintError, IngestError, SCHEMA_VERSION } from '@kinora/core'
 import { describe, expect, it, vi } from 'vitest'
 import { registerTools } from '../src/tools'
 
@@ -183,5 +183,57 @@ describe('test_history stories', () => {
     const { data } = await call('test_history', { project: 'p', query: 't' })
     expect(data.histories[0].stories).toEqual(['Button/Primary'])
     expect(data.histories[1]).not.toHaveProperty('stories')
+  })
+})
+
+function cause(over: Partial<FailureCause> = {}): FailureCause {
+  return {
+    fingerprint: fingerprintError({ message: 'boom' }).fingerprint,
+    title: 'boom',
+    sample: 'boom',
+    count: 3,
+    tests: 2,
+    testKeys: ['k1', 'k2'],
+    files: ['a.ts'],
+    firstSeen: '2026-07-01T00:00:00.000Z',
+    lastSeen: '2026-07-14T00:00:00.000Z',
+    lastRunId: 'r1',
+    project: { id: 'p', name: 'P' },
+    state: 'failing',
+    snoozed: false,
+    url: 'https://app.kinora.dev/projects/p/tests?cluster=x',
+    ...over,
+  }
+}
+
+describe('failure causes', () => {
+  it('gives a failure the cause the team already tracks', async () => {
+    const tracked = cause({ triage: { status: 'open', assignee: { id: 'u1', name: 'Ada' }, issueUrl: 'https://github.com/acme/web/issues/9', note: 'iframe race', updatedAt: 's' } })
+    const call = harness({ getFailures: vi.fn().mockResolvedValue({ runId: 'r1', startedAt: 's', counts: {}, failures: [failing(), failing({ testKey: 'k3', errors: [{ message: 'other' }] })], causes: [tracked] }) })
+    const { data } = await call('list_failures', { project: 'p' })
+    expect(data.failures[0].cause).toEqual({
+      fingerprint: tracked.fingerprint,
+      state: 'failing',
+      tests: 2,
+      assignee: 'Ada',
+      issueUrl: 'https://github.com/acme/web/issues/9',
+      note: 'iframe race',
+      url: tracked.url,
+    })
+    expect(data.failures[1].cause).toBeUndefined()
+  })
+
+  it('lists open causes, leaving out the snoozed unless asked, filtered by state', async () => {
+    const getOpenCauses = vi.fn().mockResolvedValue([
+      cause({ fingerprint: 'a', state: 'regressed' }),
+      cause({ fingerprint: 'b' }),
+      cause({ fingerprint: 'c', snoozed: true }),
+    ])
+    const call = harness({ getOpenCauses })
+    expect((await call('list_open_failures', { project: 'p' })).data.causes.map((c: { fingerprint: string }) => c.fingerprint)).toEqual(['a', 'b'])
+    expect(getOpenCauses).toHaveBeenCalledWith('p')
+    expect((await call('list_open_failures', { includeSnoozed: true })).data.causes).toHaveLength(3)
+    const { data } = await call('list_open_failures', { state: 'regressed' })
+    expect(data.causes).toEqual([expect.objectContaining({ fingerprint: 'a', state: 'regressed', error: 'boom', testKeys: ['k1', 'k2'], occurrences: 3 })])
   })
 })

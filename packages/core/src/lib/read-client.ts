@@ -1,6 +1,7 @@
 import type { NormTest, RunIncident, RunReport, RunSummary, TestHistory } from '../contracts/kinora'
+import type { ClusterState } from './cluster-triage'
 import { z } from 'zod'
-import { countsSchema, normTestSchema, runIncidentSchema, runReportSchema, runSummarySchema, SCHEMA_VERSION, testHistorySchema } from '../contracts/kinora'
+import { countsSchema, failureClusterSchema, normTestSchema, runIncidentSchema, runReportSchema, runSummarySchema, SCHEMA_VERSION, testHistorySchema } from '../contracts/kinora'
 import { IngestError, toIngestError } from './ingest-client'
 
 export interface ReadClientOptions {
@@ -16,6 +17,16 @@ export interface ProjectOverview {
   latestRun: RunSummary | null
 }
 
+// A failure cause (failing tests grouped by error) with where it stands and what the team decided.
+export const failureCauseSchema = failureClusterSchema.extend({
+  project: z.object({ id: z.string(), name: z.string() }),
+  state: z.enum(['failing', 'stopped', 'regressed', 'resolved', 'ignored'] satisfies ClusterState[]),
+  snoozed: z.boolean(),
+  // The cause on the dashboard.
+  url: z.string(),
+})
+export type FailureCause = z.infer<typeof failureCauseSchema>
+
 export interface RunFailures {
   runId: string
   startedAt: string
@@ -23,6 +34,8 @@ export interface RunFailures {
   // The run is an environment incident: its failures come from the app or browser being down.
   incident?: RunIncident
   failures: NormTest[]
+  // The causes of these failures; absent from servers older than failure triage.
+  causes?: FailureCause[]
 }
 
 const projectsResponseSchema = z.object({
@@ -42,7 +55,10 @@ const failuresResponseSchema = z.object({
   counts: countsSchema,
   incident: runIncidentSchema.optional(),
   failures: z.array(normTestSchema),
+  causes: z.array(failureCauseSchema).optional(),
 })
+
+const causesResponseSchema = z.object({ causes: z.array(failureCauseSchema) })
 
 const historyResponseSchema = z.object({ histories: z.array(testHistorySchema) })
 
@@ -120,6 +136,12 @@ export function createReadClient(opts: ReadClientOptions) {
     getTestDurations(slug: string, runs?: number): Promise<TestDurations> {
       const q = runs ? `?runs=${runs}` : ''
       return get(`${project(slug)}/test-durations${q}`, testDurationsResponseSchema)
+    },
+
+    // Open failure causes (the dashboard's failure inbox), snoozed ones flagged, of one project or all.
+    async getOpenCauses(slug?: string): Promise<FailureCause[]> {
+      const q = slug ? `?project=${encodeURIComponent(slug)}` : ''
+      return (await get(`/causes${q}`, causesResponseSchema)).causes
     },
 
     // Active (unexpired) quarantines, each with the test identity a Playwright test list needs.

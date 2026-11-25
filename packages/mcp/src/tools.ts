@@ -1,8 +1,8 @@
 import type { createReadClient } from '@kinora/core'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { buildComponents, byInstability, diagnose, IngestError } from '@kinora/core'
+import { buildComponents, byInstability, diagnose, fingerprintError, IngestError } from '@kinora/core'
 import { z } from 'zod'
-import { formatComponent, formatFailure, formatHistory, traceUrlOf } from './format'
+import { formatCause, formatCauseRef, formatComponent, formatFailure, formatHistory, traceUrlOf } from './format'
 
 type ReadClient = ReturnType<typeof createReadClient>
 
@@ -11,6 +11,7 @@ const MAX_COMPONENTS = 50
 const MAX_RUN_TESTS = 1000
 // Each formatted failure carries up to ~8KB of error + stack; cap so a broken run can't flood the agent's context.
 const MAX_FAILURES = 50
+const MAX_CAUSES = 50
 
 function ok(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
@@ -48,7 +49,7 @@ export function registerTools(server: McpServer, client: ReadClient): void {
 
   server.registerTool('list_failures', {
     title: 'List failing tests of a run',
-    description: 'Failing and flaky tests of a run (defaults to the latest run): error message, file:line, and a trace.zip URL to open in the Playwright viewer. Start here to debug the last CI failures. When the result has an `incident`, the run is an environment incident: its failures come from the app under test or the browser being down, not from the code, so re-run rather than fix the tests.',
+    description: 'Failing and flaky tests of a run (defaults to the latest run): error message, file:line, and a trace.zip URL to open in the Playwright viewer. Start here to debug the last CI failures. When the result has an `incident`, the run is an environment incident: its failures come from the app under test or the browser being down, not from the code, so re-run rather than fix the tests. A failure\'s `cause` is the error it shares with other tests, and what the team decided about it: read its `assignee`, `issueUrl` and `note` before digging, someone may already be on it. `state` is failing, regressed (marked resolved, failing again: the fix didn\'t hold), stopped (its tests pass again), resolved or ignored.',
     inputSchema: z.object({
       project: z.string().describe('Project slug (from list_projects).'),
       runId: z.string().optional().describe('Run id; omit for the latest run.'),
@@ -60,9 +61,32 @@ export function registerTools(server: McpServer, client: ReadClient): void {
       startedAt: r.startedAt,
       counts: r.counts,
       ...(r.incident && { incident: r.incident }),
-      failures: r.failures.slice(0, MAX_FAILURES).map(formatFailure),
+      failures: r.failures.slice(0, MAX_FAILURES).map((t) => {
+        const fingerprint = t.errors[0] && fingerprintError(t.errors[0]).fingerprint
+        const cause = r.causes?.find(c => c.fingerprint === fingerprint)
+        return { ...formatFailure(t), ...(cause && { cause: formatCauseRef(cause) }) }
+      }),
       ...(r.failures.length > MAX_FAILURES && { truncated: `showing ${MAX_FAILURES} of ${r.failures.length} failures` }),
     }),
+  ))
+
+  server.registerTool('list_open_failures', {
+    title: 'List open failure causes',
+    description: 'Open failure causes across projects (or one project), as the dashboard\'s failure inbox: failing tests grouped by error, each with its state, affected tests, error, and what the team decided (assignee, known issue URL, note, snooze). `state` is failing, regressed (marked resolved, failing again: the fix didn\'t hold) or stopped (its tests pass again, likely fixed but not marked resolved). Regressions come first, then the latest failures. Use it to see what is broken and already tracked before investigating; follow up with test_history on its testKeys.',
+    inputSchema: z.object({
+      project: z.string().optional().describe('Project slug; omit for every project.'),
+      state: z.enum(['failing', 'regressed', 'stopped']).optional().describe('Only causes in this state.'),
+      includeSnoozed: z.boolean().optional().describe('Include causes someone snoozed (left out by default, as in the inbox).'),
+    }),
+  }, ({ project, state, includeSnoozed }) => guard(
+    () => client.getOpenCauses(project),
+    (causes) => {
+      const out = causes.filter(c => (!state || c.state === state) && (includeSnoozed || !c.snoozed))
+      return ok({
+        causes: out.slice(0, MAX_CAUSES).map(formatCause),
+        ...(out.length > MAX_CAUSES && { truncated: `showing ${MAX_CAUSES} of ${out.length} causes` }),
+      })
+    },
   ))
 
   server.registerTool('get_run', {

@@ -166,8 +166,22 @@ git/CI metadata, and every test with its status and failures.
 The failing and flaky tests of a run (defaults to the latest). Query `runId` to target a specific
 run.
 
+`causes` lists the [failure causes](/guides/failure-triage/) of these failures (matched by their
+first error), each with its `state` (`failing`, `stopped`, `regressed`, `resolved` or `ignored`),
+`snoozed`, its `triage` (assignee, known issue, note) and its dashboard `url`.
+
 ```json
-{ "runId": "…", "startedAt": "…", "counts": { "…": "…" }, "failures": [{ "status": "unexpected", "…": "…" }] }
+{ "runId": "…", "startedAt": "…", "counts": { "…": "…" }, "failures": [{ "status": "unexpected", "…": "…" }], "causes": [{ "fingerprint": "…", "state": "failing", "…": "…" }] }
+```
+
+### GET /api/v1/causes
+
+The open failure causes of every project, as the dashboard's
+[failure inbox](/guides/failure-triage/#the-failure-inbox), regressions first. Query `project` (a
+slug) for one project. Snoozed causes are included, with `snoozed: true`.
+
+```json
+{ "causes": [{ "project": { "id": "web-app", "name": "Web app" }, "fingerprint": "…", "title": "…", "state": "regressed", "snoozed": false, "tests": 3, "testKeys": ["…"], "triage": { "…": "…" }, "url": "…" }] }
 ```
 
 ### GET /api/v1/projects/:slug/history
