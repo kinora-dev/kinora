@@ -1,7 +1,8 @@
 ---
-title: "Tracking component health over time with Vitest browser mode and Storybook"
-description: Component tests tell you what broke in one run. Here is how to keep their history per component and per story, with traces and screenshot comparisons, using Vitest browser mode, Storybook, or Playwright.
+title: "Storybook and Vitest in CI: test history per component"
+description: Storybook and Vitest browser tests tell you what broke in one run. Here is how to keep their history per component and per story in CI, with flaky detection, traces, screenshot diffs and accessibility checks.
 date: 2026-10-11
+updatedDate: 2026-11-26
 tags:
   - vitest
   - storybook
@@ -71,6 +72,8 @@ Three things are worth knowing about how it behaves.
 
 **An upload never fails your test run.** If the server is unreachable, your tests still pass or fail on their own merits.
 
+Sharded runs need nothing either. With `vitest --shard=1/4`, each shard uploads on its own and Kinora assembles the shards of one CI run into a single run.
+
 ## One page per design system
 
 Once a run with stories is uploaded, the project gets a Components page. Stories are grouped by component, and each story shows:
@@ -81,7 +84,9 @@ Once a run with stories is uploaded, the project gets a Components page. Stories
 
 A story's status in a run is the worst status among its tests in that run. If the render check passes and the interaction test fails, the story is failing.
 
-The timeline is what changes the conversation. A story that is red in the latest run and green in the 19 before it is a regression, and the pull request is the suspect. A story that goes red every few runs is flaky, and the pull request is probably innocent. You can tell the two apart in a glance, without opening a single CI log.
+The timeline is what changes the conversation. A story that is red in the latest run and green in the 19 before it is a regression, and the pull request is the suspect. A story that goes red every few runs is flaky, and the pull request is probably innocent.
+
+Kinora also does that reading for you. Each story is flagged **Flaky** or **Broken** with the same rules as the Tests page, and a filter narrows the page to the stories that need attention. This matters more with Vitest than with Playwright: Vitest runs without retries by default, so a flaky story is never marked as such within a single run. It only shows across runs, as described in [how to track flaky tests over time](/blog/track-flaky-playwright-tests).
 
 ## What it looked like when it failed
 
@@ -105,9 +110,44 @@ export default defineConfig({
 })
 ```
 
-The reporter uploads the `trace.zip` of each failing test, and Kinora opens it in its embedded trace viewer: DOM snapshots, console, network, right from the failed test. No artifact to download from CI.
+The reporter uploads the `trace.zip` of each failing test, and Kinora opens it in its embedded trace viewer: DOM snapshots, console, network, right from the failed test. No artifact to download from CI, which is otherwise [more steps than it should be](/blog/open-playwright-trace-from-ci).
 
 Visual assertions get the same treatment. A failing `toMatchScreenshot` uploads its reference, actual and diff images, and the run page shows them as a screenshot comparison. You see the two pixels of padding that moved before you even check out the branch.
+
+## Accessibility, per story
+
+If you use Storybook's [a11y addon](https://storybook.js.org/docs/writing-tests/accessibility-testing), each story's axe check is uploaded with its test: the rules it breaks, their impact, the elements they hit, and a link to each rule's documentation.
+
+On the Components page, each story shows how many rules it breaks, and **Accessibility hotspots** ranks components by their stories' violations, weighted by impact. On a design system with a few hundred stories, that tells you which component to fix first.
+
+The addon's `a11y.test` parameter decides how a violation counts:
+
+```ts
+// .storybook/preview.ts
+export default {
+  parameters: {
+    a11y: { test: 'todo' },
+  },
+}
+```
+
+With `'todo'`, the test passes and the violations are recorded as warnings, impact included. With `'error'`, the test fails, and Kinora reads the violations from the failure message instead, without their impact. If your CI does not need to fail on violations, `'todo'` gives you the full picture without blocking anyone.
+
+## On the pull request
+
+History is useful when you go looking for it. On a pull request, the question is narrower: did this change break a component?
+
+The reporter can answer it where the review happens:
+
+```ts
+['@kinora/vitest-reporter', {
+  project: { slug: 'design-system' },
+  prComment: true,
+  prStatus: true,
+}]
+```
+
+`prComment` posts a summary comment on the GitHub pull request or GitLab merge request, and keeps it updated. `prStatus` sets a `kinora / design-system` commit status that is red only when the pull request breaks something: a test failing on the branch that passed on the base branch. A story that was already failing on `main` does not turn your pull request red. The [PR comments guide](https://docs.kinora.dev/guides/pr-comments/) has the CI permissions to set.
 
 ## Not on Vitest? Playwright component tests work too
 
@@ -140,5 +180,6 @@ If you already run Vitest in browser mode or Storybook tests in CI, the setup is
 
 - [Vitest and Storybook guide](https://docs.kinora.dev/guides/vitest/)
 - [Component testing guide](https://docs.kinora.dev/guides/component-testing/)
+- [PR comments and commit status](https://docs.kinora.dev/guides/pr-comments/)
 - [Open the live demo](https://demo.kinora.dev)
 - [Star the project on GitHub](https://github.com/kinora-dev/kinora)
