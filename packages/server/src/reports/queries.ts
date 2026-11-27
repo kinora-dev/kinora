@@ -14,8 +14,8 @@ type ProjectRow = typeof project.$inferSelect
 type RunRow = typeof run.$inferSelect
 type TestRow = typeof test.$inferSelect
 
-// Most-recent runs per project the dashboard loads. Memory bound until the UI gets pagination;
-// projects with more runs show this window in trends/history.
+// Most-recent runs per project the test analytics read (histories, health, failure clusters). The
+// run lists are paged and go further back.
 export const MAX_DASHBOARD_RUNS = 500
 
 // A test search reads each project's newest runs only: `test` holds one row per test per run, so
@@ -410,47 +410,59 @@ export async function loadProjectHistory(p: ProjectRow, opts: { componentsOnly?:
   if (!runs.length)
     return { project: entry, histories: [], clusters: [] }
   const ids = sql.join(runs.map(r => sql`${r.id}`), sql`, `)
+  const inKeys = (keys: string[]) => sql`t.test_key in (${sql.join(keys.map(k => sql`${k}`), sql`, `)})`
+
+  // Each test's counts over the whole window, and whether it mounted a story: a hash aggregate, no sort.
+  const totalRows = await db.execute<StatusCounts & { testKey: string, mountsStories: boolean } & Record<string, unknown>>(sql`
+    select t.test_key as "testKey",
+      count(*) filter (where t.status = 'expected')::int as passed,
+      count(*) filter (where t.status = 'unexpected')::int as failed,
+      count(*) filter (where t.status = 'flaky')::int as flaky,
+      count(*) filter (where t.status = 'skipped')::int as skipped,
+      bool_or(${storyFilter('t')}) as "mountsStories"
+    from test t
+    where t.run_id in (${ids})
+    group by t.test_key`)
+  const storyKeys = totalRows.rows.filter(r => r.mountsStories).map(r => r.testKey)
+  if (opts.componentsOnly && !storyKeys.length)
+    return { project: entry, histories: [], clusters: [] }
+  const totals = new Map(totalRows.rows.flatMap(({ testKey, mountsStories, ...counts }) =>
+    !opts.componentsOnly || mountsStories ? [[testKey, counts]] : []))
+  const onlyStories = opts.componentsOnly ? sql`and ${inKeys(storyKeys)}` : sql``
 
   // Stories: the latest run that mounted any, wherever it sits in the window.
-  const storyRows = await db.execute<{ testKey: string, annotations: NormTest['annotations'] }>(sql`
-    select distinct on (t.test_key) t.test_key as "testKey", t.annotations
-    from test t join run r on r.id = t.run_id
-    where t.run_id in (${ids}) and ${storyFilter('t')}
-    order by t.test_key, r.started_at desc`)
-  if (opts.componentsOnly && !storyRows.rows.length)
-    return { project: entry, histories: [], clusters: [] }
-  const onlyStories = opts.componentsOnly
-    ? sql`and t.test_key in (select s.test_key from test s where s.run_id in (${ids}) and ${storyFilter('s')})`
-    : sql``
+  const storyRows = storyKeys.length
+    ? await db.execute<{ testKey: string, annotations: NormTest['annotations'] }>(sql`
+        select distinct on (t.test_key) t.test_key as "testKey", t.annotations
+        from test t join run r on r.id = t.run_id
+        where t.run_id in (${ids}) and ${inKeys(storyKeys)} and ${storyFilter('t')}
+        order by t.test_key, r.started_at desc`)
+    : { rows: [] }
 
-  // Per test, newest first: its rank among all and among executed runs, the newest run it did not
-  // fail (the end of a failing streak), and its counts. A superset of trimPoints, which then trims.
-  const rows = await db.execute<PointRow & StatusCounts & Record<string, unknown>>(sql`
-    with ranked as (
-      select t.id, t.status,
-        row_number() over newest as raw_rank,
-        count(*) filter (where t.status <> 'skipped') over newest as exec_rank,
-        max(r.started_at) filter (where t.status not in ('unexpected', 'skipped')) over key as last_ok_at,
-        r.started_at,
-        count(*) filter (where t.status = 'expected') over key as passed,
-        count(*) filter (where t.status = 'unexpected') over key as failed,
-        count(*) filter (where t.status = 'flaky') over key as flaky,
-        count(*) filter (where t.status = 'skipped') over key as skipped
-      from test t join run r on r.id = t.run_id
-      where t.run_id in (${ids}) ${onlyStories}
-      window key as (partition by t.test_key), newest as (partition by t.test_key order by r.started_at desc)
-    )
-    select ${pointColumns}, ranked.passed::int, ranked.failed::int, ranked.flaky::int, ranked.skipped::int
-    from ranked join test t on t.id = ranked.id
-    where ranked.raw_rank <= ${HEALTH_WINDOW}
-      or (ranked.status <> 'skipped' and (ranked.exec_rank <= ${HEALTH_WINDOW} or ranked.started_at > coalesce(ranked.last_ok_at, '-infinity')))`)
-
-  const totals = new Map<string, StatusCounts>()
-  for (const r of rows.rows)
-    totals.set(r.testKey, { passed: r.passed, failed: r.failed, flaky: r.flaky, skipped: r.skipped })
+  // The newest HEALTH_WINDOW runs hold every point trimPoints keeps for most tests. Only the others
+  // (skipped lately, missing from recent runs, or failing for longer) read their older runs.
+  const recent = await db.execute<PointRow & Record<string, unknown>>(sql`
+    select ${pointColumns} from test t
+    where t.run_id in (${sql.join(runs.slice(0, HEALTH_WINDOW).map(r => sql`${r.id}`), sql`, `)}) ${onlyStories}`)
+  const position = new Map(runs.map((r, i) => [r.id, i]))
+  const recentByKey = new Map<string, PointRow[]>()
+  for (const r of recent.rows) {
+    const list = recentByKey.get(r.testKey)
+    if (list)
+      list.push(r)
+    else
+      recentByKey.set(r.testKey, [r])
+  }
+  const older = [...totals].flatMap(([key, counts]) => {
+    const newestFirst = (recentByKey.get(key) ?? []).sort((a, b) => position.get(a.runId)! - position.get(b.runId)!)
+    return coversTrimmedPoints(newestFirst.map(r => r.status), counts) ? [] : [key]
+  })
+  const olderRows = older.length ? await rankedPoints(ids, inKeys(older)) : []
+  const olderKeys = new Set(older)
+  const rows = [...recent.rows.filter(r => !olderKeys.has(r.testKey)), ...olderRows]
   const stories = new Map(storyRows.rows.map(r => [r.testKey, storiesOf(r)]))
 
-  const histories = buildTestHistories(pointReports(p.slug, runs, rows.rows, parseCodeowners(p.codeownersText)))
+  const histories = buildTestHistories(pointReports(p.slug, runs, rows, parseCodeowners(p.codeownersText)))
   for (const h of histories) {
     h.points = trimPoints(h.points)
     applyTotals(h, totals.get(h.testKey)!)
@@ -460,6 +472,44 @@ export async function loadProjectHistory(p: ProjectRow, opts: { componentsOnly?:
   }
   const clusters = opts.componentsOnly ? [] : await annotateClusters(p, runs, await windowClusters(runs))
   return { project: entry, histories, clusters }
+}
+
+// Whether a test's points in the newest HEALTH_WINDOW runs (newest first) already hold every point
+// trimPoints keeps: its last HEALTH_WINDOW points, its last HEALTH_WINDOW executed ones, and its
+// whole failing streak.
+function coversTrimmedPoints(statuses: NormTest['status'][], counts: StatusCounts): boolean {
+  const total = counts.passed + counts.failed + counts.flaky + counts.skipped
+  const executed = statuses.filter(s => s !== 'skipped').length
+  if (statuses.length < Math.min(HEALTH_WINDOW, total) || executed < Math.min(HEALTH_WINDOW, total - counts.skipped))
+    return false
+  // No pass among them: the streak may go on in the older runs, if the test ran there.
+  return statuses.some(s => s === 'expected' || s === 'flaky') || executed === total - counts.skipped
+}
+
+// The points of some tests over the window, newest first: their rank among all and among executed
+// runs, and the newest run they did not fail (the end of a failing streak). A superset of
+// trimPoints, which then trims.
+async function rankedPoints(ids: SQL, keys: SQL): Promise<PointRow[]> {
+  const ofKeys = sql`t.run_id in (${ids}) and ${keys}`
+  // The outer read repeats the filter: joining on the ids alone, Postgres hashed the whole table.
+  const { rows } = await db.execute<PointRow & Record<string, unknown>>(sql`
+    with ranked as (
+      select t.id, t.status,
+        row_number() over newest as raw_rank,
+        count(*) filter (where t.status <> 'skipped') over newest as exec_rank,
+        max(r.started_at) filter (where t.status not in ('unexpected', 'skipped')) over key as last_ok_at,
+        r.started_at
+      from test t join run r on r.id = t.run_id
+      where ${ofKeys}
+      window key as (partition by t.test_key collate "C"), newest as (partition by t.test_key collate "C" order by r.started_at desc)
+    )
+    select ${pointColumns}
+    from test t
+    where ${ofKeys} and t.id in (
+      select id from ranked
+      where raw_rank <= ${HEALTH_WINDOW}
+        or (status <> 'skipped' and (exec_rank <= ${HEALTH_WINDOW} or started_at > coalesce(last_ok_at, '-infinity'))))`)
+  return rows
 }
 
 async function testHistoryOver(p: ProjectRow, runs: RunRow[], testKey: string): Promise<TestHistory | undefined> {

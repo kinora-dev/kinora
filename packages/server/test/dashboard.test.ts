@@ -1,6 +1,6 @@
 import type { Counts, IngestRun } from '@kinora/core'
 import { randomUUID } from 'node:crypto'
-import { diagnose, makeTestKey, STORY_ANNOTATION } from '@kinora/core'
+import { diagnose, makeTestKey, STORY_ANNOTATION, trimPoints } from '@kinora/core'
 import { desc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../src/db'
@@ -779,6 +779,43 @@ describe('dashboard reads', () => {
     expect(listed).toMatchObject({ runs: 96, failed: 25, flaky: 1, newlyBroken: false, lastStatus: 'unexpected' })
 
     expect((await (await caller(a)).dashboard.testHistory({ projectId: 'web-app', testKey: 'nope' })).history).toBeNull()
+  })
+
+  it('projectHistory reads older runs only for the tests whose trimmed points need them', async () => {
+    const a = await createUser('a@test.dev')
+    const key = await createApiKey(a.id)
+    type Status = 'expected' | 'unexpected' | 'flaky' | 'skipped'
+    // Status of each test in run i (oldest first), or undefined when the run did not include it.
+    const profiles: Record<string, (i: number) => Status | undefined> = {
+      'stable': i => (i === 5 ? 'flaky' : 'expected'),
+      'skipped lately': i => (i < 15 ? 'expected' : 'skipped'),
+      'gone lately': i => (i < 20 ? (i % 7 ? 'expected' : 'flaky') : undefined),
+      'always failing': () => 'unexpected',
+      'broken for 25 runs': i => (i < 5 ? 'expected' : 'unexpected'),
+    }
+    for (let i = 0; i < 30; i++) {
+      const payload = runPayload('web-app')
+      const [base] = payload.tests
+      payload.tests = Object.entries(profiles).flatMap(([title, statusAt]) => {
+        const status = statusAt(i)
+        const titlePath = [base.file, title]
+        return status ? [{ ...base, title, titlePath, testKey: makeTestKey(base.file, titlePath, 'chromium'), status, ok: status !== 'unexpected' }] : []
+      })
+      payload.run.counts = { total: payload.tests.length, expected: 0, unexpected: 0, flaky: 0, skipped: 0 }
+      for (const t of payload.tests)
+        payload.run.counts[t.status]++
+      payload.run.startedAt = new Date(Date.UTC(2026, 0, 1, i)).toISOString()
+      await ingest(key, payload)
+    }
+
+    const api = await caller(a)
+    const { histories } = await api.dashboard.projectHistory({ projectId: 'web-app' })
+    expect(histories.map(h => h.title).sort()).toEqual(Object.keys(profiles).sort())
+    for (const listed of histories) {
+      const full = (await api.dashboard.testHistory({ projectId: 'web-app', testKey: listed.testKey })).history!
+      expect(listed.points, listed.title).toEqual(trimPoints(full.points))
+      expect({ ...listed, points: [] }, listed.title).toEqual({ ...full, points: [] })
+    }
   })
 
   it('testHistory returns the clusters the test shares, with the titles of the other tests', async () => {
