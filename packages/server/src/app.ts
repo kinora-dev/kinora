@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/node'
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import { compress } from 'hono/compress'
 import { contextStorage } from 'hono/context-storage'
 import { cors } from 'hono/cors'
 import { requestId } from 'hono/request-id'
@@ -51,6 +52,11 @@ app.use('/artifacts/*', serveStatic({
 
 app.use(secureHeaders())
 app.use('*', cors({ origin: getTrustedOrigins(), credentials: true }))
+
+// Compressed here, not only by a fronting nginx: a 3,000-test Tests page is ~13 MB of JSON, ~0.6 MB
+// gzipped. Artifacts are left alone (served above, and ranged).
+app.use('/trpc/*', compress())
+app.use('/api/*', compress())
 
 // Public route: only statuses go out, the error (host, port, user) stays in the logs.
 app.get('/healthcheck', async (c) => {

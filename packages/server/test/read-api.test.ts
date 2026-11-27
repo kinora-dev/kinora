@@ -1,4 +1,6 @@
+import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
+import { gunzipSync } from 'node:zlib'
 import { createReadClient } from '@kinora/core'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -13,6 +15,25 @@ function get(path: string, key: string | null) {
     headers.Authorization = `Bearer ${key}`
   return app.request(`/api/v1${path}`, { headers })
 }
+
+describe('response compression', () => {
+  it('gzips JSON for a client that accepts it, and only then', async () => {
+    const key = await createApiKey((await createUser('gz@test.dev')).id)
+    await ingest(key)
+    const latest = (encoding?: string) => app.request('/api/v1/projects/web-app/runs/latest', {
+      headers: { Authorization: `Bearer ${key}`, ...(encoding && { 'Accept-Encoding': encoding }) },
+    })
+
+    const gzipped = await latest('gzip, deflate, br')
+    expect(gzipped.headers.get('content-encoding')).toBe('gzip')
+    const body = JSON.parse(new TextDecoder().decode(gunzipSync(Buffer.from(await gzipped.arrayBuffer())))) as { runId: string }
+    expect(body.runId).toBeTruthy()
+
+    const plain = await latest()
+    expect(plain.headers.get('content-encoding')).toBeNull()
+    expect((await plain.json() as { runId: string }).runId).toBe(body.runId)
+  })
+})
 
 describe('read api auth + scope', () => {
   it('rejects a request with no api key', async () => {

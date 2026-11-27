@@ -287,7 +287,8 @@ async function runPage(p: ProjectRow, { before, after }: { before?: string, afte
 
 // Artifact URLs are resolved (signed local / presigned S3) at read time, not stored.
 export async function loadRunReport(p: ProjectRow, r: RunRow): Promise<RunReport> {
-  const tests = await db.query.test.findMany({ where: eq(test.runId, r.id), orderBy: asc(test.file) })
+  // Source order, down to the title: by file alone, the tests of one file came back in any order.
+  const tests = await db.query.test.findMany({ where: eq(test.runId, r.id), orderBy: [asc(test.file), asc(test.line), asc(test.column), asc(test.title)] })
   const arts = await db.query.artifact.findMany({ where: eq(artifact.runId, r.id), orderBy: asc(artifact.createdAt) })
 
   const urlsByTest = new Map<string, Map<string, string[]>>()
