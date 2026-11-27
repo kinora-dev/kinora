@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChartConfig } from '@kinora/ui/chart'
-import { formatPct } from '@kinora/core'
+import { formatDuration, formatPct, RECENT_DURATION_SAMPLES } from '@kinora/core'
+import { Badge } from '@kinora/ui/badge'
 import { Button } from '@kinora/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@kinora/ui/card'
 import { LineChart } from '@kinora/ui/line-chart'
@@ -9,6 +10,7 @@ import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
 import { StackedAreaChart } from '@kinora/ui/stacked-area-chart'
 import { StatBlock } from '@kinora/ui/stat-block'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@kinora/ui/table'
 import { ArrowLeft } from '@lucide/vue'
 import { useRouteQuery } from '@vueuse/router'
 import { computed } from 'vue'
@@ -223,6 +225,71 @@ const incidentBuckets = computed(() => outcomes.value.filter(b => b.incidents > 
             :x-ticks="buckets"
             class="h-48"
           />
+        </CardContent>
+      </Card>
+
+      <Card data-testid="slow-tests">
+        <CardHeader class="flex flex-col gap-1.5">
+          <CardTitle>Slowest tests</CardTitle>
+          <CardDescription>
+            Timed on passing runs only: a failed or flaky run adds up its retries and timeouts.
+            Share is the test's part of the suite's time.
+            <template v-if="state.slowTests.length < state.measuredTests">
+              The {{ state.slowTests.length }} slowest of {{ state.measuredTests }} tests.
+            </template>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table v-if="state.slowTests.length">
+            <TableHeader>
+              <TableRow class="hover:bg-transparent">
+                <TableHead class="font-mono text-[10px] uppercase tracking-wider">
+                  Test
+                </TableHead>
+                <TableHead v-for="col in ['Median', 'P90', 'Share', 'Runs']" :key="col" class="text-right font-mono text-[10px] uppercase tracking-wider">
+                  {{ col }}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow v-for="t in state.slowTests" :key="t.testKey">
+                <TableCell class="max-w-0 w-full">
+                  <div class="flex items-center gap-2">
+                    <RouterLink
+                      :to="{ name: 'test', params: { projectId }, query: { key: t.testKey } }"
+                      class="truncate text-sm hover:underline"
+                    >
+                      {{ t.title }}
+                    </RouterLink>
+                    <Badge v-if="t.slower" class="shrink-0 border-flaky/30 bg-flaky/10 text-[10px] text-flaky">
+                      Slower
+                    </Badge>
+                  </div>
+                  <div class="truncate font-mono text-[11px] text-muted-foreground">
+                    {{ t.file }} · {{ t.projectName }}
+                    <span v-if="t.slower && t.earlierMedian !== null" class="text-flaky">
+                      · {{ formatDuration(t.recentMedian) }} over its last {{ RECENT_DURATION_SAMPLES }} passes, {{ formatDuration(t.earlierMedian) }} before
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell class="text-right font-mono text-xs tabular-nums">
+                  {{ formatDuration(t.median) }}
+                </TableCell>
+                <TableCell class="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                  {{ formatDuration(t.p90) }}
+                </TableCell>
+                <TableCell class="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                  {{ formatPct(t.share) }}
+                </TableCell>
+                <TableCell class="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                  {{ t.samples }}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+          <p v-else class="py-10 text-center font-mono text-xs text-muted-foreground">
+            No passing test in this range.
+          </p>
         </CardContent>
       </Card>
     </template>

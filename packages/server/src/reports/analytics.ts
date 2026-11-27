@@ -1,5 +1,7 @@
 import type { Counts } from '@kinora/core'
-import { and, eq, gte, isNotNull, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
+import { isSlower, RECENT_DURATION_SAMPLES } from '@kinora/core'
+import { and, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { run } from '../db/schemas/index'
 
@@ -29,11 +31,32 @@ export interface OutcomeBucket {
   countedUnexpected: number
 }
 
+export const SLOW_TESTS_LIMIT = 15
+
+// One of the slowest tests of the range, timed on its passing results only: a failed or flaky
+// result sums its retries and waits out timeouts.
+export interface SlowTest {
+  testKey: string
+  title: string
+  titlePath: string[]
+  file: string
+  projectName: string
+  samples: number
+  median: number // ms
+  p90: number // ms
+  share: number // its median over the sum of every measured test's: its part of the suite's time
+  recentMedian: number // over its newest RECENT_DURATION_SAMPLES passing results
+  earlierMedian: number | null // over the ones before, when there are as many
+  slower: boolean
+}
+
 export interface ProjectAnalytics {
   days: AnalyticsRange
   bucket: AnalyticsBucket
   branches: string[] // branches with a run in the range, for the filter
   outcomes: OutcomeBucket[] // only buckets that have runs, oldest first
+  slowTests: SlowTest[] // slowest first, at most SLOW_TESTS_LIMIT
+  measuredTests: number // tests with a passing result in the range, of which slowTests are the top
 }
 
 // 90 days per day would be too many points to read, so the longer range goes per week.
@@ -107,7 +130,7 @@ export async function loadProjectAnalytics(projectId: string, days: AnalyticsRan
   const counted = (key: keyof Counts) => sql<number>`coalesce(sum((${run.counts}->>${sql.raw(`'${key}'`)})::int) filter (where ${run.incident} is null), 0)::int`
   const branchOf = sql<string>`${run.git}->>'branch'`
 
-  const [outcomes, branches] = await Promise.all([
+  const [outcomes, branches, slow] = await Promise.all([
     db
       .select({
         date: sql<string>`to_char(${start}, 'YYYY-MM-DD')`,
@@ -130,7 +153,64 @@ export async function loadProjectAnalytics(projectId: string, days: AnalyticsRan
       .from(run)
       .where(and(inRange, isNotNull(branchOf)))
       .orderBy(branchOf),
+    // An incident run's timings come from a broken environment.
+    loadSlowTests(projectId, and(inRange, isNull(run.incident), branch ? eq(branchOf, branch) : undefined)!),
   ])
 
-  return { days, bucket, branches: branches.map(b => b.name), outcomes }
+  return { days, bucket, branches: branches.map(b => b.name), outcomes, ...slow }
+}
+
+interface SlowTestRow extends Record<string, unknown> {
+  testKey: string
+  samples: number
+  median: number
+  p90: number
+  share: number
+  recentMedian: number
+  earlierMedian: number | null
+  measured: number
+}
+
+async function loadSlowTests(projectId: string, runFilter: SQL): Promise<Pick<ProjectAnalytics, 'slowTests' | 'measuredTests'>> {
+  const recent = RECENT_DURATION_SAMPLES
+  const { rows } = await db.execute<SlowTestRow>(sql`
+    with samples as (
+      select t.test_key, t.duration,
+        row_number() over (partition by t.test_key order by ${run.startedAt} desc, ${run.id} desc) as rn
+      from test t join ${run} on ${run.id} = t.run_id
+      where ${runFilter} and t.status = 'expected'
+    ), stats as (
+      select test_key, count(*)::int as samples,
+        percentile_cont(0.5) within group (order by duration) as median,
+        percentile_cont(0.9) within group (order by duration) as p90,
+        percentile_cont(0.5) within group (order by duration) filter (where rn <= ${recent}) as recent,
+        percentile_cont(0.5) within group (order by duration) filter (where rn > ${recent}) as earlier,
+        count(*) filter (where rn > ${recent}) as earlier_samples
+      from samples group by test_key
+    )
+    select test_key as "testKey", samples, round(median)::int as median, round(p90)::int as p90,
+      coalesce(median / nullif(sum(median) over (), 0), 0)::float8 as share,
+      round(recent)::int as "recentMedian",
+      case when earlier_samples >= ${recent} then round(earlier)::int end as "earlierMedian",
+      (count(*) over ())::int as measured
+    from stats
+    order by median desc, test_key
+    limit ${SLOW_TESTS_LIMIT}`)
+  if (!rows.length)
+    return { slowTests: [], measuredTests: 0 }
+
+  const titles = await db.execute<Pick<SlowTest, 'testKey' | 'title' | 'titlePath' | 'file' | 'projectName'> & Record<string, unknown>>(sql`
+    select distinct on (t.test_key) t.test_key as "testKey", t.title, t.title_path as "titlePath", t.file, t.project_name as "projectName"
+    from test t
+    where t.project_id = ${projectId} and t.test_key in (${sql.join(rows.map(r => sql`${r.testKey}`), sql`, `)})
+    order by t.test_key, t.created_at desc`)
+  const byKey = new Map(titles.rows.map(t => [t.testKey, t]))
+
+  return {
+    measuredTests: rows[0]!.measured,
+    slowTests: rows.map(({ measured: _, ...r }) => {
+      const t = byKey.get(r.testKey)!
+      return { ...r, title: t.title, titlePath: t.titlePath, file: t.file, projectName: t.projectName, slower: isSlower(r.recentMedian, r.earlierMedian) }
+    }),
+  }
 }

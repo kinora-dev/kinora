@@ -347,6 +347,90 @@ describe('dashboard analytics', () => {
     await expect(analytics({ projectId: 'web-app', timeZone: 'Mars/Olympus' })).rejects.toThrow()
   })
 
+  // Backdated runs, each with tests of a given status and duration (ms).
+  async function seedTimings(runs: { daysAgo: number, branch?: string, incident?: boolean, tests: [title: string, status: 'expected' | 'unexpected' | 'flaky', duration: number][] }[]) {
+    const { a, now } = await seed([])
+    const p = await db.query.project.findFirst({ where: eq(project.slug, 'web-app') })
+    const file = 'tests/speed.spec.ts'
+    for (const r of runs) {
+      const runId = randomUUID()
+      await db.insert(run).values({
+        id: runId,
+        projectId: p!.id,
+        startedAt: new Date(now - r.daysAgo * DAY),
+        duration: 0,
+        counts: { total: r.tests.length, expected: 0, unexpected: 0, flaky: 0, skipped: 0 },
+        git: r.branch ? { branch: r.branch } : undefined,
+        incident: r.incident ? { rule: 'manual' as const, reason: 'Staging down.' } : undefined,
+      })
+      await db.insert(test).values(r.tests.map(([title, status, duration]) => ({
+        id: randomUUID(),
+        runId,
+        projectId: p!.id,
+        testKey: makeTestKey(file, [file, title], 'chromium'),
+        title,
+        titlePath: [file, title],
+        file,
+        line: 1,
+        column: 1,
+        projectName: 'chromium',
+        status,
+        ok: status !== 'unexpected',
+        duration,
+        retries: status === 'flaky' ? 1 : 0,
+        tags: [],
+        annotations: [],
+        errors: [],
+        attachments: [],
+      })))
+    }
+    return a
+  }
+
+  it('ranks the slowest tests by the median of their passing results', async () => {
+    const a = await seedTimings([
+      { daysAgo: 3, tests: [['checks out', 'expected', 4000], ['logs in', 'expected', 1000]] },
+      { daysAgo: 2, tests: [['checks out', 'expected', 6000], ['logs in', 'expected', 3000]] },
+      // A failure and a retry sum their attempts: they say nothing about the test's speed.
+      { daysAgo: 1, tests: [['checks out', 'unexpected', 30_000], ['logs in', 'flaky', 20_000]] },
+      { daysAgo: 1, incident: true, tests: [['logs in', 'expected', 90_000]] },
+      { daysAgo: 45, tests: [['logs in', 'expected', 99_000]] },
+    ])
+
+    const res = await (await caller(a)).dashboard.analytics({ projectId: 'web-app' })
+    // With the seeded run's own test, at 1234ms.
+    expect(res.measuredTests).toBe(3)
+    expect(res.slowTests.map(t => [t.title, t.samples, t.median, t.p90])).toEqual([
+      ['checks out', 2, 5000, 5800],
+      ['logs in', 2, 2000, 2800],
+      ['completes a purchase', 1, 1234, 1234],
+    ])
+    expect(res.slowTests[0]).toMatchObject({ file: 'tests/speed.spec.ts', projectName: 'chromium', slower: false, earlierMedian: null })
+    expect(res.slowTests[0]!.share).toBeCloseTo(5000 / (5000 + 2000 + 1234))
+  })
+
+  it('flags a test whose recent passing results got slower', async () => {
+    const days = Array.from({ length: 10 }, (_, i) => 10 - i)
+    const a = await seedTimings(days.map((daysAgo, i) => ({
+      daysAgo,
+      tests: [['checks out', 'expected', i < 5 ? 1000 : 3000], ['logs in', 'expected', 2000]],
+    })))
+
+    const { slowTests } = await (await caller(a)).dashboard.analytics({ projectId: 'web-app' })
+    expect(slowTests.find(t => t.title === 'checks out')).toMatchObject({ recentMedian: 3000, earlierMedian: 1000, slower: true })
+    expect(slowTests.find(t => t.title === 'logs in')).toMatchObject({ recentMedian: 2000, earlierMedian: 2000, slower: false })
+  })
+
+  it('times the slowest tests on the selected branch only', async () => {
+    const a = await seedTimings([
+      { daysAgo: 2, branch: 'main', tests: [['checks out', 'expected', 1000]] },
+      { daysAgo: 1, branch: 'feat/x', tests: [['checks out', 'expected', 9000]] },
+    ])
+
+    const { slowTests } = await (await caller(a)).dashboard.analytics({ projectId: 'web-app', branch: 'main' })
+    expect(slowTests.map(t => [t.title, t.median])).toEqual([['checks out', 1000]])
+  })
+
   it('rejects analytics on a project owned by another user', async () => {
     await seed([])
     const b = await createUser('b@test.dev')

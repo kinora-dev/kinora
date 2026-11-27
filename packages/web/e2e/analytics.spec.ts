@@ -27,6 +27,11 @@ test('analytics shows the outcomes of the range and filters by branch', async ({
   // The same rates on their own scale: one line for flaky, one for failed.
   await expect(page.locator('[data-slot="chart"] path[class$="-linePath"]')).toHaveCount(2)
   await expect(page.getByText('per day')).toBeVisible()
+  // Each test timed on its passing runs, linked to its page.
+  const slow = page.getByTestId('slow-tests')
+  await expect(slow.getByRole('row')).toHaveCount(4)
+  await expect(slow.getByRole('row').filter({ hasText: 'test 0' }).getByRole('cell').last()).toHaveText('3')
+  await expect(slow.getByRole('link', { name: 'test 0' })).toHaveAttribute('href', new RegExp(`/projects/${slug}/test\\?key=`))
   await scanPage(page)
 
   await page.getByRole('radio', { name: '90 days' }).click()

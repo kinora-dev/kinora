@@ -2,7 +2,7 @@ import type { NormTest, RunReport } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
 import { SCHEMA_VERSION } from '../contracts/kinora'
 import { diagnose } from './health'
-import { applyTotals, buildTestHistories, byInstability, byRecency, countStatuses, durationStats, isUnstable, trimPoints, windowStats } from './history'
+import { applyTotals, buildTestHistories, byInstability, byRecency, countStatuses, durationStats, isSlower, isUnstable, trimPoints, windowStats } from './history'
 
 function makeTest(over: Partial<NormTest> & { testKey: string, status: NormTest['status'] }): NormTest {
   return {
@@ -196,6 +196,22 @@ describe('durationStats', () => {
   it('has nothing to say without a passing result', () => {
     expect(durationStats([point('unexpected', 5000), point('skipped', 0)])).toBeUndefined()
     expect(durationStats([])).toBeUndefined()
+  })
+})
+
+describe('isSlower', () => {
+  it('needs both a relative and an absolute slowdown', () => {
+    expect(isSlower(2000, 1000)).toBe(true)
+    // +30% but only 30ms: noise on a fast test.
+    expect(isSlower(130, 100)).toBe(false)
+    // +1s but only +1% on a long test.
+    expect(isSlower(101_000, 100_000)).toBe(false)
+  })
+
+  it('says nothing without a median on both sides, or when the test got faster', () => {
+    expect(isSlower(2000, null)).toBe(false)
+    expect(isSlower(undefined, 1000)).toBe(false)
+    expect(isSlower(1000, 2000)).toBe(false)
   })
 })
 

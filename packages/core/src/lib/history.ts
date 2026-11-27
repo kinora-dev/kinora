@@ -40,6 +40,21 @@ export function durationStats(points: Pick<TestPoint, 'status' | 'duration'>[], 
   return { samples: sorted.length, median: Math.round(percentile(sorted, 0.5)), p90: Math.round(percentile(sorted, 0.9)) }
 }
 
+// The newest passing results a test's current speed is read from, compared with the ones before.
+export const RECENT_DURATION_SAMPLES = 5
+
+// Both thresholds: a ratio alone flags a 100ms test going to 130ms, a delta alone a 2-minute one
+// wobbling by a second.
+const SLOWER_RATIO = 1.25
+const SLOWER_MS = 500
+
+// Whether a test got slower: its recent median duration against the median before it.
+export function isSlower(recentMedian: number | null | undefined, earlierMedian: number | null | undefined): boolean {
+  if (recentMedian == null || earlierMedian == null)
+    return false
+  return recentMedian >= earlierMedian * SLOWER_RATIO && recentMedian - earlierMedian >= SLOWER_MS
+}
+
 // Interpolates between the two closest ranks, as Postgres' percentile_cont does.
 function percentile(sorted: number[], q: number): number {
   const at = (sorted.length - 1) * q
