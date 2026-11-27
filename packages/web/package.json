@@ -44,7 +44,7 @@
     "@sentry/vite-plugin": "^11.11.0",
     "@tailwindcss/vite": "^4.3.5",
     "@trpc/server": "^11.28.3",
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.11",
     "@vitejs/plugin-vue": "^6.0.11",
     "@vitest/browser-playwright": "^5.1.1",
     "@vitest/coverage-v8": "^5.1.1",
