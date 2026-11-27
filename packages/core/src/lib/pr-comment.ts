@@ -1,5 +1,6 @@
 import type { RunRegression } from '../contracts/ingest'
 import type { Counts, NormTest, RunIncident, RunInterruption, ShardProgress } from '../contracts/kinora'
+import { formatDuration } from './aggregate'
 import { rerunAttemptOf } from './shards'
 
 type ListedTest = RunRegression['newlyFlaky'][number]
@@ -197,14 +198,14 @@ function testUrl(runUrl: string, testKey: string): string {
 }
 
 // A titled list of tests, capped so the comment stays under GitHub's size limit. With the run's
-// URL, each test links to it.
-function pushTests(lines: string[], heading: string, tests: ListedTest[], runUrl?: string, reruns?: Map<string, number>): void {
+// URL, each test links to it; `note` adds a word after a test.
+function pushTests<T extends ListedTest>(lines: string[], heading: string, tests: T[], runUrl?: string, note?: (t: T) => string | undefined): void {
   lines.push('')
   lines.push(heading)
   for (const t of tests.slice(0, MAX_LISTED)) {
     const name = `${inlineCode(t.file)} › ${inlineCode(t.title)}`
-    const attempt = reruns?.get(t.testKey)
-    lines.push(`- ${runUrl ? `[${name}](${testUrl(runUrl, t.testKey)})` : name}${attempt ? ` · passed on re-run (attempt ${attempt})` : ''}`)
+    const extra = note?.(t)
+    lines.push(`- ${runUrl ? `[${name}](${testUrl(runUrl, t.testKey)})` : name}${extra ? ` · ${extra}` : ''}`)
   }
   if (tests.length > MAX_LISTED)
     lines.push(`- …and ${tests.length - MAX_LISTED} more`)
@@ -221,6 +222,10 @@ export function buildPrCommentBody(input: PrCommentInput): string {
   const lines: string[] = []
   // Re-run marks apply to every list a flaky test shows up in, new flakes included.
   const reruns = new Map((input.flaky ?? []).flatMap(t => t.rerunAttempt ? [[t.testKey, t.rerunAttempt] as const] : []))
+  const rerunNote = (t: ListedTest): string | undefined => {
+    const attempt = reruns.get(t.testKey)
+    return attempt ? `passed on re-run (attempt ${attempt})` : undefined
+  }
 
   lines.push(`${icon} **kinora** · ${input.projectName}${partial ? ` · ${partial.landed} of ${partial.total} shards landed` : ''}${incident ? ' · environment incident' : ''}${interruption ? ` · ${INTERRUPTION_LABEL[interruption]}` : ''}`)
   lines.push('')
@@ -237,6 +242,7 @@ export function buildPrCommentBody(input: PrCommentInput): string {
   // New flakes first, named against the baseline; then the run's other flaky tests, which were
   // already flaky there. Without a baseline, every flaky test of the run.
   const newlyFlaky = compared?.newlyFlaky ?? []
+  const slower = compared?.slower ?? []
   const newKeys = new Set(newlyFlaky.map(t => t.testKey))
   const otherFlaky = (input.flaky ?? []).filter(t => !newKeys.has(t.testKey))
 
@@ -244,16 +250,18 @@ export function buildPrCommentBody(input: PrCommentInput): string {
     if (compared.newlyFailing.length)
       pushTests(lines, `**${compared.newlyFailing.length} newly failing** vs ${vs}:`, compared.newlyFailing, input.runUrl)
     if (newlyFlaky.length)
-      pushTests(lines, `**${newlyFlaky.length} newly flaky** vs ${vs}:`, newlyFlaky, input.runUrl, reruns)
+      pushTests(lines, `**${newlyFlaky.length} newly flaky** vs ${vs}:`, newlyFlaky, input.runUrl, rerunNote)
     if (otherFlaky.length)
-      pushTests(lines, `**${otherFlaky.length} ${newlyFlaky.length ? 'more ' : ''}flaky**, already flaky on the ${vs}:`, otherFlaky, input.runUrl, reruns)
+      pushTests(lines, `**${otherFlaky.length} ${newlyFlaky.length ? 'more ' : ''}flaky**, already flaky on the ${vs}:`, otherFlaky, input.runUrl, rerunNote)
+    if (slower.length)
+      pushTests(lines, `**${slower.length} slower** than usual on ${compared.base === 'base-branch' ? 'the base branch' : 'this branch'}:`, slower, input.runUrl, t => `${formatDuration(t.duration)}, usually ${formatDuration(t.usual)}`)
     if (compared.fixed > 0)
       lines.push(`\n✅ ${compared.fixed} fixed vs ${vs}.`)
-    if (!compared.newlyFailing.length && !newlyFlaky.length && compared.fixed === 0)
+    if (!compared.newlyFailing.length && !newlyFlaky.length && !slower.length && compared.fixed === 0)
       lines.push(`\nNo change vs ${vs}.`)
   }
   else if (otherFlaky.length && !incident) {
-    pushTests(lines, `**${otherFlaky.length} flaky**:`, otherFlaky, input.runUrl, reruns)
+    pushTests(lines, `**${otherFlaky.length} flaky**:`, otherFlaky, input.runUrl, rerunNote)
   }
 
   const links: string[] = []

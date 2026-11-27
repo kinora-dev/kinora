@@ -154,6 +154,24 @@ describe('buildPrCommentBody', () => {
     expect(body).toContain('No change vs base branch.')
   })
 
+  it('names the tests slower than usual, with their time and their usual one', () => {
+    const slow = (testKey: string, duration: number, usual: number) => ({ testKey, title: `test ${testKey}`, file: 'cart.spec.ts', duration, usual })
+    const regression = { base: 'base-branch' as const, newlyFailing: [], newlyFlaky: [], fixed: 0, slower: [slow('a', 12_400, 3100), slow('b', 2000, 800)] }
+    const body = buildPrCommentBody({ projectSlug: 'web', projectName: 'Web', counts: green, regression })
+    expect(body).toContain('**2 slower** than usual on the base branch:\n- `cart.spec.ts` › `test a` · 12.4s, usually 3.1s\n- `cart.spec.ts` › `test b` · 2.0s, usually 800ms')
+    // A slowdown is a change: the run is still green, but not "no change".
+    expect(body).toContain('✅')
+    expect(body).not.toContain('No change')
+    expect(buildPrCommentBody({ projectSlug: 'web', projectName: 'Web', counts: green, regression: { ...regression, base: 'previous-run' } }))
+      .toContain('**2 slower** than usual on this branch:')
+  })
+
+  it('reads a regression from an older server, without slower tests', () => {
+    const body = buildPrCommentBody({ projectSlug: 'web', projectName: 'Web', counts: green, regression: { base: 'base-branch', newlyFailing: [], newlyFlaky: [], fixed: 0 } })
+    expect(body).not.toContain('slower')
+    expect(body).toContain('No change vs base branch.')
+  })
+
   it('keeps a flaky test title from breaking out of its code span', () => {
     const body = buildPrCommentBody({ projectSlug: 'web', projectName: 'Web', counts, flaky: [{ testKey: 'k', title: '`@maintainer`\nnext', file: 'a.ts' }] })
     expect(body).toContain('`‘@maintainer‘ next`')

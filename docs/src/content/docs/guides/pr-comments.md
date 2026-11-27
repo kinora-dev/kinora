@@ -76,6 +76,15 @@ target branch on a GitLab merge request pipeline (or set it explicitly: reporter
 `git.baseBranch`, CLI `--git-base-branch`). kinora compares the PR run's tests against the latest
 run on the base branch to compute what regressed.
 
+## Slower tests
+
+The comment also lists the tests that passed but took **much longer than usual**, with their time
+and their usual one (`12.4s, usually 3.1s`). A test's usual time is its median over its passes
+in the last 20 runs of the base branch (of the PR's own branch when there is no base branch), and
+it needs at least 5 of them. A test is listed when it is at least 25% and 500ms above that median,
+and slower than 9 of its 10 usual passes, so a slightly slower CI machine doesn't fill the list.
+Slower tests are informational: they never turn the comment or the commit status red.
+
 ## Edge cases
 
 - **Fork PRs are skipped on GitHub.** `GITHUB_TOKEN` is read-only on pull requests from forks, so

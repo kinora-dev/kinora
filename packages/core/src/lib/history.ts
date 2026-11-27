@@ -55,6 +55,12 @@ export function isSlower(recentMedian: number | null | undefined, earlierMedian:
   return recentMedian >= earlierMedian * SLOWER_RATIO && recentMedian - earlierMedian >= SLOWER_MS
 }
 
+// Whether one passing result is slower than the test usually is. One result is noisier than a
+// median, so it must also beat the test's own P90: a slow CI runner alone rarely does.
+export function slowerThanUsual(duration: number, usual: { median: number, p90: number }): boolean {
+  return isSlower(duration, usual.median) && duration > usual.p90
+}
+
 // Interpolates between the two closest ranks, as Postgres' percentile_cont does.
 function percentile(sorted: number[], q: number): number {
   const at = (sorted.length - 1) * q

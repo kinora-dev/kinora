@@ -17,7 +17,7 @@ const FILE = 'tests/checkout.spec.ts'
 const TITLE_PATH = [FILE, 'completes a purchase']
 const KEY = makeTestKey(FILE, TITLE_PATH, 'chromium')
 
-function payload(opts: { status: NormTest['status'], branch: string, baseBranch?: string, startedAt: string }): IngestRun {
+function payload(opts: { status: NormTest['status'], branch: string, baseBranch?: string, startedAt: string, duration?: number }): IngestRun {
   const counts = { total: 1, expected: 0, unexpected: 0, flaky: 0, skipped: 0 }
   counts[opts.status] = 1
   return {
@@ -33,7 +33,7 @@ function payload(opts: { status: NormTest['status'], branch: string, baseBranch?
       projectName: 'chromium',
       status: opts.status,
       ok: opts.status !== 'unexpected',
-      duration: 1000,
+      duration: opts.duration ?? 1000,
       retries: 0,
       tags: [],
       annotations: [],
@@ -69,6 +69,27 @@ describe('ingest response regression (for PR comments)', () => {
 
     expect(body.regression?.base).toBe('previous-run')
     expect(body.regression?.newlyFailing).toHaveLength(1)
+  })
+
+  it('names the passing tests much slower than usual on the base branch', async () => {
+    const key = await createApiKey((await createUser('pr-slow@test.dev')).id)
+    for (const [i, duration] of [1000, 1100, 900, 1000, 1050, 950].entries())
+      await ingest(key, payload({ status: 'expected', branch: 'main', duration, startedAt: `2026-07-18T0${i}:00:00.000Z` }))
+    const pr = (duration: number, hour: number) => ingestR(key, payload({ status: 'expected', branch: '5/merge', baseBranch: 'main', duration, startedAt: `2026-07-18T${hour}:00:00.000Z` }))
+
+    const slow = await (await pr(3000, 10)).json() as { regression?: { slower?: unknown[] } }
+    expect(slow.regression?.slower).toEqual([{ testKey: KEY, title: 'completes a purchase', file: FILE, duration: 3000, usual: 1000 }])
+    // Within the test's usual spread: not worth a line.
+    const usual = await (await pr(1100, 11)).json() as { regression?: { slower?: unknown[] } }
+    expect(usual.regression?.slower).toEqual([])
+  })
+
+  it('names no slower test until the baseline has enough passes to know its usual time', async () => {
+    const key = await createApiKey((await createUser('pr-slow2@test.dev')).id)
+    for (const hour of [1, 2, 3, 4])
+      await ingest(key, payload({ status: 'expected', branch: 'main', startedAt: `2026-07-18T0${hour}:00:00.000Z` }))
+    const res = await ingestR(key, payload({ status: 'expected', branch: '5/merge', baseBranch: 'main', duration: 9000, startedAt: '2026-07-18T10:00:00.000Z' }))
+    expect((await res.json() as { regression?: { slower?: unknown[] } }).regression?.slower).toEqual([])
   })
 
   it('reports base=none on the first ever run', async () => {

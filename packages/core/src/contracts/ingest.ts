@@ -52,6 +52,9 @@ export const runRegressionSchema = z.object({
   newlyFailing: z.array(regressionTestSchema),
   newlyFlaky: z.array(regressionTestSchema),
   fixed: z.number(),
+  // Passing tests much slower than usual on the baseline's branch, slowest change first (ms).
+  // Optional: older servers omit it.
+  slower: z.array(regressionTestSchema.extend({ duration: z.number(), usual: z.number() })).optional(),
 })
 export type RunRegression = z.infer<typeof runRegressionSchema>
 

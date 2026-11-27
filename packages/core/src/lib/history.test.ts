@@ -2,7 +2,7 @@ import type { NormTest, RunReport } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
 import { SCHEMA_VERSION } from '../contracts/kinora'
 import { diagnose } from './health'
-import { applyTotals, buildTestHistories, byInstability, byRecency, countStatuses, durationStats, isSlower, isUnstable, trimPoints, windowStats } from './history'
+import { applyTotals, buildTestHistories, byInstability, byRecency, countStatuses, durationStats, isSlower, isUnstable, slowerThanUsual, trimPoints, windowStats } from './history'
 
 function makeTest(over: Partial<NormTest> & { testKey: string, status: NormTest['status'] }): NormTest {
   return {
@@ -212,6 +212,16 @@ describe('isSlower', () => {
     expect(isSlower(2000, null)).toBe(false)
     expect(isSlower(undefined, 1000)).toBe(false)
     expect(isSlower(1000, 2000)).toBe(false)
+  })
+})
+
+describe('slowerThanUsual', () => {
+  it('needs a slowdown over the median that also beats the P90', () => {
+    expect(slowerThanUsual(3000, { median: 1000, p90: 1500 })).toBe(true)
+    // Well above the median, but the test often takes that long.
+    expect(slowerThanUsual(3000, { median: 1000, p90: 3500 })).toBe(false)
+    // Above the P90, but too close to the median to matter.
+    expect(slowerThanUsual(1100, { median: 1000, p90: 1050 })).toBe(false)
   })
 })
 
