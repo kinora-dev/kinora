@@ -56,7 +56,8 @@ pnpm migrate           # apply pending migrations (alias: `pnpm migrate latest`)
 pnpm db:create         # create the database
 pnpm db:seed           # seed demo account + data, prints login (demo@kinora.dev / password123) + an API token
 pnpm db:seed:market    # larger "marketing" seed dataset
-pnpm db:seed:perf      # perf-* projects in the demo workspace (~2.6M test rows, ~40s; --scale 0.1, --only <slugs>) to measure heavy reads
+pnpm db:seed:perf      # perf-* projects in the demo workspace (~3.4M test rows, ~55s; --scale 0.1, --only <slugs> reseeds just those) to measure heavy reads
+pnpm bench:reads       # time the heavy dashboard reads (and their payload size) on the perf-* projects; --only <slugs>, --repeat N
 pnpm demo-traces:generate # re-record the demo traces seed-market attaches (runs demo-traces/suite, writes demo-traces/traces + manifest; commit them)
 pnpm db:reset:e2e      # drop + recreate `kinora_e2e` (used by web e2e)
 pnpm purge-expired-runs # retention sweep: delete runs past their retention window

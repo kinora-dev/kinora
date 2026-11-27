@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { and, eq, like, sql } from 'drizzle-orm'
+import { and, eq, inArray, like, sql } from 'drizzle-orm'
 import { db } from '../src/db'
 import { member, project, user as userTable } from '../src/db/schemas/index'
 import { env } from '../src/lib/env'
@@ -40,6 +40,9 @@ const PROFILES: Profile[] = [
   { slug: 'perf-skipped', name: 'Perf: mostly skipped', tests: 2000, runs: 300, skipEvery: 3, chronicEvery: 0, failMod: 1999, flakyMod: 0, errorKinds: 4 },
   // A quarter of the tests failing every run: the failure clusters read every occurrence.
   { slug: 'perf-failing', name: 'Perf: chronic failures', tests: 2000, runs: 200, skipEvery: 0, chronicEvery: 4, failMod: 97, flakyMod: 193, errorKinds: 40 },
+  // A busy CI (a run every hour for ~5 months): far more runs than the MAX_DASHBOARD_RUNS window, so
+  // the paged run list and the 90 day analytics read past it.
+  { slug: 'perf-busy', name: 'Perf: busy CI', tests: 200, runs: 4000, skipEvery: 0, chronicEvery: 0, failMod: 499, flakyMod: 97, errorKinds: 6 },
   // One huge run at the ingest contract's limit (MAX_TESTS_PER_RUN): the run page and run compare.
   { slug: 'perf-huge-run', name: 'Perf: one huge run', tests: 50_000, runs: 2, skipEvery: 0, chronicEvery: 50, failMod: 0, flakyMod: 0, errorKinds: 20 },
 ]
@@ -135,8 +138,8 @@ async function main(): Promise<void> {
   const owned = await db.query.member.findFirst({ where: and(eq(member.userId, demo.id), eq(member.role, 'owner')), columns: { organizationId: true } })
   const orgId = owned!.organizationId
 
-  // Rerunnable: drop the previous perf projects (runs and tests cascade).
-  await db.delete(project).where(and(eq(project.organizationId, orgId), like(project.slug, 'perf-%')))
+  // Rerunnable: drop the previous perf projects (runs and tests cascade), only the selected ones with --only.
+  await db.delete(project).where(and(eq(project.organizationId, orgId), only ? inArray(project.slug, profiles.map(p => p.slug)) : like(project.slug, 'perf-%')))
   for (const p of profiles)
     await seedProfile(orgId, p)
   // Fresh statistics, or the planner reads the new millions of rows as an empty table.

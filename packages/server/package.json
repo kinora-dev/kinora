@@ -28,6 +28,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:seed:market": "tsx scripts/seed-market.ts",
     "db:seed:perf": "tsx scripts/seed-perf.ts",
+    "bench:reads": "tsx scripts/bench-reads.ts",
     "demo-traces:generate": "tsx scripts/generate-demo-traces.ts",
     "migrate": "tsx scripts/migrate.ts",
     "purge-expired-runs": "tsx scripts/purge-expired-runs.ts",
