@@ -128,7 +128,8 @@ const stats = computed(() => {
       </div>
     </div>
 
-    <FailureInbox v-if="!loading && !error && displayProjects.length" />
+    <!-- Mounted while the overview loads so both fetch in parallel and the grid doesn't jump down later. -->
+    <FailureInbox v-if="!error && (loading || displayProjects.length)" />
 
     <!-- Error -->
     <ErrorState v-if="error" :error="error" @retry="retry()" />

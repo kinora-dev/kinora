@@ -143,7 +143,10 @@ const incidentBuckets = computed(() => outcomes.value.filter(b => b.incidents > 
     <ErrorState v-if="error" :error="error" @retry="retry()" />
     <template v-else-if="isLoading && !state">
       <StatStripSkeleton :count="5" />
+      <!-- Outcomes, rates, then a full (15-row) slowest tests card. -->
       <Skeleton class="h-[372px] rounded-xl" />
+      <Skeleton class="h-[308px] rounded-xl" />
+      <Skeleton class="h-[946px] rounded-xl" />
     </template>
 
     <template v-else-if="state">

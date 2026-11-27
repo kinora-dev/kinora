@@ -147,9 +147,10 @@ function toggleQuarantine() {
           </div>
           <Skeleton class="h-8 w-56" />
         </div>
-        <StatStripSkeleton :count="4" caption />
+        <StatStripSkeleton :count="6" caption />
       </div>
       <Skeleton class="h-[101px] rounded-xl" />
+      <Skeleton class="h-[257px] rounded-xl" />
       <div class="flex flex-col gap-2" aria-hidden="true">
         <Skeleton v-for="i in 3" :key="i" class="h-24 rounded-lg" />
       </div>

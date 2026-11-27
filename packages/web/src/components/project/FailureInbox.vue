@@ -49,7 +49,8 @@ const visible = computed(() => (showAll.value ? rows.value : rows.value.slice(0,
 </script>
 
 <template>
-  <Skeleton v-if="isLoading && !state" class="h-40 rounded-xl" />
+  <!-- Sized for a full inbox: TOP rows plus the "Show all" button. -->
+  <Skeleton v-if="isLoading && !state" class="h-[428px] rounded-xl" />
   <section
     v-else-if="!error && items.length"
     aria-labelledby="failure-inbox-title"
