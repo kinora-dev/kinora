@@ -2,7 +2,7 @@ import type { NormTest, RunReport } from '../contracts/kinora'
 import { describe, expect, it } from 'vitest'
 import { SCHEMA_VERSION } from '../contracts/kinora'
 import { diagnose } from './health'
-import { applyTotals, buildTestHistories, byInstability, byRecency, countStatuses, isUnstable, trimPoints, windowStats } from './history'
+import { applyTotals, buildTestHistories, byInstability, byRecency, countStatuses, durationStats, isUnstable, trimPoints, windowStats } from './history'
 
 function makeTest(over: Partial<NormTest> & { testKey: string, status: NormTest['status'] }): NormTest {
   return {
@@ -173,6 +173,29 @@ describe('windowStats', () => {
     const idle = { executed: 0, passRate: 1, failRate: 0, flakyRate: 0, unstable: false }
     expect(windowStats(points('skipped'))).toEqual(idle)
     expect(windowStats([])).toEqual(idle)
+  })
+})
+
+describe('durationStats', () => {
+  const point = (status: NormTest['status'], duration: number) => ({ status, duration })
+
+  it('reads only the passing results, whose time is not inflated by retries or timeouts', () => {
+    const points = [point('expected', 1000), point('unexpected', 30_000), point('flaky', 9000), point('expected', 3000), point('skipped', 0)]
+    expect(durationStats(points)).toEqual({ samples: 2, median: 2000, p90: 2800 })
+  })
+
+  it('interpolates percentiles between ranks, as Postgres does', () => {
+    const points = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000].map(d => point('expected', d))
+    expect(durationStats(points)).toEqual({ samples: 10, median: 550, p90: 910 })
+  })
+
+  it('only reads the last `window` points', () => {
+    expect(durationStats([point('expected', 9000), point('expected', 100), point('expected', 300)], 2)).toEqual({ samples: 2, median: 200, p90: 280 })
+  })
+
+  it('has nothing to say without a passing result', () => {
+    expect(durationStats([point('unexpected', 5000), point('skipped', 0)])).toBeUndefined()
+    expect(durationStats([])).toBeUndefined()
   })
 })
 

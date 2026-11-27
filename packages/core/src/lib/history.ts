@@ -29,6 +29,25 @@ export function windowStats(points: Pick<TestPoint, 'status'>[], window = HEALTH
   }
 }
 
+export interface DurationStats { samples: number, median: number, p90: number }
+
+// How long a test takes, over the passing results among its last `window` points: a failed or
+// flaky result sums its retries and waits out timeouts, so it says nothing about the test's speed.
+export function durationStats(points: Pick<TestPoint, 'status' | 'duration'>[], window = HEALTH_WINDOW): DurationStats | undefined {
+  const sorted = points.slice(-window).filter(p => p.status === 'expected').map(p => p.duration).sort((a, b) => a - b)
+  if (!sorted.length)
+    return undefined
+  return { samples: sorted.length, median: Math.round(percentile(sorted, 0.5)), p90: Math.round(percentile(sorted, 0.9)) }
+}
+
+// Interpolates between the two closest ranks, as Postgres' percentile_cont does.
+function percentile(sorted: number[], q: number): number {
+  const at = (sorted.length - 1) * q
+  const lo = sorted[Math.floor(at)]!
+  const hi = sorted[Math.ceil(at)]!
+  return lo + (hi - lo) * (at - Math.floor(at))
+}
+
 // A test is interesting if it has ever failed or flaked.
 export function isUnstable(h: TestHistory): boolean {
   return h.failed > 0 || h.flaky > 0

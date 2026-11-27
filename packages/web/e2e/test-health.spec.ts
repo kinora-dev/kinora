@@ -31,6 +31,9 @@ test('a test that passed and failed on one commit is flaky, one failing since a 
   const flaky = page.getByTestId('test-health')
   await expect(flaky).toContainText('Passed and failed on the same commit b2b2b2b.')
   await expect(flaky.getByRole('link', { name: 'b2b2b2b' })).toHaveAttribute('href', `${REPO}/commit/b2b2b2b2b2`)
+  // Its speed reads from the 3 runs it passed, the failed one left out.
+  await expect(page.getByTestId('duration-median')).toContainText('100ms')
+  await expect(page.getByTestId('test-duration')).toContainText('3 passed runs')
   await scanPage(page)
 
   // A "New failure" badge stands in for Broken on the list; the test page names the commit.

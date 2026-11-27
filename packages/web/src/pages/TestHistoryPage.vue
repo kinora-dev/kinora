@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { describeHealth, diagnose, formatPct, HEALTH_WINDOW, stripAnsi, windowStats } from '@kinora/core'
+import type { ChartConfig } from '@kinora/ui/chart'
+import { describeHealth, diagnose, durationStats, formatDuration, formatPct, HEALTH_WINDOW, stripAnsi, windowStats } from '@kinora/core'
 import { Badge } from '@kinora/ui/badge'
 import { Button } from '@kinora/ui/button'
+import { LineChart } from '@kinora/ui/line-chart'
 import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
 import { StatBlock } from '@kinora/ui/stat-block'
@@ -49,6 +51,28 @@ const history = computed(() => state.value?.history ?? undefined)
 const quarantine = computed(() => quarantineByKey.value.get(testKey.value))
 const recent = computed(() => windowStats(history.value?.points ?? []))
 const health = computed(() => diagnose(history.value?.points ?? []))
+const speed = computed(() => durationStats(history.value?.points ?? []))
+
+// Passing runs only, one per x step: like the status timeline, a burst of runs on one day stays readable.
+const passedRuns = computed(() =>
+  (history.value?.points ?? []).filter(p => p.status === 'expected').map(p => ({ startedAt: p.startedAt, duration: p.duration })),
+)
+const durationConfig = { duration: { label: 'Duration', color: 'var(--signal)' } } satisfies ChartConfig
+const durationTicks = computed(() => {
+  const n = passedRuns.value.length
+  // Every run while they fit, else 5 spread out: fewer than every run leaves uneven gaps.
+  const count = n <= 8 ? n : 5
+  return [...new Set(Array.from({ length: count }, (_, i) => Math.round(i * (n - 1) / Math.max(1, count - 1))))]
+})
+function runDate(i: number) {
+  const p = passedRuns.value[i]
+  return p ? new Date(p.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''
+}
+function runDateLong(i: number) {
+  const p = passedRuns.value[i]
+  return p ? formatDateTimeLong(p.startedAt) : ''
+}
+const formatMs = (ms: number) => formatDuration(Math.round(ms))
 // The commit the diagnosis names (where the breakage started, or the one that both passed and
 // failed), and the sentence split around its short sha so the sha can link to the commit.
 const healthSha = computed(() => {
@@ -217,6 +241,12 @@ function toggleQuarantine() {
             <StatBlock label="Flaky rate" :value="formatPct(recent.flakyRate)" :tone="recent.flakyRate ? 'flaky' : 'default'" />
             <Separator orientation="vertical" class="h-10" />
             <StatBlock label="Fail rate" :value="formatPct(recent.failRate)" :tone="recent.failRate ? 'fail' : 'default'" />
+            <template v-if="speed">
+              <Separator orientation="vertical" class="h-10" />
+              <StatBlock label="Median duration" :value="formatDuration(speed.median)" data-testid="duration-median" />
+              <Separator orientation="vertical" class="h-10" />
+              <StatBlock label="P90 duration" :value="formatDuration(speed.p90)" />
+            </template>
           </div>
           <div v-if="health.kind !== 'stable'" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" data-testid="test-health">
             <TestHealthBadge :health="health" />
@@ -264,6 +294,27 @@ function toggleQuarantine() {
           <span>{{ history.runs }} runs · oldest → newest</span>
         </div>
         <StatusTimeline :points="history.points" :project-id="projectId" :height="32" :test-key="history.testKey" />
+      </div>
+
+      <div v-if="passedRuns.length > 1" class="flex flex-col gap-3 rounded-xl border border-border/70 bg-card/80 px-6 py-5" data-testid="test-duration">
+        <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          <span>Duration</span>
+          <span>{{ passedRuns.length }} passed runs · oldest → newest</span>
+        </div>
+        <p class="text-xs text-muted-foreground">
+          Failed and flaky runs are left out: their time adds up retries and timeouts.
+        </p>
+        <LineChart
+          :data="passedRuns"
+          :x="(_, i) => i"
+          :series="['duration']"
+          :config="durationConfig"
+          :y-format="formatMs"
+          :x-tick-format="runDate"
+          :x-label-format="runDateLong"
+          :x-ticks="durationTicks"
+          class="h-40"
+        />
       </div>
 
       <!-- Incidents -->
