@@ -40,8 +40,8 @@ export function durationStats(points: Pick<TestPoint, 'status' | 'duration'>[], 
   return { samples: sorted.length, median: Math.round(percentile(sorted, 0.5)), p90: Math.round(percentile(sorted, 0.9)) }
 }
 
-// The newest passing results a test's current speed is read from, compared with the ones before.
-export const RECENT_DURATION_SAMPLES = 5
+// The newest runs a test's current speed is read from, compared with the runs before them.
+export const RECENT_DURATION_RUNS = 5
 
 // Both thresholds: a ratio alone flags a 100ms test going to 130ms, a delta alone a 2-minute one
 // wobbling by a second.

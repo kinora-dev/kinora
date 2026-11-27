@@ -5,6 +5,7 @@ import { desc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { db } from '../src/db'
 import { artifact, project, run, test, testQuarantine } from '../src/db/schemas/index'
+import { SLOW_TESTS_RUNS } from '../src/reports/analytics'
 import { MAX_DASHBOARD_RUNS, MAX_RUN_SEARCH_RESULTS, RUN_PAGE_SIZE } from '../src/reports/queries'
 import { caller, createApiKey, createUser, ingest, runPayload } from './helpers'
 
@@ -400,6 +401,7 @@ describe('dashboard analytics', () => {
     const res = await (await caller(a)).dashboard.analytics({ projectId: 'web-app' })
     // With the seeded run's own test, at 1234ms.
     expect(res.measuredTests).toBe(3)
+    expect(res.timedRuns).toBe(4)
     expect(res.slowTests.map(t => [t.title, t.samples, t.median, t.p90])).toEqual([
       ['checks out', 2, 5000, 5800],
       ['logs in', 2, 2000, 2800],
@@ -419,6 +421,18 @@ describe('dashboard analytics', () => {
     const { slowTests } = await (await caller(a)).dashboard.analytics({ projectId: 'web-app' })
     expect(slowTests.find(t => t.title === 'checks out')).toMatchObject({ recentMedian: 3000, earlierMedian: 1000, slower: true })
     expect(slowTests.find(t => t.title === 'logs in')).toMatchObject({ recentMedian: 2000, earlierMedian: 2000, slower: false })
+  })
+
+  it('times the slowest tests on the newest runs of the range only', async () => {
+    // 55 runs on top of the seeded one: the 6 oldest fall past the newest SLOW_TESTS_RUNS.
+    const a = await seedTimings(Array.from({ length: 55 }, (_, i) => ({
+      daysAgo: (55 - i) / 4,
+      tests: [['checks out', 'expected', i < 6 ? 99_000 : 1000]],
+    })))
+
+    const res = await (await caller(a)).dashboard.analytics({ projectId: 'web-app' })
+    expect(res.timedRuns).toBe(SLOW_TESTS_RUNS)
+    expect(res.slowTests.find(t => t.title === 'checks out')).toMatchObject({ samples: SLOW_TESTS_RUNS - 1, median: 1000, p90: 1000 })
   })
 
   it('times the slowest tests on the selected branch only', async () => {

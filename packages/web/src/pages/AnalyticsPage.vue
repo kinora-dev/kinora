@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ChartConfig } from '@kinora/ui/chart'
-import { formatDuration, formatPct, RECENT_DURATION_SAMPLES } from '@kinora/core'
+import { formatDuration, formatPct, RECENT_DURATION_RUNS } from '@kinora/core'
 import { Badge } from '@kinora/ui/badge'
 import { Button } from '@kinora/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@kinora/ui/card'
@@ -232,8 +232,8 @@ const incidentBuckets = computed(() => outcomes.value.filter(b => b.incidents > 
         <CardHeader class="flex flex-col gap-1.5">
           <CardTitle>Slowest tests</CardTitle>
           <CardDescription>
-            Timed on passing runs only: a failed or flaky run adds up its retries and timeouts.
-            Share is the test's part of the suite's time.
+            Timed on the passing results of the latest {{ state.timedRuns === 1 ? 'run' : `${state.timedRuns} runs` }} of the range:
+            a failed or flaky result adds up its retries and timeouts. Share is the test's part of the suite's time.
             <template v-if="state.slowTests.length < state.measuredTests">
               The {{ state.slowTests.length }} slowest of {{ state.measuredTests }} tests.
             </template>
@@ -267,8 +267,8 @@ const incidentBuckets = computed(() => outcomes.value.filter(b => b.incidents > 
                   </div>
                   <div class="truncate font-mono text-[11px] text-muted-foreground">
                     {{ t.file }} · {{ t.projectName }}
-                    <span v-if="t.slower && t.earlierMedian !== null" class="text-flaky">
-                      · {{ formatDuration(t.recentMedian) }} over its last {{ RECENT_DURATION_SAMPLES }} passes, {{ formatDuration(t.earlierMedian) }} before
+                    <span v-if="t.slower && t.recentMedian !== null && t.earlierMedian !== null" class="text-flaky">
+                      · {{ formatDuration(t.recentMedian) }} over the last {{ RECENT_DURATION_RUNS }} runs, {{ formatDuration(t.earlierMedian) }} before
                     </span>
                   </div>
                 </TableCell>
