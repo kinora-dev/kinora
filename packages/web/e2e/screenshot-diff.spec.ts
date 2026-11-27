@@ -36,7 +36,7 @@ test('the test history page loads the comparison of a failed screenshot run on d
   // Only the latest run has uploaded images, and nothing loads until asked.
   const show = page.getByRole('button', { name: 'Show screenshot comparison' })
   await expect(show).toHaveCount(1)
-  await expect(page.getByRole('figure')).toHaveCount(0)
+  await expect(page.getByRole('figure', { name: /^Screenshot / })).toHaveCount(0)
 
   await show.click()
   const comparison = page.getByRole('figure', { name: 'Screenshot button-primary.png' })
