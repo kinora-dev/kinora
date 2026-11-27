@@ -17,7 +17,7 @@ import { useNewFeature } from '@/composables/useNewFeature'
 import { ago, QUEUE_LABEL } from '@/lib/cluster-triage'
 import { session } from '@/lib/session'
 
-const TOP = 8
+const TOP = 5
 
 const { state, isLoading, error } = useFailureInbox()
 const isDemo = useDemo()
