@@ -320,9 +320,21 @@ const comparisonRunSchema = z.object({
   git: gitMetaSchema.optional(),
 })
 
+// A passing test much slower than it usually is (see lib/history slowerThanUsual), in ms.
+export const slowerTestSchema = z.object({
+  testKey: z.string(),
+  title: z.string(),
+  file: z.string(),
+  duration: z.number(),
+  usual: z.number(),
+})
+export type SlowerTest = z.infer<typeof slowerTestSchema>
+
 export const runComparisonSchema = z.object({
   base: comparisonRunSchema,
   head: comparisonRunSchema,
   tests: z.array(testDeltaSchema),
+  // The head's tests much slower than usual on the base run's branch, slowest change first.
+  slower: z.array(slowerTestSchema),
 })
 export type RunComparison = z.infer<typeof runComparisonSchema>

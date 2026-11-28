@@ -1,4 +1,4 @@
-import type { NormTest, RunRegression, TestDelta } from '@kinora/core'
+import type { NormTest, RunRegression, SlowerTest, TestDelta } from '@kinora/core'
 import { compareRuns, HEALTH_WINDOW, slowerThanUsual } from '@kinora/core'
 import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm'
 import { db } from '../db'
@@ -67,8 +67,9 @@ async function usualDurations(runIds: string[]): Promise<Map<string, { median: n
   return new Map(rows.map(r => [r.testKey, { median: r.median, p90: r.p90 }]))
 }
 
-// The head's passing tests much slower than they usually are on `branch`.
-async function slowerTests(projectId: string, headTests: NormTest[], before: Date, branch: string | undefined): Promise<NonNullable<RunRegression['slower']>> {
+// The head's passing tests much slower than they usually are on `branch`, over its runs before
+// `before`. The PR comment and the run comparison read the same rule.
+export async function slowerTests(projectId: string, headTests: NormTest[], before: Date, branch: string | undefined): Promise<SlowerTest[]> {
   const passed = headTests.filter(t => t.status === 'expected')
   if (!passed.length)
     return []

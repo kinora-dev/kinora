@@ -55,6 +55,30 @@ describe('dashboard scoping', () => {
     expect(broken?.headStatus).toBe('unexpected')
   })
 
+  it('compareRuns names the head tests slower than usual on the base run\'s branch', async () => {
+    const a = await createUser('a@test.dev')
+    const key = await createApiKey(a.id)
+    const post = async (hour: number, duration: number, branch: string) => {
+      const payload = runPayload('web-app')
+      payload.run.startedAt = new Date(Date.UTC(2026, 0, 1, hour)).toISOString()
+      payload.run.git = { branch }
+      payload.tests[0].duration = duration
+      return (await (await ingest(key, payload)).json() as { runId: string }).runId
+    }
+    let base = ''
+    for (const [hour, duration] of [1000, 1100, 900, 1000, 1050].entries())
+      base = await post(hour, duration, 'main')
+    // Slow runs on another branch are not the base's usual time.
+    await post(6, 9000, 'feat/x')
+    await post(7, 9000, 'feat/x')
+    const slow = await post(8, 4000, 'feat/x')
+    const usual = await post(9, 1100, 'feat/x')
+
+    const compare = async (headRunId: string) => (await caller(a)).dashboard.compareRuns({ projectId: 'web-app', baseRunId: base, headRunId })
+    expect((await compare(slow)).slower).toEqual([{ testKey: runPayload().tests[0].testKey, title: 'completes a purchase', file: 'tests/checkout.spec.ts', duration: 4000, usual: 1000 }])
+    expect((await compare(usual)).slower).toEqual([])
+  })
+
   it('rejects compareRuns on a project owned by another user', async () => {
     const a = await createUser('a@test.dev')
     const b = await createUser('b@test.dev')

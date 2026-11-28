@@ -13,6 +13,7 @@ import { ANALYTICS_RANGES, isTimeZone, loadProjectAnalytics } from '../reports/a
 import { saveTriage } from '../reports/clusters'
 import { activeQuarantineWhere, deleteUnpinnedOrphan, pinLatestFailureTrace } from '../reports/quarantine'
 import { findProject, incidentState, loadFailureInbox, loadOverview, loadPreviousRunId, loadProjectHistory, loadProjectListings, loadProjectSummary, loadRun, loadRunPage, loadRunReport, loadTestAttachments, loadTestHistoryPage, searchRuns, searchTests, toNormTest } from '../reports/queries'
+import { slowerTests } from '../reports/regression'
 import { orgProcedure, router } from '../trpc/index'
 
 // What a page needs to name the project it shows, without loading the project's runs.
@@ -255,15 +256,18 @@ export const dashboardRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Run not found' })
 
       const [baseTests, headTests] = await Promise.all([
-        db.query.test.findMany({ where: eq(test.runId, base.id) }),
-        db.query.test.findMany({ where: eq(test.runId, head.id) }),
+        db.query.test.findMany({ where: eq(test.runId, base.id) }).then(rows => rows.map(t => toNormTest(t))),
+        db.query.test.findMany({ where: eq(test.runId, head.id) }).then(rows => rows.map(t => toNormTest(t))),
       ])
+      // Usual times on the base's branch, up to and including the base run: the reference side.
+      const slower = await slowerTests(p.id, headTests, new Date(base.startedAt.getTime() + 1), base.git?.branch)
 
       return {
         project: { id: p.slug, name: p.name },
         base: { runId: base.id, startedAt: base.startedAt.toISOString(), counts: base.counts, git: base.git ?? undefined },
         head: { runId: head.id, startedAt: head.startedAt.toISOString(), counts: head.counts, git: head.git ?? undefined },
-        tests: compareRuns(baseTests.map(t => toNormTest(t)), headTests.map(t => toNormTest(t))),
+        tests: compareRuns(baseTests, headTests),
+        slower,
       }
     }),
 })

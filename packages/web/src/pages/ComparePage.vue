@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TestChange } from '@kinora/core'
+import type { TestChange, TestDelta } from '@kinora/core'
 import { formatDuration, formatPct, passRate } from '@kinora/core'
 import { Separator } from '@kinora/ui/separator'
 import { Skeleton } from '@kinora/ui/skeleton'
@@ -23,32 +23,36 @@ const headId = computed(() => String(route.query.head ?? ''))
 const { state: cmp, isLoading, error, execute: retry } = useCompareRuns(props.projectId, baseId.value, headId.value)
 const projectName = computed(() => cmp.value?.project.name ?? props.projectId)
 
-// Groups shown, in priority order. `unchanged` is hidden.
-const GROUPS: { key: TestChange, label: string, tone: string }[] = [
+// Groups shown, in priority order. `unchanged` is hidden, except for the tests slower than usual.
+const GROUPS: { key: TestChange | 'slower', label: string, tone: string }[] = [
   { key: 'broken', label: 'Broken', tone: 'text-fail' },
   { key: 'fixed', label: 'Fixed', tone: 'text-pass' },
   { key: 'newly-flaky', label: 'Newly flaky', tone: 'text-flaky' },
   { key: 'still-failing', label: 'Still failing', tone: 'text-fail' },
+  { key: 'slower', label: 'Slower than usual', tone: 'text-flaky' },
   { key: 'added', label: 'Added', tone: 'text-muted-foreground' },
   { key: 'removed', label: 'Removed', tone: 'text-muted-foreground' },
 ]
 
-const groups = computed(() =>
-  GROUPS.map(g => ({ ...g, tests: (cmp.value?.tests ?? []).filter(t => t.change === g.key) }))
-    .filter(g => g.tests.length),
-)
+type Row = TestDelta & { note?: string }
+
+const groups = computed(() => {
+  const tests: Row[] = cmp.value?.tests ?? []
+  const byKey = new Map(tests.map(t => [t.testKey, t]))
+  // Against the test's usual time, not the base run's alone: one run's time is too noisy to tell.
+  const slower = (cmp.value?.slower ?? []).flatMap((s): Row[] => {
+    const t = byKey.get(s.testKey)
+    return t ? [{ ...t, note: `${formatDuration(s.duration)}, usually ${formatDuration(s.usual)}` }] : []
+  })
+  return GROUPS.map(g => ({ ...g, tests: g.key === 'slower' ? slower : tests.filter(t => t.change === g.key) }))
+    .filter(g => g.tests.length)
+})
 
 const noChanges = computed(() => !isLoading.value && !error.value && cmp.value && !groups.value.length)
 
 const basePass = computed(() => (cmp.value ? passRate(cmp.value.base.counts) : 0))
 const headPass = computed(() => (cmp.value ? passRate(cmp.value.head.counts) : 0))
 const passDelta = computed(() => headPass.value - basePass.value)
-
-function fmtDelta(ms: number): string {
-  if (!ms)
-    return '±0'
-  return `${ms > 0 ? '+' : '-'}${formatDuration(Math.abs(ms))}`
-}
 
 function shortId(id: string): string {
   return id.slice(0, 8)
@@ -138,11 +142,7 @@ function shortId(id: string): string {
               <TestStatusBadge v-if="t.headStatus" :status="t.headStatus" />
               <span v-else class="font-mono text-[11px] text-muted-foreground">-</span>
             </div>
-            <span
-              v-if="t.durationDelta"
-              class="w-16 text-right font-mono text-[11px] tabular-nums"
-              :class="t.durationDelta > 0 ? 'text-flaky' : 'text-pass'"
-            >{{ fmtDelta(t.durationDelta) }}</span>
+            <span v-if="t.note" class="text-right font-mono text-[11px] tabular-nums text-flaky">{{ t.note }}</span>
           </div>
         </RouterLink>
       </div>

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ciMetaSchema, countsSchema, gitMetaSchema, normTestSchema, runIncidentSchema, runInterruptionSchema, runStatusSchema, shardProgressSchema } from './kinora'
+import { ciMetaSchema, countsSchema, gitMetaSchema, normTestSchema, runIncidentSchema, runInterruptionSchema, runStatusSchema, shardProgressSchema, slowerTestSchema } from './kinora'
 
 // Upper bound on tests in one run upload. Far above any real Playwright run/shard; bounds the
 // bulk insert so a crafted body can't ask for millions of rows. Pairs with the JSON body limit.
@@ -54,7 +54,7 @@ export const runRegressionSchema = z.object({
   fixed: z.number(),
   // Passing tests much slower than usual on the baseline's branch, slowest change first (ms).
   // Optional: older servers omit it.
-  slower: z.array(regressionTestSchema.extend({ duration: z.number(), usual: z.number() })).optional(),
+  slower: z.array(slowerTestSchema).optional(),
 })
 export type RunRegression = z.infer<typeof runRegressionSchema>
 
