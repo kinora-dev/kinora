@@ -29,6 +29,9 @@ export interface OutcomeBucket {
   countedExpected: number
   countedFlaky: number
   countedUnexpected: number
+  // How long a run took (ms), over the runs that ran the whole suite; null without one.
+  avgDuration: number | null
+  p90Duration: number | null
 }
 
 export const SLOW_TESTS_LIMIT = 15
@@ -133,6 +136,9 @@ export async function loadProjectAnalytics(projectId: string, days: AnalyticsRan
   const total = (key: keyof Counts) => sql<number>`coalesce(sum((${run.counts}->>${sql.raw(`'${key}'`)})::int), 0)::int`
   const counted = (key: keyof Counts) => sql<number>`coalesce(sum((${run.counts}->>${sql.raw(`'${key}'`)})::int) filter (where ${run.incident} is null), 0)::int`
   const branchOf = sql<string>`${run.git}->>'branch'`
+  // A run cut short, one missing shards and an environment incident end early or wait on a broken
+  // app: their time says nothing about the suite's. A grouped run's duration spans all its shards.
+  const timed = sql`${run.status} = 'complete' and ${run.interruption} is null and ${run.incident} is null`
 
   const [outcomes, branches, slow] = await Promise.all([
     db
@@ -147,6 +153,8 @@ export async function loadProjectAnalytics(projectId: string, days: AnalyticsRan
         countedExpected: counted('expected'),
         countedFlaky: counted('flaky'),
         countedUnexpected: counted('unexpected'),
+        avgDuration: sql<number | null>`round(avg(${run.duration}) filter (where ${timed}))::int`,
+        p90Duration: sql<number | null>`round(percentile_cont(0.9) within group (order by ${run.duration}) filter (where ${timed}))::int`,
       })
       .from(run)
       .where(and(inRange, branch ? eq(branchOf, branch) : undefined))

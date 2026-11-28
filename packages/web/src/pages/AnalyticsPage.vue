@@ -61,6 +61,14 @@ const rates = computed(() => outcomes.value.flatMap((b) => {
   const ran = b.countedExpected + b.countedFlaky + b.countedUnexpected
   return ran ? [{ date: b.date, flaky: b.countedFlaky / ran, unexpected: b.countedUnexpected / ran }] : []
 }))
+// The runs that ran the whole suite, per bucket: how long CI takes, and how long its slow runs take.
+const DURATION_SERIES = ['avgDuration', 'p90Duration']
+const durationConfig = {
+  avgDuration: { label: 'Average', color: 'var(--signal)' },
+  p90Duration: { label: 'P90', color: 'color-mix(in oklch, var(--signal) 45%, transparent)' },
+} satisfies ChartConfig
+const durations = computed(() => outcomes.value.flatMap(b =>
+  b.avgDuration !== null && b.p90Duration !== null ? [{ date: b.date, avgDuration: b.avgDuration, p90Duration: b.p90Duration }] : []))
 const totals = computed(() => outcomes.value.reduce(
   (t, b) => ({ runs: t.runs + b.runs, expected: t.expected + b.expected, flaky: t.flaky + b.flaky, unexpected: t.unexpected + b.unexpected, incidents: t.incidents + b.incidents }),
   { runs: 0, expected: 0, flaky: 0, unexpected: 0, incidents: 0 },
@@ -202,7 +210,7 @@ const incidentBuckets = computed(() => outcomes.value.filter(b => b.incidents > 
         </CardContent>
       </Card>
 
-      <Card v-if="rates.length > 1">
+      <Card v-if="rates.length > 1" data-testid="rates">
         <CardHeader class="flex flex-row flex-wrap items-start justify-between gap-4">
           <div class="flex flex-col gap-1.5">
             <CardTitle>Flaky and failure rate</CardTitle>
@@ -222,6 +230,37 @@ const incidentBuckets = computed(() => outcomes.value.filter(b => b.incidents > 
             :series="RATE_SERIES"
             :config="ratesConfig"
             :y-format="formatPct"
+            :x-tick-format="shortDate"
+            :x-label-format="bucketLabel"
+            :x-domain="xDomain"
+            :x-ticks="buckets"
+            class="h-48"
+          />
+        </CardContent>
+      </Card>
+
+      <Card v-if="durations.length > 1" data-testid="run-duration">
+        <CardHeader class="flex flex-row flex-wrap items-start justify-between gap-4">
+          <div class="flex flex-col gap-1.5">
+            <CardTitle>Run duration</CardTitle>
+            <CardDescription>
+              How long a run took each {{ per }}, on average and for its slowest tenth. Runs cut short, missing shards or hit by an environment incident are left out.
+            </CardDescription>
+          </div>
+          <div class="flex items-center gap-4 font-mono text-xs text-muted-foreground">
+            <span v-for="key in DURATION_SERIES" :key="key" class="flex items-center gap-1.5">
+              <span class="size-2.5 rounded-xs" :style="{ background: durationConfig[key as keyof typeof durationConfig].color }" />
+              {{ durationConfig[key as keyof typeof durationConfig].label }}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <LineChart
+            :data="durations"
+            :x="d => at(d.date)"
+            :series="DURATION_SERIES"
+            :config="durationConfig"
+            :y-format="ms => formatDuration(Math.round(ms))"
             :x-tick-format="shortDate"
             :x-label-format="bucketLabel"
             :x-domain="xDomain"

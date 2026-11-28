@@ -25,7 +25,9 @@ test('analytics shows the outcomes of the range and filters by branch', async ({
   await expect(stat('Failed')).toContainText('11.1%')
   await expect(page.locator('[data-slot="chart"] path[class$="-area"]')).toHaveCount(3)
   // The same rates on their own scale: one line for flaky, one for failed.
-  await expect(page.locator('[data-slot="chart"] path[class$="-linePath"]')).toHaveCount(2)
+  await expect(page.getByTestId('rates').locator('[data-slot="chart"] path[class$="-linePath"]')).toHaveCount(2)
+  // How long the runs took: their average and P90.
+  await expect(page.getByTestId('run-duration').locator('[data-slot="chart"] path[class$="-linePath"]')).toHaveCount(2)
   await expect(page.getByText('per day')).toBeVisible()
   // Each test timed on its passing runs, linked to its page.
   const slow = page.getByTestId('slow-tests')

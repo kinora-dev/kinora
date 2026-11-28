@@ -260,7 +260,7 @@ describe('dashboard analytics', () => {
   const day = (d: Date) => d.toISOString().slice(0, 10)
 
   // An ingest creates the project; the extra runs are inserted directly to backdate them.
-  async function seed(runs: { daysAgo: number, counts: Partial<Counts>, branch?: string, incident?: boolean }[]) {
+  async function seed(runs: { daysAgo: number, counts: Partial<Counts>, branch?: string, incident?: boolean, duration?: number, interruption?: 'interrupted', status?: 'open' }[]) {
     const a = await createUser('a@test.dev')
     await ingest(await createApiKey(a.id), runPayload('web-app', '@smoke', 'expected'))
     const p = await db.query.project.findFirst({ where: eq(project.slug, 'web-app') })
@@ -271,10 +271,12 @@ describe('dashboard analytics', () => {
       id: randomUUID(),
       projectId: p!.id,
       startedAt: new Date(now - r.daysAgo * DAY),
-      duration: 0,
+      duration: r.duration ?? 0,
       counts: { total: 0, expected: 0, unexpected: 0, flaky: 0, skipped: 0, ...r.counts },
       git: r.branch ? { branch: r.branch } : undefined,
       incident: r.incident ? { rule: 'manual' as const, reason: 'Staging down.' } : undefined,
+      interruption: r.interruption,
+      ...(r.status && { status: r.status }),
     })))
     return { a, now }
   }
@@ -290,9 +292,24 @@ describe('dashboard analytics', () => {
     expect(res).toMatchObject({ days: 30, bucket: 'day' })
     expect(res.outcomes).toEqual([
       // The incident run counts in the outcomes, not in the counted results the rates read.
-      { date: day(new Date(now - 3 * DAY)), runs: 2, expected: 17, flaky: 1, unexpected: 1, skipped: 1, incidents: 1, countedExpected: 8, countedFlaky: 1, countedUnexpected: 1 },
-      { date: day(new Date(now)), runs: 1, expected: 1, flaky: 0, unexpected: 0, skipped: 0, incidents: 0, countedExpected: 1, countedFlaky: 0, countedUnexpected: 0 },
+      { date: day(new Date(now - 3 * DAY)), runs: 2, expected: 17, flaky: 1, unexpected: 1, skipped: 1, incidents: 1, countedExpected: 8, countedFlaky: 1, countedUnexpected: 1, avgDuration: 0, p90Duration: 0 },
+      { date: day(new Date(now)), runs: 1, expected: 1, flaky: 0, unexpected: 0, skipped: 0, incidents: 0, countedExpected: 1, countedFlaky: 0, countedUnexpected: 0, avgDuration: 1234, p90Duration: 1234 },
     ])
+  })
+
+  it('times the runs of each day that ran the whole suite', async () => {
+    const { a, now } = await seed([
+      ...[60_000, 70_000, 80_000, 90_000, 200_000].map(duration => ({ daysAgo: 2, counts: { expected: 1 }, duration })),
+      // Cut short, still waiting on shards, or waiting on a down app: none says how long the suite takes.
+      { daysAgo: 2, counts: { expected: 1 }, duration: 1000, interruption: 'interrupted' },
+      { daysAgo: 2, counts: { expected: 1 }, duration: 1000, status: 'open' },
+      { daysAgo: 2, counts: { unexpected: 1 }, duration: 900_000, incident: true },
+      { daysAgo: 1, counts: { expected: 1 }, duration: 5000, interruption: 'interrupted' },
+    ])
+
+    const { outcomes } = await (await caller(a)).dashboard.analytics({ projectId: 'web-app' })
+    expect(outcomes.find(b => b.date === day(new Date(now - 2 * DAY)))).toMatchObject({ runs: 8, avgDuration: 100_000, p90Duration: 156_000 })
+    expect(outcomes.find(b => b.date === day(new Date(now - DAY)))).toMatchObject({ runs: 1, avgDuration: null, p90Duration: null })
   })
 
   it('reads the 90 day range per week', async () => {
